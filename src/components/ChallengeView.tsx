@@ -1371,9 +1371,9 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                     </span>
                   </div>
 
-                  {/* 6열 18개 원형 번호 그리드 (1번 이미지와 100% 동일) */}
+                  {/* 6열 50개 전체 장 원형 번호 그리드 (창세기 1~50장 전체 표시) */}
                   <div className="grid grid-cols-6 gap-2.5 sm:gap-3 justify-items-center py-1">
-                    {Array.from({ length: 18 }, (_, i) => i + 1).map((ch) => {
+                    {Array.from({ length: 50 }, (_, i) => i + 1).map((ch) => {
                       const isCh1 = ch === 1;
                       const isCh2 = ch === 2;
 
@@ -1401,15 +1401,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                       );
                     })}
                   </div>
-
-                  {/* Main Action Button inside Card: 창세기 1~50장 읽기 계획 현황 전체보기 > (1번 이미지와 동일) */}
-                  <button
-                    type="button"
-                    onClick={() => openChapterGrid('plan', '창세기')}
-                    className="w-full py-3.5 rounded-2xl bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white text-sm sm:text-base font-black transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer mt-3"
-                  >
-                    <span>창세기 1~50장 읽기 계획 현황 전체보기 &gt;</span>
-                  </button>
                 </div>
 
                 {/* 1번 이미지 하단 업데이트 안내 배너 */}
