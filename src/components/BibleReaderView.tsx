@@ -27,6 +27,7 @@ interface BibleReaderViewProps {
   initialChapter?: number;
   initialVerse?: number;
   onBackToHome?: () => void;
+  onBackToSelector?: () => void;
 }
 
 export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
@@ -36,6 +37,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   initialChapter = 1,
   initialVerse = 1,
   onBackToHome,
+  onBackToSelector,
 }) => {
   const [selectedBook, setSelectedBook] = useState(initialBook);
   const [selectedChapter, setSelectedChapter] = useState(initialChapter);
@@ -196,10 +198,12 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
       <header className="bg-[#1b64b9] text-white px-3 py-2 flex items-center justify-between shadow-md z-30 flex-shrink-0">
         {/* Left: Back button & Dropdowns */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Back Button -> Back to Home or Prev Chapter */}
+          {/* Back Button -> Back to Selector or Home */}
           <button
             onClick={() => {
-              if (onBackToHome) {
+              if (onBackToSelector) {
+                onBackToSelector();
+              } else if (onBackToHome) {
                 onBackToHome();
               } else {
                 handlePrevChapter();
@@ -213,7 +217,13 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
 
           {/* Book & Chapter Button -> Opens 3-step selector */}
           <button
-            onClick={() => handleOpenSelector('book')}
+            onClick={() => {
+              if (onBackToSelector) {
+                onBackToSelector();
+              } else {
+                handleOpenSelector('book');
+              }
+            }}
             className="flex items-center gap-1 bg-white/10 hover:bg-white/20 active:scale-95 px-2.5 py-1 rounded-full border border-white/20 transition cursor-pointer"
           >
             <span className="text-[13px] sm:text-sm font-bold whitespace-nowrap">
@@ -438,7 +448,13 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
 
         {/* 창세기 1장 ∨ (Click opens 3-step selector) */}
         <button
-          onClick={() => handleOpenSelector('chapter')}
+          onClick={() => {
+            if (onBackToSelector) {
+              onBackToSelector();
+            } else {
+              handleOpenSelector('chapter');
+            }
+          }}
           className="flex items-center gap-1 text-sm font-extrabold text-[#1b64b9] hover:underline cursor-pointer"
         >
           <span>{selectedBook} {selectedChapter}장</span>
