@@ -1012,14 +1012,20 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           )}
 
           {/* 성경 읽기 완료 현황 및 전체 완독 버튼 */}
-          <div className="flex items-center justify-between p-2.5 sm:p-3 bg-emerald-50/70 border border-emerald-200/90 rounded-2xl text-xs font-bold shadow-2xs">
+          <div
+            className={`flex items-center justify-between p-2.5 sm:p-3 border rounded-2xl text-xs font-bold shadow-2xs ${
+              isInverted
+                ? 'bg-emerald-950/40 border-emerald-800 text-emerald-200'
+                : 'bg-emerald-50/70 border-emerald-200/90 text-emerald-950'
+            }`}
+          >
             <div className="flex items-center gap-2">
               <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black shadow-xs">
                 ✓
               </span>
-              <span className="text-emerald-950 font-black">
+              <span className={`${isInverted ? 'text-emerald-100' : 'text-emerald-950'} font-black`}>
                 {selectedBook} {selectedChapter}장 읽기 완료:{' '}
-                <strong className="text-emerald-600 font-black">{chapterReadVersesCount}</strong> / {verses.length}절
+                <strong className="text-emerald-500 font-black">{chapterReadVersesCount}</strong> / {verses.length}절
               </span>
             </div>
             <button
@@ -1028,6 +1034,8 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shadow-xs active:scale-95 flex items-center gap-1 ${
                 chapterReadVersesCount === verses.length && verses.length > 0
                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-300'
+                  : isInverted
+                  ? 'bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-700'
                   : 'bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300'
               }`}
               title={
@@ -1122,6 +1130,47 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
               </div>
             );
           })}
+
+          {/* 맨 아래 절 부분 - 성경 읽기 완료 현황 및 전체 완독 버튼 */}
+          <div
+            className={`flex items-center justify-between p-2.5 sm:p-3 border rounded-2xl text-xs font-bold shadow-2xs mt-4 mb-2 ${
+              isInverted
+                ? 'bg-emerald-950/40 border-emerald-800 text-emerald-200'
+                : 'bg-emerald-50/80 border-emerald-200/90 text-emerald-950'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black shadow-xs">
+                ✓
+              </span>
+              <span className={`${isInverted ? 'text-emerald-100' : 'text-emerald-950'} font-black`}>
+                {selectedBook} {selectedChapter}장 읽기 완료:{' '}
+                <strong className="text-emerald-500 font-black">{chapterReadVersesCount}</strong> / {verses.length}절
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleToggleCompleteAllChapterVerses}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shadow-xs active:scale-95 flex items-center gap-1 ${
+                chapterReadVersesCount === verses.length && verses.length > 0
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-300'
+                  : isInverted
+                  ? 'bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-700'
+                  : 'bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300'
+              }`}
+              title={
+                chapterReadVersesCount === verses.length && verses.length > 0
+                  ? '클릭 시 이 장 전체 완독 해제'
+                  : '클릭 시 이 장 전체 완독 체크'
+              }
+            >
+              <span>
+                {chapterReadVersesCount === verses.length && verses.length > 0
+                  ? '전체 완독됨 ✓'
+                  : '이 장 전체 완독 ✓'}
+              </span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1175,19 +1224,47 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           isInverted ? 'bg-slate-900 border-slate-800 text-slate-200' : 'bg-[#f8fafc] border-slate-200 text-slate-800'
         }`}
       >
-        {/* Timestamp & Reader Voice Badge */}
-        <div className="flex items-center justify-between text-xs">
-          <span className="font-mono text-xs text-slate-500">{formatTime(currentTime)}</span>
+        {/* Timestamp & Reader Voice Badge & 이 장 전체 완독 버튼 */}
+        <div className="flex items-center justify-between text-xs gap-2">
+          <span className="font-mono text-xs text-slate-500 flex-shrink-0">{formatTime(currentTime)}</span>
 
-          <div
-            className={`px-3 py-0.5 rounded-full text-[11px] font-bold border shadow-2xs ${
-              isInverted ? 'bg-slate-800 text-blue-300 border-slate-700' : 'bg-blue-50 text-blue-700 border-blue-100/80'
-            }`}
-          >
-            낭독: {voiceType}
+          <div className="flex items-center gap-1.5 flex-wrap justify-center">
+            {/* 낭독: 남성(중저음) */}
+            <div
+              className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border shadow-2xs ${
+                isInverted ? 'bg-slate-800 text-blue-300 border-slate-700' : 'bg-blue-50 text-blue-700 border-blue-100/80'
+              }`}
+            >
+              낭독: {voiceType}
+            </div>
+
+            {/* 낭독:남성(중저음) 옆 이 장 전체 완독 버튼 */}
+            <button
+              type="button"
+              onClick={handleToggleCompleteAllChapterVerses}
+              className={`px-2.5 py-0.5 rounded-full text-[11px] font-black transition cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1 ${
+                chapterReadVersesCount === verses.length && verses.length > 0
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-500'
+                  : isInverted
+                  ? 'bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-700'
+                  : 'bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300'
+              }`}
+              title={
+                chapterReadVersesCount === verses.length && verses.length > 0
+                  ? '클릭 시 이 장 전체 완독 해제'
+                  : '클릭 시 이 장 전체 완독 체크'
+              }
+            >
+              <span>✓</span>
+              <span>
+                {chapterReadVersesCount === verses.length && verses.length > 0
+                  ? '전체 완독됨'
+                  : '이 장 전체 완독'}
+              </span>
+            </button>
           </div>
 
-          <span className="font-mono text-xs text-slate-500">{formatTime(duration)}</span>
+          <span className="font-mono text-xs text-slate-500 flex-shrink-0">{formatTime(duration)}</span>
         </div>
 
         {/* Progress Timeline Slider */}
