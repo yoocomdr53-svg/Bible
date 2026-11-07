@@ -19,7 +19,14 @@ import {
   Share2,
   Check,
 } from 'lucide-react';
-import { BIBLE_BOOKS, SAMPLE_VERSES_CHAPTER, getChapterVerseCount } from '../data/bibleData';
+import {
+  BIBLE_BOOKS,
+  SAMPLE_VERSES_CHAPTER,
+  getChapterVerseCount,
+  getCompletedVerses,
+  toggleVerseCompleted,
+  markChapterVersesCompleted,
+} from '../data/bibleData';
 import { BibleVerse } from '../types';
 import { BibleSelectorModal } from './BibleSelectorModal';
 
@@ -82,6 +89,33 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
 
   const [searchQuery, setSearchQuery] = useState('');
   const [highlightedVerses, setHighlightedVerses] = useState<number[]>([]);
+
+  // 성경 읽기 완료된 절 관리 상태
+  const [completedVerses, setCompletedVerses] = useState<Set<string>>(() => getCompletedVerses());
+
+  useEffect(() => {
+    const handleVerseChanged = () => {
+      setCompletedVerses(getCompletedVerses());
+    };
+    window.addEventListener('superbible_verse_read_changed', handleVerseChanged);
+    return () => {
+      window.removeEventListener('superbible_verse_read_changed', handleVerseChanged);
+    };
+  }, []);
+
+  const handleToggleVerseRead = (v: number) => {
+    toggleVerseCompleted(selectedBook, selectedChapter, v);
+    setCompletedVerses(getCompletedVerses());
+  };
+
+  const handleCompleteAllChapterVerses = () => {
+    markChapterVersesCompleted(selectedBook, selectedChapter, verses.length);
+    setCompletedVerses(getCompletedVerses());
+  };
+
+  const chapterReadVersesCount = verses.filter((v) =>
+    completedVerses.has(`${selectedBook}-${selectedChapter}-${v.verse}`)
+  ).length;
 
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -929,8 +963,33 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
             </div>
           )}
 
+          {/* 성경 읽기 완료 현황 및 전체 완독 버튼 */}
+          <div className="flex items-center justify-between p-2.5 sm:p-3 bg-emerald-50/70 border border-emerald-200/90 rounded-2xl text-xs font-bold shadow-2xs">
+            <div className="flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black shadow-xs">
+                ✓
+              </span>
+              <span className="text-emerald-950 font-black">
+                {selectedBook} {selectedChapter}장 읽기 완료:{' '}
+                <strong className="text-emerald-600 font-black">{chapterReadVersesCount}</strong> / {verses.length}절
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleCompleteAllChapterVerses}
+              className={`px-3 py-1 rounded-xl text-xs font-black transition cursor-pointer shadow-xs active:scale-95 ${
+                chapterReadVersesCount === verses.length
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+              }`}
+            >
+              {chapterReadVersesCount === verses.length ? '전체 완독됨 ✓' : '이 장 전체 완독 ✓'}
+            </button>
+          </div>
+
           {filteredVerses.map((v) => {
             const isHighlighted = highlightedVerses.includes(v.verse);
+            const isRead = completedVerses.has(`${selectedBook}-${selectedChapter}-${v.verse}`);
             return (
               <div
                 id={`verse-row-${v.verse}`}
@@ -940,20 +999,53 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                     prev.includes(v.verse) ? prev.filter((n) => n !== v.verse) : [...prev, v.verse]
                   );
                 }}
-                className={`flex items-start gap-3.5 py-1.5 px-2.5 rounded-xl transition cursor-pointer ${
+                className={`flex items-start gap-3 py-2 px-2.5 rounded-xl transition cursor-pointer ${
                   isHighlighted
                     ? isInverted
                       ? 'bg-amber-950/60 border border-amber-500/80 shadow-xs'
                       : 'bg-amber-100/80 border-2 border-amber-400 shadow-sm'
+                    : isRead
+                    ? isInverted
+                      ? 'bg-emerald-950/30 border border-emerald-800/50'
+                      : 'bg-emerald-50/40 border border-emerald-200/70'
                     : isInverted
                     ? 'hover:bg-slate-800/60'
                     : 'hover:bg-slate-50'
                 }`}
               >
+                {/* 읽기 완료 체크 버튼 */}
+                <div className="pt-0.5 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleVerseRead(v.verse);
+                    }}
+                    title={isRead ? '읽기 완료 취소' : '읽기 완료로 표시'}
+                    className={`w-5 h-5 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                      isRead
+                        ? 'bg-emerald-500 text-white shadow-xs'
+                        : isInverted
+                        ? 'border border-slate-600 hover:border-emerald-400 bg-slate-800'
+                        : 'border border-slate-300 hover:border-emerald-500 bg-white'
+                    }`}
+                  >
+                    {isRead ? (
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    ) : (
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-200" />
+                    )}
+                  </button>
+                </div>
+
                 {/* Verse Number */}
                 <span
                   className={`text-base sm:text-lg font-black select-none min-w-[20px] pt-0.5 ${
-                    isInverted ? 'text-amber-400' : 'text-slate-900'
+                    isRead
+                      ? 'text-emerald-600'
+                      : isInverted
+                      ? 'text-amber-400'
+                      : 'text-slate-900'
                   }`}
                 >
                   {v.verse}

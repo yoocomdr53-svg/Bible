@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft } from 'lucide-react';
-import { BIBLE_BOOKS, getChapterVerseCount } from '../data/bibleData';
+import { BIBLE_BOOKS, getChapterVerseCount, getCompletedVerses } from '../data/bibleData';
 
 interface BibleSelectorViewProps {
   initialBook?: string;
@@ -26,6 +26,19 @@ export const BibleSelectorView: React.FC<BibleSelectorViewProps> = ({
   const [selectedBook, setSelectedBook] = useState<string>(initialBook);
   const [selectedChapter, setSelectedChapter] = useState<number>(initialChapter);
   const [selectedVerse, setSelectedVerse] = useState<number>(initialVerse);
+
+  // 성경 읽기 완료된 절 집합
+  const [completedVerses, setCompletedVerses] = useState<Set<string>>(() => getCompletedVerses());
+
+  useEffect(() => {
+    const handleVerseChanged = () => {
+      setCompletedVerses(getCompletedVerses());
+    };
+    window.addEventListener('superbible_verse_read_changed', handleVerseChanged);
+    return () => {
+      window.removeEventListener('superbible_verse_read_changed', handleVerseChanged);
+    };
+  }, []);
 
   // Sync initial props
   useEffect(() => {
@@ -260,18 +273,26 @@ export const BibleSelectorView: React.FC<BibleSelectorViewProps> = ({
             <div className="grid grid-cols-10 gap-1.5 sm:gap-2 justify-items-center py-2 max-w-[420px] mx-auto w-full">
               {Array.from({ length: totalVerses }, (_, i) => i + 1).map((v) => {
                 const isSelected = selectedVerse === v;
+                const isRead = completedVerses.has(`${selectedBook}-${selectedChapter}-${v}`);
                 return (
                   <button
                     key={v}
                     type="button"
                     onClick={() => handleSelectVerseItem(v)}
-                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all cursor-pointer active:scale-90 ${
+                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all cursor-pointer active:scale-90 relative ${
                       isSelected
                         ? 'bg-[#f59e0b] text-slate-950 font-black border border-amber-500 shadow-md ring-2 ring-amber-400/40'
+                        : isRead
+                        ? 'bg-emerald-500 text-white font-black border border-emerald-600 shadow-xs'
                         : 'bg-white text-slate-800 border border-slate-200 hover:bg-slate-100'
                     }`}
                   >
                     {v}
+                    {isRead && !isSelected && (
+                      <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-700 text-white flex items-center justify-center text-[8px] font-black">
+                        ✓
+                      </span>
+                    )}
                   </button>
                 );
               })}

@@ -299,3 +299,70 @@ export const INITIAL_RECORDINGS: UserRecording[] = [
     date: '2026.09.08',
   },
 ];
+
+// ==========================================
+// 성경 읽기 완료된 절 (Completed Read Verses) 관리
+// ==========================================
+const READ_VERSES_STORAGE_KEY = 'superbible_completed_verses_set';
+
+export function getCompletedVerses(): Set<string> {
+  try {
+    const raw = localStorage.getItem(READ_VERSES_STORAGE_KEY);
+    if (raw) {
+      return new Set<string>(JSON.parse(raw));
+    }
+  } catch (e) {
+    console.error('Failed to load completed verses:', e);
+  }
+  // 기본 샘플: 창세기 1장 1~31절 및 창세기 2장 1~3절 읽기 완료 처리
+  const initial = new Set<string>();
+  for (let i = 1; i <= 31; i++) {
+    initial.add(`창세기-1-${i}`);
+  }
+  initial.add('창세기-2-1');
+  initial.add('창세기-2-2');
+  initial.add('창세기-2-3');
+  return initial;
+}
+
+export function saveCompletedVerses(versesSet: Set<string>): void {
+  try {
+    localStorage.setItem(READ_VERSES_STORAGE_KEY, JSON.stringify(Array.from(versesSet)));
+  } catch (e) {
+    console.error('Failed to save completed verses:', e);
+  }
+}
+
+export function toggleVerseCompleted(book: string, chapter: number, verse: number): boolean {
+  const current = getCompletedVerses();
+  const key = `${book}-${chapter}-${verse}`;
+  let isDone = false;
+  if (current.has(key)) {
+    current.delete(key);
+    isDone = false;
+  } else {
+    current.add(key);
+    isDone = true;
+  }
+  saveCompletedVerses(current);
+  window.dispatchEvent(
+    new CustomEvent('superbible_verse_read_changed', {
+      detail: { book, chapter, verse, isDone },
+    })
+  );
+  return isDone;
+}
+
+export function markChapterVersesCompleted(book: string, chapter: number, totalVerses: number): void {
+  const current = getCompletedVerses();
+  for (let v = 1; v <= totalVerses; v++) {
+    current.add(`${book}-${chapter}-${v}`);
+  }
+  saveCompletedVerses(current);
+  window.dispatchEvent(
+    new CustomEvent('superbible_verse_read_changed', {
+      detail: { book, chapter, isAll: true },
+    })
+  );
+}
+
