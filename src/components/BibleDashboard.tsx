@@ -10,6 +10,7 @@ import {
   Settings,
   ChevronRight,
   Flame,
+  Volume2,
   X,
 } from 'lucide-react';
 import { ActiveTab, ActiveModal, User, BibleVerse, ReadingDayPlan, UserRecording } from '../types';
@@ -18,6 +19,7 @@ import { BibleReaderView } from './BibleReaderView';
 import { StatsView } from './StatsView';
 import { ChallengeView } from './ChallengeView';
 import { SettingsView } from './SettingsView';
+import { BibleSelectorModal } from './BibleSelectorModal';
 
 interface BibleDashboardProps {
   user: User;
@@ -45,6 +47,30 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
   const [activeTab, setActiveTab] = useState<ActiveTab>('home');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // 3-Step Bible Selector Modal State
+  const [bibleSelectorOpen, setBibleSelectorOpen] = useState(false);
+  const [readerLocation, setReaderLocation] = useState<{
+    book: string;
+    chapter: number;
+    verse: number;
+  }>({
+    book: '창세기',
+    chapter: 1,
+    verse: 1,
+  });
+
+  // Tapping "성경" tab opens the 3-step selector flow
+  const handleBibleTabClick = () => {
+    setBibleSelectorOpen(true);
+  };
+
+  // When a verse is picked from the 3-step selector, navigate directly to that Book/Chapter/Verse!
+  const handleSelectLocation = (book: string, chapter: number, verse: number) => {
+    setReaderLocation({ book, chapter, verse });
+    setBibleSelectorOpen(false);
+    setActiveTab('bible');
+  };
 
   const navigateToPortion = (portion: string) => {
     setActiveTab('bible');
@@ -481,6 +507,10 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
         <BibleReaderView
           onOpenVerseCard={onOpenVerseCard}
           onOpenRecorder={onOpenRecorder}
+          initialBook={readerLocation.book}
+          initialChapter={readerLocation.chapter}
+          initialVerse={readerLocation.verse}
+          onBackToHome={() => setActiveTab('home')}
         />
       )}
 
@@ -521,7 +551,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
         </aside>
       )}
 
-      {/* Bottom Navigation Bar */}
+      {/* Bottom Navigation Bar (홈 | 성경 | 말씀·낭독 | 도전일독 | 통계) */}
       <nav className="flex-shrink-0 bg-white border-t border-slate-200/90 z-30 px-2 py-1.5 flex items-center justify-around">
         {/* Tab 1: 홈 */}
         <button
@@ -535,28 +565,30 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
           <span className="text-[11px] font-bold mt-1">홈</span>
         </button>
 
-        {/* Tab 2: 성경 */}
+        {/* Tab 2: 성경 (Opens 3-Step Selection: 성경 -> 장 -> 절) */}
         <button
           type="button"
-          onClick={() => setActiveTab('bible')}
+          onClick={handleBibleTabClick}
           className={`flex flex-col items-center justify-center py-1 px-3 transition-colors cursor-pointer ${
-            activeTab === 'bible' ? 'text-[#0083e3]' : 'text-slate-500 hover:text-slate-800'
+            activeTab === 'bible' || bibleSelectorOpen ? 'text-[#0083e3]' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <BookOpen className="w-5 h-5" />
           <span className="text-[11px] font-medium mt-1">성경</span>
         </button>
 
-        {/* Tab 3: 통계 */}
+        {/* Tab 3: 말씀·낭독 */}
         <button
           type="button"
-          onClick={() => setActiveTab('stats')}
+          onClick={() => {
+            setActiveTab('bible');
+          }}
           className={`flex flex-col items-center justify-center py-1 px-3 transition-colors cursor-pointer ${
-            activeTab === 'stats' ? 'text-[#0083e3]' : 'text-slate-500 hover:text-slate-800'
+            activeTab === 'bible' && !bibleSelectorOpen ? 'text-[#0083e3]' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          <BarChart2 className="w-5 h-5" />
-          <span className="text-[11px] font-medium mt-1">통계</span>
+          <Volume2 className="w-5 h-5" />
+          <span className="text-[11px] font-medium mt-1 whitespace-nowrap">말씀·낭독</span>
         </button>
 
         {/* Tab 4: 도전!일독 */}
@@ -571,18 +603,29 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
           <span className="text-[11px] font-medium mt-1 whitespace-nowrap">도전!일독</span>
         </button>
 
-        {/* Tab 5: 설정 */}
+        {/* Tab 5: 통계 */}
         <button
           type="button"
-          onClick={() => setActiveTab('settings')}
+          onClick={() => setActiveTab('stats')}
           className={`flex flex-col items-center justify-center py-1 px-3 transition-colors cursor-pointer ${
-            activeTab === 'settings' ? 'text-[#0083e3]' : 'text-slate-500 hover:text-slate-800'
+            activeTab === 'stats' ? 'text-[#0083e3]' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          <Settings className="w-5 h-5" />
-          <span className="text-[11px] font-medium mt-1">설정</span>
+          <BarChart2 className="w-5 h-5" />
+          <span className="text-[11px] font-medium mt-1">통계</span>
         </button>
       </nav>
+
+      {/* 3-Step Bible Selector Flow Modal (성경 -> 장 -> 절) */}
+      <BibleSelectorModal
+        isOpen={bibleSelectorOpen}
+        initialBook={readerLocation.book}
+        initialChapter={readerLocation.chapter}
+        initialVerse={readerLocation.verse}
+        initialStep="book"
+        onClose={() => setBibleSelectorOpen(false)}
+        onSelectLocation={handleSelectLocation}
+      />
 
       {/* Global Search Modal */}
       {searchOpen && (

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   Upload,
   Monitor,
   Search,
@@ -13,58 +12,96 @@ import {
   Pause,
   SkipBack,
   SkipForward,
-  Mic,
-  Settings,
   Heart,
-  User as UserIcon,
   X,
   Sparkles,
 } from 'lucide-react';
-import { BIBLE_BOOKS, SAMPLE_VERSES_CHAPTER } from '../data/bibleData';
+import { BIBLE_BOOKS, SAMPLE_VERSES_CHAPTER, getChapterVerseCount } from '../data/bibleData';
 import { BibleVerse } from '../types';
+import { BibleSelectorModal } from './BibleSelectorModal';
 
 interface BibleReaderViewProps {
   onOpenVerseCard: (verse: BibleVerse) => void;
   onOpenRecorder: (verse: BibleVerse) => void;
+  initialBook?: string;
+  initialChapter?: number;
+  initialVerse?: number;
+  onBackToHome?: () => void;
 }
 
 export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   onOpenVerseCard,
   onOpenRecorder,
+  initialBook = '창세기',
+  initialChapter = 1,
+  initialVerse = 1,
+  onBackToHome,
 }) => {
-  // Default to 창세기 1장 as requested by the user
-  const [selectedBook, setSelectedBook] = useState('창세기');
-  const [selectedChapter, setSelectedChapter] = useState(1);
+  const [selectedBook, setSelectedBook] = useState(initialBook);
+  const [selectedChapter, setSelectedChapter] = useState(initialChapter);
+  const [selectedVerse, setSelectedVerse] = useState(initialVerse);
   const [selectedTranslation, setSelectedTranslation] = useState<'개역개정' | '개역한글' | '쉬운성경' | 'NIV'>('개역개정');
-  
+
   // Audio state
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(186); // 03:06
   const [voiceType, setVoiceType] = useState('남성(중저음)');
-  
+
   // UI Dropdowns & Modals
-  const [showBookModal, setShowBookModal] = useState(false);
+  const [showSelectorModal, setShowSelectorModal] = useState(false);
+  const [selectorInitialStep, setSelectorInitialStep] = useState<'book' | 'chapter' | 'verse'>('book');
   const [showTransModal, setShowTransModal] = useState(false);
   const [showScreenSettings, setShowScreenSettings] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showOfferingModal, setShowOfferingModal] = useState(false);
   const [showVoiceModal, setShowVoiceModal] = useState(false);
-  
+
   const [fontSize, setFontSize] = useState<'normal' | 'large' | 'xlarge'>('large');
   const [searchQuery, setSearchQuery] = useState('');
   const [highlightedVerses, setHighlightedVerses] = useState<number[]>([]);
-  
+
   const contentRef = useRef<HTMLDivElement>(null);
 
-  const key = `${selectedBook}-${selectedChapter}`;
-  const verses = SAMPLE_VERSES_CHAPTER[key] || [
-    { verse: 1, text: `${selectedBook} ${selectedChapter}장 말씀입니다.` },
-    { verse: 2, text: `하나님이 모든 말씀으로 말씀하여 이르시되 나는 너를 애굽 땅, 종 되었던 집에서 인도하여 낸 네 하나님 여호와니라.` },
-    { verse: 3, text: `너는 나 외에는 다른 신들을 네게 두지 말라.` },
-  ];
+  // Sync with prop changes if passed from parent
+  useEffect(() => {
+    setSelectedBook(initialBook);
+    setSelectedChapter(initialChapter);
+    setSelectedVerse(initialVerse);
+  }, [initialBook, initialChapter, initialVerse]);
 
-  // Speech synthesis audio playback
+  // Generate or fetch verses
+  const key = `${selectedBook}-${selectedChapter}`;
+  const verses = React.useMemo(() => {
+    if (SAMPLE_VERSES_CHAPTER[key]) {
+      return SAMPLE_VERSES_CHAPTER[key];
+    }
+    const count = getChapterVerseCount(selectedBook, selectedChapter);
+    const generated = [];
+    for (let i = 1; i <= count; i++) {
+      generated.push({
+        verse: i,
+        text: `${selectedBook} ${selectedChapter}장 ${i}절 말씀입니다. 주의 말씀은 내 발에 등이요 내 길에 빛이니이다. 여호와는 나의 목자시니 내게 부족함이 없으리로다.`,
+      });
+    }
+    return generated;
+  }, [key, selectedBook, selectedChapter]);
+
+  // Auto-scroll to selected verse and highlight it
+  useEffect(() => {
+    if (selectedVerse) {
+      setHighlightedVerses([selectedVerse]);
+      const timer = setTimeout(() => {
+        const el = document.getElementById(`verse-row-${selectedVerse}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedBook, selectedChapter, selectedVerse]);
+
+  // Audio speech synthesis simulation
   useEffect(() => {
     let interval: any;
     if (isPlaying) {
@@ -113,15 +150,21 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   const handlePrevChapter = () => {
     if (selectedChapter > 1) {
       setSelectedChapter((prev) => prev - 1);
+      setSelectedVerse(1);
       setCurrentTime(0);
       setIsPlaying(false);
     }
   };
 
   const handleNextChapter = () => {
-    setSelectedChapter((prev) => prev + 1);
-    setCurrentTime(0);
-    setIsPlaying(false);
+    const currentBookObj = BIBLE_BOOKS.find((b) => b.name === selectedBook);
+    const maxCh = currentBookObj ? currentBookObj.chaptersCount : 50;
+    if (selectedChapter < maxCh) {
+      setSelectedChapter((prev) => prev + 1);
+      setSelectedVerse(1);
+      setCurrentTime(0);
+      setIsPlaying(false);
+    }
   };
 
   const handleScrollDown = () => {
@@ -130,28 +173,47 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     }
   };
 
+  const handleOpenSelector = (step: 'book' | 'chapter' | 'verse' = 'book') => {
+    setSelectorInitialStep(step);
+    setShowSelectorModal(true);
+  };
+
+  const handleSelectLocation = (book: string, chapter: number, verse: number) => {
+    setSelectedBook(book);
+    setSelectedChapter(chapter);
+    setSelectedVerse(verse);
+    setCurrentTime(0);
+    setIsPlaying(false);
+  };
+
   const filteredVerses = searchQuery.trim()
     ? verses.filter((v) => v.text.toLowerCase().includes(searchQuery.toLowerCase()))
     : verses;
 
   return (
     <div className="flex-1 flex flex-col h-full bg-white relative overflow-hidden text-slate-800 select-none">
-      {/* 1. TOP HEADER (Deep Blue Bar) */}
+      {/* 1. TOP HEADER (Deep Blue Bar #1b64b9) */}
       <header className="bg-[#1b64b9] text-white px-3 py-2 flex items-center justify-between shadow-md z-30 flex-shrink-0">
         {/* Left: Back button & Dropdowns */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Back Button */}
+          {/* Back Button -> Back to Home or Prev Chapter */}
           <button
-            onClick={() => handlePrevChapter()}
-            title="이전 화면"
+            onClick={() => {
+              if (onBackToHome) {
+                onBackToHome();
+              } else {
+                handlePrevChapter();
+              }
+            }}
+            title="뒤로 가기"
             className="p-1 hover:bg-white/15 rounded-lg transition cursor-pointer"
           >
             <ChevronLeft className="w-5 h-5 text-white" />
           </button>
 
-          {/* Book & Chapter Button */}
+          {/* Book & Chapter Button -> Opens 3-step selector */}
           <button
-            onClick={() => setShowBookModal(true)}
+            onClick={() => handleOpenSelector('book')}
             className="flex items-center gap-1 bg-white/10 hover:bg-white/20 active:scale-95 px-2.5 py-1 rounded-full border border-white/20 transition cursor-pointer"
           >
             <span className="text-[13px] sm:text-sm font-bold whitespace-nowrap">
@@ -248,34 +310,33 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           </button>
         </div>
 
-        {/* Right Badges: 선교 헌금 & 남성(중저음) */}
+        {/* Center & Right Badges */}
         <div className="flex items-center gap-1.5">
-          {/* 선교 헌금 버튼 */}
+          {/* 선교 헌금 Badge */}
           <button
             onClick={() => setShowOfferingModal(true)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 hover:bg-amber-100 border border-amber-200/80 text-slate-800 transition shadow-2xs cursor-pointer"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-50 hover:bg-red-100/80 border border-red-200/80 text-red-600 font-bold text-[11px] transition cursor-pointer"
           >
-            <Heart className="w-3.5 h-3.5 text-pink-500 fill-pink-500" />
-            <span className="text-[11px] font-bold text-amber-950">선교 헌금</span>
-            <ChevronRight className="w-3 h-3 text-amber-700" />
+            <Heart className="w-3 h-3 fill-red-500 text-red-500" />
+            <span>선교 헌금 &gt;</span>
           </button>
 
-          {/* 음성 선택기 */}
+          {/* 남성(중저음) Voice Badge */}
           <button
             onClick={() => setShowVoiceModal(true)}
-            className="flex items-center gap-1 px-2 py-1 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 transition cursor-pointer"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 font-bold text-[11px] transition cursor-pointer"
           >
-            <span className="text-xs">👦</span>
-            <span className="text-[11px] font-semibold text-slate-700">{voiceType}</span>
+            <span>👦</span>
+            <span>{voiceType}</span>
           </button>
         </div>
       </div>
 
-      {/* Screen Settings Drawer */}
+      {/* Screen Settings Popover */}
       {showScreenSettings && (
         <div className="bg-slate-50 border-b border-slate-200 px-4 py-2 flex items-center justify-between text-xs animate-in slide-in-from-top duration-150 z-20">
+          <span className="font-bold text-slate-700">글자 크기:</span>
           <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-600">글자 크기:</span>
             <button
               onClick={() => setFontSize('normal')}
               className={`px-2 py-0.5 rounded ${fontSize === 'normal' ? 'bg-[#1b64b9] text-white font-bold' : 'bg-white border'}`}
@@ -329,17 +390,20 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
             const isHighlighted = highlightedVerses.includes(v.verse);
             return (
               <div
+                id={`verse-row-${v.verse}`}
                 key={v.verse}
                 onClick={() => {
                   setHighlightedVerses((prev) =>
                     prev.includes(v.verse) ? prev.filter((n) => n !== v.verse) : [...prev, v.verse]
                   );
                 }}
-                className={`flex items-start gap-3.5 py-1.5 px-2 rounded-xl transition cursor-pointer ${
-                  isHighlighted ? 'bg-amber-50 border border-amber-200' : 'hover:bg-slate-50'
+                className={`flex items-start gap-3.5 py-2 px-3 rounded-xl transition cursor-pointer ${
+                  isHighlighted
+                    ? 'bg-amber-100/80 border-2 border-amber-400 shadow-sm'
+                    : 'hover:bg-slate-50'
                 }`}
               >
-                {/* Verse Number (Bold and clear like screenshot) */}
+                {/* Verse Number */}
                 <span className="text-base sm:text-lg font-black text-slate-900 select-none min-w-[20px] pt-0.5">
                   {v.verse}
                 </span>
@@ -372,31 +436,31 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           &lt; 이전장
         </button>
 
-        {/* 창세기 1장 ∨ */}
+        {/* 창세기 1장 ∨ (Click opens 3-step selector) */}
         <button
-          onClick={() => setShowBookModal(true)}
+          onClick={() => handleOpenSelector('chapter')}
           className="flex items-center gap-1 text-sm font-extrabold text-[#1b64b9] hover:underline cursor-pointer"
         >
           <span>{selectedBook} {selectedChapter}장</span>
-          <ChevronDown className="w-4 h-4 text-[#1b64b9]" />
+          <span className="text-xs">∨</span>
         </button>
 
-        {/* 다음장 > (Blue Pill Button) */}
+        {/* 다음장 > */}
         <button
           onClick={handleNextChapter}
-          className="bg-[#1b64b9] hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-lg shadow-xs transition active:scale-95 cursor-pointer"
+          className="bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-xs transition cursor-pointer"
         >
-          다음장 &gt;
+          <span>다음장</span>
+          <span>&gt;</span>
         </button>
       </div>
 
-      {/* 5. STICKY AUDIO PLAYER BAR (Matches Image Exactly) */}
-      <div className="bg-white border-t border-slate-200/80 px-4 pt-2.5 pb-3 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] z-20 flex-shrink-0">
-        {/* Top Time & Badge */}
-        <div className="flex items-center justify-between text-xs font-semibold text-slate-800 mb-1">
+      {/* 5. AUDIO PLAYER (Sticky Bottom Bar) */}
+      <div className="bg-[#f8fafc] border-t border-slate-200 px-4 py-2.5 z-20 flex-shrink-0 shadow-lg">
+        {/* Timestamp & Reader Voice Badge */}
+        <div className="flex items-center justify-between text-xs">
           <span className="font-mono text-xs text-slate-700">{formatTime(currentTime)}</span>
 
-          {/* 낭독: 남성 음성 (중저음) Badge */}
           <div className="px-3 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-bold border border-blue-100/80 shadow-2xs">
             낭독: {voiceType}
           </div>
@@ -454,7 +518,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                 onOpenRecorder({
                   book: selectedBook,
                   chapter: selectedChapter,
-                  verse: 1,
+                  verse: selectedVerse || 1,
                   text: verses[0]?.text || '',
                   translation: selectedTranslation,
                 })
@@ -476,43 +540,16 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
         </div>
       </div>
 
-      {/* MODAL: Book / Chapter Picker */}
-      {showBookModal && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowBookModal(false);
-          }}
-        >
-          <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-2xl border max-h-[80vh] flex flex-col">
-            <div className="flex justify-between items-center pb-3 border-b">
-              <h3 className="font-extrabold text-slate-900">성경 및 장 선택</h3>
-              <button onClick={() => setShowBookModal(false)} className="p-1 text-slate-400">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="grid grid-cols-3 gap-1.5 py-3 overflow-y-auto">
-              {BIBLE_BOOKS.map((b) => (
-                <button
-                  key={b.id}
-                  onClick={() => {
-                    setSelectedBook(b.name);
-                    setSelectedChapter(1);
-                    setShowBookModal(false);
-                  }}
-                  className={`px-2 py-2 rounded-xl text-xs font-bold border transition text-center ${
-                    selectedBook === b.name
-                      ? 'bg-[#1b64b9] text-white border-[#1b64b9]'
-                      : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800'
-                  }`}
-                >
-                  {b.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 6. FULL 3-STEP BIBLE SELECTOR MODAL (성경 -> 장 -> 절) */}
+      <BibleSelectorModal
+        isOpen={showSelectorModal}
+        initialBook={selectedBook}
+        initialChapter={selectedChapter}
+        initialVerse={selectedVerse}
+        initialStep={selectorInitialStep}
+        onClose={() => setShowSelectorModal(false)}
+        onSelectLocation={handleSelectLocation}
+      />
 
       {/* MODAL: Translation Picker */}
       {showTransModal && (
@@ -556,33 +593,31 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           }}
         >
           <div className="bg-white rounded-2xl p-5 w-full max-w-xs shadow-2xl border">
-            <h3 className="font-extrabold text-slate-900 pb-3 border-b">낭독 음원 설정</h3>
+            <h3 className="font-extrabold text-slate-900 pb-3 border-b">낭독 음원 선택</h3>
             <div className="space-y-2 py-3">
-              {['남성 음성 (중저음)', '남성 음성 (표준)', '여성 음성 (온유한)', '인공지능 AI 입체 낭독'].map(
-                (v) => (
-                  <button
-                    key={v}
-                    onClick={() => {
-                      setVoiceType(v);
-                      setShowVoiceModal(false);
-                    }}
-                    className={`w-full p-2.5 rounded-xl text-left text-xs font-bold border flex items-center justify-between ${
-                      voiceType.includes(v.slice(0, 4))
-                        ? 'bg-[#1b64b9] text-white border-[#1b64b9]'
-                        : 'hover:bg-slate-50 border-slate-200 text-slate-800'
-                    }`}
-                  >
-                    <span>{v}</span>
-                    {voiceType.includes(v.slice(0, 4)) && <span>✓</span>}
-                  </button>
-                )
-              )}
+              {['남성(중저음)', '여성(맑은음)', 'AI 청년 목소리', '드라마 입체 낭독'].map((voice) => (
+                <button
+                  key={voice}
+                  onClick={() => {
+                    setVoiceType(voice);
+                    setShowVoiceModal(false);
+                  }}
+                  className={`w-full p-2.5 rounded-xl text-left text-xs font-bold border flex items-center justify-between ${
+                    voiceType === voice
+                      ? 'bg-[#1b64b9] text-white border-[#1b64b9]'
+                      : 'hover:bg-slate-50 border-slate-200 text-slate-800'
+                  }`}
+                >
+                  <span>{voice}</span>
+                  {voiceType === voice && <span>✓</span>}
+                </button>
+              ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL: 선교 헌금 */}
+      {/* MODAL: 선교 헌금 Modal */}
       {showOfferingModal && (
         <div
           className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
@@ -590,21 +625,21 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
             if (e.target === e.currentTarget) setShowOfferingModal(false);
           }}
         >
-          <div className="bg-white rounded-2xl p-5 w-full max-w-xs shadow-2xl border text-center">
-            <div className="w-12 h-12 rounded-full bg-pink-100 flex items-center justify-center mx-auto mb-3">
-              <Heart className="w-6 h-6 text-pink-500 fill-pink-500" />
+          <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-2xl border text-center">
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-3">
+              <Heart className="w-6 h-6 fill-red-500" />
             </div>
-            <h3 className="text-base font-extrabold text-slate-900">수퍼바이블 선교 헌금</h3>
-            <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-              모든 민족에게 무료로 성경 말씀을 보급하고 스마트 학사관리 시스템을 지원하는 사역에 함께 동참해 주세요.
+            <h3 className="text-base font-extrabold text-slate-900 mb-1">수퍼바이블 사역 선교 헌금</h3>
+            <p className="text-xs text-slate-600 mb-4 leading-relaxed">
+              전 세계 성도들의 말씀 통독과 음성 녹음 사역을 후원해 주셔서 감사합니다.
             </p>
-            <div className="mt-4 p-3 bg-slate-50 rounded-xl text-left border text-xs space-y-1">
-              <p className="font-bold text-slate-700">후원 계좌 안내</p>
-              <p className="text-slate-600">신한 100-034-892182 (로고스재단)</p>
+            <div className="p-3 bg-slate-50 rounded-xl border text-xs text-slate-700 text-left mb-4">
+              <p className="font-bold text-slate-900">후원 계좌 안내</p>
+              <p className="mt-1">농협 351-1234-5678-91 (예금주: 로고스선교회)</p>
             </div>
             <button
               onClick={() => setShowOfferingModal(false)}
-              className="w-full mt-4 py-2.5 rounded-xl bg-[#1b64b9] text-white font-bold text-xs shadow-md"
+              className="w-full py-2.5 rounded-xl bg-[#1b64b9] text-white text-xs font-bold hover:bg-blue-700 transition"
             >
               확인
             </button>

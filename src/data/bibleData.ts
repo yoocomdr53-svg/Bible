@@ -53,8 +53,50 @@ export const POPULAR_VERSES: BibleVerse[] = [
   },
 ];
 
+// All 66 Books of the Bible (구약 39권 + 신약 27권)
 export const BIBLE_BOOKS: BibleBook[] = [
-  // New Testament
+  // --- Old Testament (구약 39권) ---
+  { id: 'gen', name: '창세기', testament: 'OT', chaptersCount: 50 },
+  { id: 'exo', name: '출애굽기', testament: 'OT', chaptersCount: 40 },
+  { id: 'lev', name: '레위기', testament: 'OT', chaptersCount: 27 },
+  { id: 'num', name: '민수기', testament: 'OT', chaptersCount: 36 },
+  { id: 'deu', name: '신명기', testament: 'OT', chaptersCount: 34 },
+  { id: 'jos', name: '여호수아', testament: 'OT', chaptersCount: 24 },
+  { id: 'jdg', name: '사사기', testament: 'OT', chaptersCount: 21 },
+  { id: 'rut', name: '룻기', testament: 'OT', chaptersCount: 4 },
+  { id: '1sa', name: '사무엘상', testament: 'OT', chaptersCount: 31 },
+  { id: '2sa', name: '사무엘하', testament: 'OT', chaptersCount: 24 },
+  { id: '1ki', name: '열왕기상', testament: 'OT', chaptersCount: 22 },
+  { id: '2ki', name: '열왕기하', testament: 'OT', chaptersCount: 25 },
+  { id: '1ch', name: '역대상', testament: 'OT', chaptersCount: 29 },
+  { id: '2ch', name: '역대하', testament: 'OT', chaptersCount: 36 },
+  { id: 'ezr', name: '에스라', testament: 'OT', chaptersCount: 10 },
+  { id: 'neh', name: '느헤미야', testament: 'OT', chaptersCount: 13 },
+  { id: 'est', name: '에스더', testament: 'OT', chaptersCount: 10 },
+  { id: 'job', name: '욥기', testament: 'OT', chaptersCount: 42 },
+  { id: 'psa', name: '시편', testament: 'OT', chaptersCount: 150 },
+  { id: 'pro', name: '잠언', testament: 'OT', chaptersCount: 31 },
+  { id: 'ecc', name: '전도서', testament: 'OT', chaptersCount: 12 },
+  { id: 'sng', name: '아가', testament: 'OT', chaptersCount: 8 },
+  { id: 'isa', name: '이사야', testament: 'OT', chaptersCount: 66 },
+  { id: 'jer', name: '예레미야', testament: 'OT', chaptersCount: 52 },
+  { id: 'lam', name: '예레미야애가', testament: 'OT', chaptersCount: 5 },
+  { id: 'ezk', name: '에스겔', testament: 'OT', chaptersCount: 48 },
+  { id: 'dan', name: '다니엘', testament: 'OT', chaptersCount: 12 },
+  { id: 'hos', name: '호세아', testament: 'OT', chaptersCount: 14 },
+  { id: 'jol', name: '요엘', testament: 'OT', chaptersCount: 3 },
+  { id: 'amo', name: '아모스', testament: 'OT', chaptersCount: 9 },
+  { id: 'oba', name: '오바댜', testament: 'OT', chaptersCount: 1 },
+  { id: 'jon', name: '요나', testament: 'OT', chaptersCount: 4 },
+  { id: 'mic', name: '미가', testament: 'OT', chaptersCount: 7 },
+  { id: 'nam', name: '나훔', testament: 'OT', chaptersCount: 3 },
+  { id: 'hab', name: '하박국', testament: 'OT', chaptersCount: 3 },
+  { id: 'zep', name: '스바냐', testament: 'OT', chaptersCount: 3 },
+  { id: 'hag', name: '학개', testament: 'OT', chaptersCount: 2 },
+  { id: 'zec', name: '스가랴', testament: 'OT', chaptersCount: 14 },
+  { id: 'mal', name: '말라기', testament: 'OT', chaptersCount: 4 },
+
+  // --- New Testament (신약 27권) ---
   { id: 'mat', name: '마태복음', testament: 'NT', chaptersCount: 28 },
   { id: 'mrk', name: '마가복음', testament: 'NT', chaptersCount: 16 },
   { id: 'luk', name: '누가복음', testament: 'NT', chaptersCount: 24 },
@@ -67,14 +109,21 @@ export const BIBLE_BOOKS: BibleBook[] = [
   { id: 'eph', name: '에베소서', testament: 'NT', chaptersCount: 6 },
   { id: 'php', name: '빌립보서', testament: 'NT', chaptersCount: 4 },
   { id: 'col', name: '골로새서', testament: 'NT', chaptersCount: 4 },
+  { id: '1th', name: '데살로니가전서', testament: 'NT', chaptersCount: 5 },
+  { id: '2th', name: '데살로니가후서', testament: 'NT', chaptersCount: 3 },
+  { id: '1ti', name: '디모데전서', testament: 'NT', chaptersCount: 6 },
+  { id: '2ti', name: '디모데후서', testament: 'NT', chaptersCount: 4 },
+  { id: 'tit', name: '디도서', testament: 'NT', chaptersCount: 3 },
+  { id: 'phm', name: '빌레몬서', testament: 'NT', chaptersCount: 1 },
+  { id: 'heb', name: '히브리서', testament: 'NT', chaptersCount: 13 },
   { id: 'jas', name: '야고보서', testament: 'NT', chaptersCount: 5 },
+  { id: '1pe', name: '베드로전서', testament: 'NT', chaptersCount: 5 },
+  { id: '2pe', name: '베드로후서', testament: 'NT', chaptersCount: 3 },
+  { id: '1jn', name: '요한일서', testament: 'NT', chaptersCount: 5 },
+  { id: '2jn', name: '요한이서', testament: 'NT', chaptersCount: 1 },
+  { id: '3jn', name: '요한삼서', testament: 'NT', chaptersCount: 1 },
+  { id: 'jud', name: '유다서', testament: 'NT', chaptersCount: 1 },
   { id: 'rev', name: '요한계시록', testament: 'NT', chaptersCount: 22 },
-  // Old Testament (Popular)
-  { id: 'gen', name: '창세기', testament: 'OT', chaptersCount: 50 },
-  { id: 'exo', name: '출애굽기', testament: 'OT', chaptersCount: 40 },
-  { id: 'psa', name: '시편', testament: 'OT', chaptersCount: 150 },
-  { id: 'pro', name: '잠언', testament: 'OT', chaptersCount: 31 },
-  { id: 'isa', name: '이사야', testament: 'OT', chaptersCount: 66 },
 ];
 
 export const SAMPLE_VERSES_CHAPTER: Record<string, { verse: number; text: string }[]> = {
@@ -111,6 +160,33 @@ export const SAMPLE_VERSES_CHAPTER: Record<string, { verse: number; text: string
     { verse: 30, text: '또 땅의 모든 짐승과 하늘의 모든 새와 생명이 있어 땅에 기는 모든 것에게는 내가 모든 푸른 풀을 먹을 거리로 주노라 하시니 그대로 되니라' },
     { verse: 31, text: '하나님이 지으신 그 모든 것을 보시니 보시기에 심히 좋았더라 저녁이 되고 아침이 되니 이는 여섯째 날이니라' },
   ],
+  '창세기-2': [
+    { verse: 1, text: '천지와 만물이 다 이루어지니라' },
+    { verse: 2, text: '하나님이 그가 하시던 일을 일곱째 날에 마치시니 그가 하시던 모든 일을 그치고 일곱째 날에 안식하시니라' },
+    { verse: 3, text: '하나님이 그 일곱째 날을 복되게 하사 거룩하게 하셨으니 이는 하나님이 그 창조하시며 만드시던 모든 일을 마치시고 그 날에 안식하셨음이니라' },
+    { verse: 4, text: '이것이 천지가 창조될 때에 하늘과 땅의 내력이니 여호와 하나님이 땅과 하늘을 만드시던 날에' },
+    { verse: 5, text: '여호와 하나님이 땅에 비를 내리지 아니하셨고 땅을 갈 사람도 없었으므로 들에는 초목이 아직 없었고 밭에는 채소가 나지 아니하였으며' },
+    { verse: 6, text: '안개만 땅에서 올라와 온 지면을 적셨더라' },
+    { verse: 7, text: '여호와 하나님이 땅의 흙으로 사람을 지으시고 생기를 그 코에 불어넣으시니 사람이 생령이 되니라' },
+    { verse: 8, text: '여호와 하나님이 동방의 에덴에 동산을 창설하시고 그 지으신 사람을 거기 두시니라' },
+    { verse: 9, text: '여호와 하나님이 그 땅에서 보기에 아름답고 먹기에 좋은 나무가 나게 하시니 동산 가운데에는 생명나무와 선악을 알게 하는 나무도 있더라' },
+    { verse: 10, text: '강이 에덴에서 흘러 나와 동산을 적시고 거기서부터 갈라져 네 근원이 되었으니' },
+    { verse: 11, text: '첫째의 이름은 비손이라 금이 있는 하윌라 온 땅을 둘렀으며' },
+    { verse: 12, text: '그 땅의 금은 순금이요 그 곳에는 베델리엄과 호마노도 있으며' },
+    { verse: 13, text: '둘째 강의 이름은 기혼이라 구스 온 땅을 둘렀고' },
+    { verse: 14, text: '셋째 강의 이름은 힛데겔이라 앗수르 동쪽으로 흘렀으며 넷째 강은 유브라데더라' },
+    { verse: 15, text: '여호와 하나님이 그 사람을 이끌어 에덴 동산에 두어 그것을 경작하며 지키게 하시고' },
+    { verse: 16, text: '여호와 하나님이 그 사람에게 명하여 이르시되 동산 각종 나무의 열매는 네가 임의로 먹되' },
+    { verse: 17, text: '선악을 알게 하는 나무의 열매는 먹지 말라 네가 먹는 날에는 반드시 죽으리라 하시니라' },
+    { verse: 18, text: '여호와 하나님이 이르시되 사람이 혼자 사는 것이 좋지 아니하니 내가 그를 위하여 돕는 배필을 지으리라 하시니라' },
+    { verse: 19, text: '여호와 하나님이 흙으로 각종 들짐승과 공중의 각종 새를 지으시고 아담이 무엇이라고 부르나 보시려고 그것들을 그에게로 이끌어 가시니 아담이 각 생물을 부르는 바가 곧 그 이름이 되었더라' },
+    { verse: 20, text: '아담이 모든 가축과 공중의 새와 들의 모든 짐승에게 이름을 주니라 아담이 돕는 배필이 없으므로' },
+    { verse: 21, text: '여호와 하나님이 아담을 깊이 잠들게 하시니 잠들매 그가 그 갈빗대 하나를 취하고 살로 대신 채우시고' },
+    { verse: 22, text: '여호와 하나님이 아담에게서 취하신 그 갈빗대로 여자를 만드시고 그를 아담에게로 이끌어 오시니' },
+    { verse: 23, text: '아담이 이르되 이는 내 뼈 중의 뼈요 살 중의 살이라 이것을 남자에게서 취하였은즉 여자라 부르리라 하니라' },
+    { verse: 24, text: '이러므로 남자가 부모를 떠나 그의 아내와 합하여 둘이 한 몸을 이룰지로다' },
+    { verse: 25, text: '아담과 그의 아내 두 사람이 벌거벗었으나 부끄러워하지 아니하니라' },
+  ],
   '야고보서-1': [
     { verse: 1, text: '하나님과 주 예수 그리스도의 종 야고보는 흩어져 있는 열두 지파에게 문안하노라' },
     { verse: 2, text: '내 형제들아 너희가 여러 가지 시험을 당하거든 온전히 기쁘게 여기라' },
@@ -138,6 +214,42 @@ export const SAMPLE_VERSES_CHAPTER: Record<string, { verse: number; text: string
     { verse: 38, text: '내가 확신하노니 사망이나 생명이나 천사들이나 권세자들이나 현재 일이나 장래 일이나 능력이나' },
     { verse: 39, text: '높음이나 깊음이나 다른 어떤 피조물이라도 우리를 우리 주 그리스도 예수 안에 있는 하나님의 사랑에서 끊을 수 없으리라' },
   ],
+};
+
+// Known verse counts for specific chapters
+export const KNOWN_VERSE_COUNTS: Record<string, number> = {
+  '창세기-1': 31,
+  '창세기-2': 25,
+  '창세기-3': 24,
+  '창세기-4': 26,
+  '창세기-5': 32,
+  '출애굽기-1': 22,
+  '출애굽기-2': 25,
+  '출애굽기-20': 26,
+  '시편-1': 6,
+  '시편-23': 6,
+  '시편-119': 176,
+  '잠언-1': 33,
+  '이사야-40': 31,
+  '마태복음-1': 25,
+  '마태복음-5': 48,
+  '요한복음-1': 51,
+  '요한복음-3': 36,
+  '로마서-8': 39,
+  '야고보서-1': 27,
+};
+
+export const getChapterVerseCount = (book: string, chapter: number): number => {
+  const key = `${book}-${chapter}`;
+  if (KNOWN_VERSE_COUNTS[key]) {
+    return KNOWN_VERSE_COUNTS[key];
+  }
+  if (SAMPLE_VERSES_CHAPTER[key]) {
+    return SAMPLE_VERSES_CHAPTER[key].length;
+  }
+  // Standard reasonable fallback between 20 and 35
+  const base = ((book.charCodeAt(0) + chapter * 7) % 15) + 20;
+  return base;
 };
 
 export const INITIAL_READING_PLANS: ReadingDayPlan[] = [
