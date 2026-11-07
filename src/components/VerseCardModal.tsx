@@ -22,7 +22,7 @@ export const VerseCardModal: React.FC<VerseCardModalProps> = ({ isOpen, onClose,
   if (!isOpen) return null;
 
   const handleCopyText = () => {
-    const formatted = `"${verse.text}"\n- ${verse.book} ${verse.chapter}:${verse.verse} (${verse.translation})\n바이블 애플 제공`;
+    const formatted = `"${verse.text}"\n- ${verse.book} ${verse.chapter}:${verse.verse} (${verse.translation})\n수퍼바이블 제공`;
     navigator.clipboard?.writeText(formatted);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -80,7 +80,7 @@ export const VerseCardModal: React.FC<VerseCardModalProps> = ({ isOpen, onClose,
             </div>
 
             <div className="flex items-center justify-between z-10 pt-2 border-t border-white/10 text-[10px]">
-              <span className={selectedTheme.text}>바이블 애플 · 오늘의 말씀</span>
+              <span className={selectedTheme.text}>수퍼바이블 · 오늘의 말씀</span>
               <span className={selectedTheme.accent}>{verse.translation}</span>
             </div>
           </div>

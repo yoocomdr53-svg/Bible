@@ -26,7 +26,7 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
       avatarText: 'yooc',
       role: 'saint',
       provider: 'google',
-      schoolName: '로고스 바이블 애플 공동체',
+      schoolName: '로고스 수퍼바이블 공동체',
       department: '청장년 성경통독부',
       consecutiveDays: 14,
       ntProgress: 42,
@@ -123,7 +123,7 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
             {showCustomInput ? '새 계정으로 로그인' : '계정 선택'}
           </h3>
           <p className="text-xs text-slate-500 mt-1">
-            <span className="font-semibold text-blue-600">Logos ERP / 바이블 애플</span>(으)로 이동합니다.
+            <span className="font-semibold text-blue-600">Logos ERP / 수퍼바이블</span>(으)로 이동합니다.
           </p>
         </div>
 

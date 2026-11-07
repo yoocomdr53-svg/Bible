@@ -56,72 +56,74 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
       className="w-full h-full bg-white flex flex-col relative overflow-hidden select-none z-20 text-slate-800"
     >
       {/* Top App Header (Brand Logo, Search, User Avatar) */}
-      <header className="flex-shrink-0 bg-white border-b border-slate-100 z-30 px-4 pt-2.5 pb-2 flex items-center justify-between">
-        {/* Brand: 바이블 애플 */}
-        <button
-          onClick={() => setActiveTab('home')}
-          className="flex items-center gap-2 cursor-pointer focus:outline-none"
-        >
-          {/* Apple with cross emblem */}
-          <div className="relative w-8 h-8 flex items-center justify-center">
-            <svg
-              className="w-7 h-7 text-red-500"
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-            >
-              <path className="text-emerald-600 stroke-emerald-600" d="M12 2v8m-4-4h8" strokeWidth="2.5" />
-              <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 9 9" stroke="#e11d48" strokeWidth="2" />
-              <path d="M3 20c3.5-2 6-2 9 0 3-2 5.5-2 9 0" stroke="#e11d48" strokeWidth="2.5" />
-            </svg>
-          </div>
-          <span className="text-[19px] font-black tracking-tight text-[#0083e3]">바이블 애플</span>
-        </button>
-
-        {/* Header Action Icons */}
-        <div className="flex items-center gap-2.5">
-          {/* Back to ERP / Logout */}
+      {activeTab !== 'bible' && (
+        <header className="flex-shrink-0 bg-white border-b border-slate-100 z-30 px-4 pt-2.5 pb-2 flex items-center justify-between">
+          {/* Brand: 수퍼바이블 */}
           <button
-            id="logoutBackBtn"
-            type="button"
-            onClick={onLogout}
-            title="로그아웃 (ERP 로그인으로 돌아가기)"
-            className="p-1.5 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+            onClick={() => setActiveTab('home')}
+            className="flex items-center gap-2 cursor-pointer focus:outline-none"
           >
-            <LogOut className="w-5 h-5 stroke-slate-700" />
-          </button>
-
-          {/* Search Button */}
-          <button
-            type="button"
-            onClick={() => setSearchOpen(true)}
-            aria-label="성경 구절 및 묵상 검색"
-            className="p-1.5 text-slate-700 hover:text-blue-600 transition-colors cursor-pointer"
-          >
-            <Search className="w-5 h-5 stroke-slate-800" />
-          </button>
-
-          {/* User Profile Avatar with Google Badge */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('settings')}
-            aria-label="내 계정 설정"
-            className="relative flex items-center justify-center p-0.5 group cursor-pointer"
-          >
-            <div className="w-8 h-8 rounded-full p-[1.5px] bg-gradient-to-r from-red-500 via-amber-500 to-blue-500 shadow-xs">
-              <div className="w-full h-full rounded-full bg-white flex items-center justify-center overflow-hidden">
-                <span className="text-xs font-black text-[#0083e3]">
-                  {user.name.charAt(0).toUpperCase()}
-                </span>
-              </div>
+            {/* Super Bible emblem */}
+            <div className="relative w-8 h-8 flex items-center justify-center">
+              <svg
+                className="w-7 h-7 text-blue-600"
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+              >
+                <path className="text-amber-500 stroke-amber-500" d="M12 2v8m-4-4h8" strokeWidth="2.5" />
+                <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 9 9" stroke="#1d4ed8" strokeWidth="2" />
+                <path d="M3 20c3.5-2 6-2 9 0 3-2 5.5-2 9 0" stroke="#1d4ed8" strokeWidth="2.5" />
+              </svg>
             </div>
-            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-600 rounded-full border-2 border-white" />
+            <span className="text-[19px] font-black tracking-tight text-[#0083e3]">수퍼바이블</span>
           </button>
-        </div>
-      </header>
+
+          {/* Header Action Icons */}
+          <div className="flex items-center gap-2.5">
+            {/* Back to ERP / Logout */}
+            <button
+              id="logoutBackBtn"
+              type="button"
+              onClick={onLogout}
+              title="로그아웃 (ERP 로그인으로 돌아가기)"
+              className="p-1.5 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+            >
+              <LogOut className="w-5 h-5 stroke-slate-700" />
+            </button>
+
+            {/* Search Button */}
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              aria-label="성경 구절 및 묵상 검색"
+              className="p-1.5 text-slate-700 hover:text-blue-600 transition-colors cursor-pointer"
+            >
+              <Search className="w-5 h-5 stroke-slate-800" />
+            </button>
+
+            {/* User Profile Avatar with Google Badge */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('settings')}
+              aria-label="내 계정 설정"
+              className="relative flex items-center justify-center p-0.5 group cursor-pointer"
+            >
+              <div className="w-8 h-8 rounded-full p-[1.5px] bg-gradient-to-r from-red-500 via-amber-500 to-blue-500 shadow-xs">
+                <div className="w-full h-full rounded-full bg-white flex items-center justify-center overflow-hidden">
+                  <span className="text-xs font-black text-[#0083e3]">
+                    {user.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              </div>
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-600 rounded-full border-2 border-white" />
+            </button>
+          </div>
+        </header>
+      )}
 
       {/* Main Tab Content */}
       {activeTab === 'home' && (
@@ -368,7 +370,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                       <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                     </svg>
                     <h3 className="text-sm font-black text-slate-900 leading-tight">
-                      바이블 애플 제작동참하기
+                      수퍼바이블 제작동참하기
                     </h3>
                   </div>
                   <p className="text-[11px] font-medium text-slate-800 leading-snug">
@@ -501,21 +503,23 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
       {activeTab === 'settings' && <SettingsView user={user} onLogout={onLogout} />}
 
       {/* Floating Microphone Button with Badge 'N' */}
-      <aside className="absolute right-5 bottom-[70px] z-40">
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => onOpenRecorder(TODAY_VERSE)}
-            aria-label="빠른 음성 낭독녹음 시작"
-            className="w-13 h-13 p-3.5 rounded-full bg-[#0083e3] hover:bg-blue-600 active:scale-90 text-white shadow-xl flex items-center justify-center transition-all cursor-pointer"
-          >
-            <Mic className="w-6 h-6" />
-          </button>
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center shadow-xs">
-            N
-          </span>
-        </div>
-      </aside>
+      {activeTab !== 'bible' && (
+        <aside className="absolute right-5 bottom-[70px] z-40">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => onOpenRecorder(TODAY_VERSE)}
+              aria-label="빠른 음성 낭독녹음 시작"
+              className="w-13 h-13 p-3.5 rounded-full bg-[#0083e3] hover:bg-blue-600 active:scale-90 text-white shadow-xl flex items-center justify-center transition-all cursor-pointer"
+            >
+              <Mic className="w-6 h-6" />
+            </button>
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center shadow-xs">
+              N
+            </span>
+          </div>
+        </aside>
+      )}
 
       {/* Bottom Navigation Bar */}
       <nav className="flex-shrink-0 bg-white border-t border-slate-200/90 z-30 px-2 py-1.5 flex items-center justify-around">

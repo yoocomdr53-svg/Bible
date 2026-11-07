@@ -23,7 +23,7 @@ export default function App() {
     avatarText: 'yooc',
     role: 'saint',
     provider: 'google',
-    schoolName: '로고스 바이블 애플 공동체',
+    schoolName: '로고스 수퍼바이블 공동체',
     department: '청장년 성경통독부',
     consecutiveDays: 14,
     ntProgress: 42,
@@ -71,7 +71,7 @@ export default function App() {
       avatarText: 'yooc',
       role: 'saint',
       provider: 'google',
-      schoolName: '로고스 바이블 애플 공동체',
+      schoolName: '로고스 수퍼바이블 공동체',
       department: '청장년 성경통독부',
     }));
     setCurrentView('dashboard');
@@ -138,7 +138,7 @@ export default function App() {
           title="화면 전환"
         >
           <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-          <span>{currentView === 'login' ? '바이블 애플 바로보기' : '로그인 포털로'}</span>
+          <span>{currentView === 'login' ? '수퍼바이블 바로보기' : '로그인 포털로'}</span>
         </button>
 
         <button

@@ -23,7 +23,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, onLogout }) =>
       {/* Title */}
       <div>
         <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">시스템 및 계정 설정</h2>
-        <p className="text-xs text-slate-500">바이블 애플 & 로고스 학사 ERP 연동 관리</p>
+        <p className="text-xs text-slate-500">수퍼바이블 & 로고스 학사 ERP 연동 관리</p>
       </div>
 
       {/* User Profile Card */}
@@ -134,7 +134,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, onLogout }) =>
 
       {/* System Version */}
       <div className="text-center pt-2 text-[11px] text-slate-400">
-        <p className="font-semibold text-slate-500">LOGOS ERP 2.0 & 바이블 애플 v2.4.0</p>
+        <p className="font-semibold text-slate-500">LOGOS ERP 2.0 & 수퍼바이블 v2.4.0</p>
         <p>© 2026 Logos Academy System. All rights reserved.</p>
       </div>
     </div>

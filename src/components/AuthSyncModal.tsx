@@ -114,7 +114,7 @@ export const AuthSyncModal: React.FC<AuthSyncModalProps> = ({
             </div>
             <h4 className="text-sm font-bold text-slate-900">로그인 완료</h4>
             <p className="text-xs text-emerald-600 font-semibold mt-1">
-              바이블 애플 홈으로 이동합니다
+              수퍼바이블 홈으로 이동합니다
             </p>
           </div>
         )}
