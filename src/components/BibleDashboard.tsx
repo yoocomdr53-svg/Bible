@@ -69,6 +69,8 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
     'main' | 'matrix' | 'plan' | 'create-plan' | 'edit-plan' | 'total-progress' | 'chapter-grid'
   >('main');
   const [challengeSelectedBook, setChallengeSelectedBook] = useState('창세기');
+  // Key to force remount/reset of ChallengeView when tapping bottom tab or home button
+  const [challengeKey, setChallengeKey] = useState(0);
 
   // Navigation history stack for global back navigation
   const [navHistory, setNavHistory] = useState<
@@ -95,9 +97,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
       setNavHistory((p) => p.slice(0, -1));
       setActiveTab(prev.tab);
       if (prev.tab === 'challenge') {
-        if (prev.challengeSubScreen) {
-          setChallengeInitialSubScreen(prev.challengeSubScreen);
-        }
+        setChallengeInitialSubScreen(prev.challengeSubScreen || 'chapter-grid');
         if (prev.challengeBook) {
           setChallengeSelectedBook(prev.challengeBook);
         }
@@ -105,9 +105,18 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
         setBibleSubView('selector');
       }
     } else {
-      // If no history, default back to challenge
+      // If no history, default back to challenge main
+      setChallengeInitialSubScreen('main');
       setActiveTab('challenge');
     }
+  };
+
+  // Tapping "도전!일독" (from Home icon OR bottom nav bar)
+  // ALWAYS resets directly to the root 도전!일독 main screen (Image 0/3)
+  const handleOpenChallenge = () => {
+    setChallengeInitialSubScreen('main');
+    setChallengeKey((k) => k + 1);
+    setActiveTab('challenge');
   };
 
   // Tapping "성경" (from Home icon OR bottom nav bar)
@@ -343,7 +352,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
               {/* 3. 도전일독 */}
               <button
                 type="button"
-                onClick={() => setActiveTab('challenge')}
+                onClick={handleOpenChallenge}
                 className="bg-white rounded-xl p-3 flex flex-col items-center justify-center shadow-soft border border-slate-100 hover:border-blue-200 active:scale-95 transition-all cursor-pointer"
               >
                 <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#0083e3] mb-2">
@@ -617,6 +626,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
 
       {activeTab === 'challenge' && (
         <ChallengeView
+          key={challengeKey}
           user={user}
           plans={readingPlans}
           onTogglePlan={onTogglePlan}
@@ -697,7 +707,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
         {/* Tab 4: 도전!일독 */}
         <button
           type="button"
-          onClick={() => setActiveTab('challenge')}
+          onClick={handleOpenChallenge}
           className={`flex flex-col items-center justify-center py-1 px-3 transition-colors cursor-pointer ${
             activeTab === 'challenge' ? 'text-[#0083e3]' : 'text-slate-500 hover:text-slate-800'
           }`}

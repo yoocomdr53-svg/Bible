@@ -46,27 +46,20 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
     'main' | 'matrix' | 'plan' | 'create-plan' | 'edit-plan' | 'total-progress' | 'chapter-grid'
   >(initialSubScreen);
 
-  // Sub-screen navigation history stack for back navigation
-  const [subScreenHistory, setSubScreenHistory] = useState<
-    ('main' | 'matrix' | 'plan' | 'create-plan' | 'edit-plan' | 'total-progress' | 'chapter-grid')[]
-  >(() => [initialSubScreen]);
-
   // Selected book for '읽기 계획 현황' 6-column chapter grid screen (Default: 창세기)
   const [selectedStatusBook, setSelectedStatusBook] = useState(initialBook);
+
+  // Source tracking so back buttons go to the exact screen they came from
+  const [chapterGridSource, setChapterGridSource] = useState<'plan' | 'total-progress' | 'main'>('plan');
+  const [totalProgressSource, setTotalProgressSource] = useState<'plan' | 'main'>('plan');
 
   // Update notice banner toggle on plan screen (matching Image 1)
   const [showUpdateNotice, setShowUpdateNotice] = useState(true);
 
-  // Sync with prop changes
+  // Sync with prop changes (e.g. when user taps '도전!일독' at bottom navigation bar)
   useEffect(() => {
     if (initialSubScreen) {
       setSubScreen(initialSubScreen);
-      setSubScreenHistory((prev) => {
-        if (prev[prev.length - 1] !== initialSubScreen) {
-          return [...prev, initialSubScreen];
-        }
-        return prev;
-      });
     }
   }, [initialSubScreen]);
 
@@ -76,37 +69,94 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
     }
   }, [initialBook]);
 
-  // Navigation handlers
-  const navigateToSubScreen = (
-    target: 'main' | 'matrix' | 'plan' | 'create-plan' | 'edit-plan' | 'total-progress' | 'chapter-grid',
-    targetBook?: string
-  ) => {
-    const nextBook = targetBook || selectedStatusBook;
-    if (targetBook) {
-      setSelectedStatusBook(targetBook);
-    }
-    setSubScreenHistory((prev) => [...prev, target]);
-    setSubScreen(target);
+  // Deterministic back navigation handlers (Never loop, always succeed)
+  const handleBackFromChapterGrid = () => {
+    setSubScreen(chapterGridSource);
     if (onSubScreenChange) {
-      onSubScreenChange(target, nextBook);
+      onSubScreenChange(chapterGridSource, selectedStatusBook);
     }
   };
 
-  const handleBackInChallenge = () => {
-    if (subScreenHistory.length > 1) {
-      const newHist = subScreenHistory.slice(0, -1);
-      const prevTarget = newHist[newHist.length - 1];
-      setSubScreenHistory(newHist);
-      setSubScreen(prevTarget);
-      if (onSubScreenChange) {
-        onSubScreenChange(prevTarget, selectedStatusBook);
-      }
-    } else {
-      if (onBackToHome) {
-        onBackToHome();
-      } else {
-        setSubScreen('main');
-      }
+  const handleBackFromTotalProgress = () => {
+    setSubScreen(totalProgressSource);
+    if (onSubScreenChange) {
+      onSubScreenChange(totalProgressSource, selectedStatusBook);
+    }
+  };
+
+  const handleBackFromPlan = () => {
+    setSubScreen('main');
+    if (onSubScreenChange) {
+      onSubScreenChange('main', selectedStatusBook);
+    }
+  };
+
+  const handleBackFromMatrix = () => {
+    setSubScreen('main');
+    if (onSubScreenChange) {
+      onSubScreenChange('main', selectedStatusBook);
+    }
+  };
+
+  const handleBackFromCreatePlan = () => {
+    setSubScreen('main');
+    if (onSubScreenChange) {
+      onSubScreenChange('main', selectedStatusBook);
+    }
+  };
+
+  const handleBackFromEditPlan = () => {
+    setSubScreen('plan');
+    if (onSubScreenChange) {
+      onSubScreenChange('plan', selectedStatusBook);
+    }
+  };
+
+  // Screen transition helpers
+  const openChapterGrid = (from: 'plan' | 'total-progress' | 'main', bookName?: string) => {
+    setChapterGridSource(from);
+    if (bookName) {
+      setSelectedStatusBook(bookName);
+    }
+    setSubScreen('chapter-grid');
+    if (onSubScreenChange) {
+      onSubScreenChange('chapter-grid', bookName || selectedStatusBook);
+    }
+  };
+
+  const openTotalProgress = (from: 'plan' | 'main') => {
+    setTotalProgressSource(from);
+    setSubScreen('total-progress');
+    if (onSubScreenChange) {
+      onSubScreenChange('total-progress', selectedStatusBook);
+    }
+  };
+
+  const openPlan = () => {
+    setSubScreen('plan');
+    if (onSubScreenChange) {
+      onSubScreenChange('plan', selectedStatusBook);
+    }
+  };
+
+  const openMatrix = () => {
+    setSubScreen('matrix');
+    if (onSubScreenChange) {
+      onSubScreenChange('matrix', selectedStatusBook);
+    }
+  };
+
+  const openCreatePlan = () => {
+    setSubScreen('create-plan');
+    if (onSubScreenChange) {
+      onSubScreenChange('create-plan', selectedStatusBook);
+    }
+  };
+
+  const openEditPlan = () => {
+    setSubScreen('edit-plan');
+    if (onSubScreenChange) {
+      onSubScreenChange('edit-plan', selectedStatusBook);
     }
   };
 
@@ -302,7 +352,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleBackInChallenge}
+              onClick={handleBackFromTotalProgress}
               className="p-1 -ml-1 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition cursor-pointer"
               title="뒤로 가기"
             >
@@ -383,9 +433,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               return (
                 <div
                   key={book.id}
-                  onClick={() => {
-                    navigateToSubScreen('chapter-grid', book.name);
-                  }}
+                  onClick={() => openChapterGrid('total-progress', book.name)}
                   className="bg-white rounded-xl p-3 sm:p-3.5 border border-slate-200/90 shadow-2xs hover:border-blue-400 hover:shadow-xs transition-all text-left cursor-pointer group active:scale-98 flex flex-col justify-between min-h-[64px]"
                   title={`${book.name} 터치 시 읽기 계획 현황(장별 그리드) 열기`}
                 >
@@ -429,7 +477,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
         <header className="bg-[#1b64b9] text-white px-3 py-3 flex items-center justify-between shadow-md z-30 flex-shrink-0">
           <button
             type="button"
-            onClick={handleBackInChallenge}
+            onClick={handleBackFromChapterGrid}
             className="p-1 hover:bg-white/15 rounded-lg transition cursor-pointer"
             title="뒤로 가기"
           >
@@ -530,7 +578,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           <div className="flex items-center justify-between">
             <button
               type="button"
-              onClick={handleBackInChallenge}
+              onClick={handleBackFromCreatePlan}
               className="p-1 hover:bg-white/15 rounded-lg transition cursor-pointer"
               title="뒤로 가기"
             >
@@ -857,7 +905,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
         <header className="bg-[#1b64b9] text-white px-3 py-3 flex items-center justify-between shadow-md z-30 flex-shrink-0">
           <button
             type="button"
-            onClick={handleBackInChallenge}
+            onClick={handleBackFromEditPlan}
             className="p-1 hover:bg-white/15 rounded-lg transition cursor-pointer"
             title="뒤로 가기"
           >
@@ -991,7 +1039,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleBackInChallenge}
+              onClick={handleBackFromMatrix}
               className="p-1 hover:bg-white/15 rounded-lg transition cursor-pointer"
               title="뒤로 가기"
             >
@@ -1098,7 +1146,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleBackInChallenge}
+              onClick={handleBackFromPlan}
               className="p-1 hover:bg-white/15 rounded-lg transition cursor-pointer"
               title="뒤로 가기"
             >
@@ -1303,7 +1351,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                   </div>
                   <button
                     type="button"
-                    onClick={() => navigateToSubScreen('total-progress')}
+                    onClick={() => openTotalProgress('plan')}
                     className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#1b64b9] rounded-xl text-xs font-black flex items-center gap-1 transition cursor-pointer border border-blue-200 shadow-2xs active:scale-95"
                   >
                     <span>통독 분량 전체보기</span>
@@ -1357,10 +1405,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                   {/* Main Action Button inside Card: 창세기 1~50장 읽기 계획 현황 전체보기 > (1번 이미지와 동일) */}
                   <button
                     type="button"
-                    onClick={() => {
-                      setSelectedStatusBook('창세기');
-                      navigateToSubScreen('chapter-grid', '창세기');
-                    }}
+                    onClick={() => openChapterGrid('plan', '창세기')}
                     className="w-full py-3.5 rounded-2xl bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white text-sm sm:text-base font-black transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer mt-3"
                   >
                     <span>창세기 1~50장 읽기 계획 현황 전체보기 &gt;</span>
@@ -1388,7 +1433,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                 {/* 66권 전체 진도표 링크 버튼 */}
                 <button
                   type="button"
-                  onClick={() => navigateToSubScreen('total-progress')}
+                  onClick={() => openTotalProgress('plan')}
                   className="w-full py-3 rounded-2xl bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-700 text-xs sm:text-sm font-black transition border border-slate-200/90 flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <span>📊 구약 39권 · 신약 27권 전체 진도표 보기</span>
@@ -1453,14 +1498,14 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
       <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
-          onClick={() => navigateToSubScreen('matrix')}
+          onClick={openMatrix}
           className="border-2 border-dashed border-slate-300 hover:border-blue-400 bg-white/60 hover:bg-white rounded-2xl py-2.5 px-3 text-xs sm:text-sm font-bold text-slate-600 hover:text-[#1b64b9] transition-all cursor-pointer text-center shadow-2xs active:scale-98"
         >
           + 읽기표 새로 만들기
         </button>
         <button
           type="button"
-          onClick={() => navigateToSubScreen('create-plan')}
+          onClick={openCreatePlan}
           className="border-2 border-dashed border-slate-300 hover:border-blue-400 bg-white/60 hover:bg-white rounded-2xl py-2.5 px-3 text-xs sm:text-sm font-bold text-slate-600 hover:text-[#1b64b9] transition-all cursor-pointer text-center shadow-2xs active:scale-98"
         >
           + 계획표 새로 만들기
@@ -1473,7 +1518,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             <div className="flex justify-center mb-3">
               <button
                 type="button"
-                onClick={() => navigateToSubScreen('matrix')}
+                onClick={openMatrix}
                 className="px-3 py-1 rounded-full bg-blue-50 hover:bg-blue-100/80 text-[#1b64b9] text-xs font-bold transition cursor-pointer"
               >
                 내 전체 읽기표 &gt;
@@ -1515,7 +1560,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => navigateToSubScreen('matrix')}
+              onClick={openMatrix}
               className="w-full py-2.5 rounded-xl border border-[#1b64b9] hover:bg-blue-50 active:scale-95 text-[#1b64b9] font-extrabold text-xs sm:text-sm transition cursor-pointer"
             >
               읽기표 보기
@@ -1528,7 +1573,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             <div className="flex justify-center mb-3">
               <button
                 type="button"
-                onClick={() => navigateToSubScreen('plan')}
+                onClick={openPlan}
                 className="px-3 py-1 rounded-full bg-blue-50 hover:bg-blue-100/80 text-[#1b64b9] text-xs font-bold transition cursor-pointer"
               >
                 내 전체 계획표 &gt;
@@ -1563,14 +1608,14 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           <div className="space-y-2 pt-2">
             <button
               type="button"
-              onClick={() => navigateToSubScreen('chapter-grid', '창세기')}
+              onClick={() => openChapterGrid('main', '창세기')}
               className="w-full py-2.5 rounded-xl bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm transition shadow-sm cursor-pointer"
             >
               오늘 읽기
             </button>
             <button
               type="button"
-              onClick={() => navigateToSubScreen('plan')}
+              onClick={openPlan}
               className="w-full py-2.5 rounded-xl border border-[#1b64b9] hover:bg-blue-50 active:scale-95 text-[#1b64b9] font-extrabold text-xs sm:text-sm transition cursor-pointer"
             >
               계획표 보기
