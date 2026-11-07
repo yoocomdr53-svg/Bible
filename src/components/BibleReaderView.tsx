@@ -37,6 +37,7 @@ interface BibleReaderViewProps {
   initialChapter?: number;
   initialVerse?: number;
   initialRecordingMode?: boolean;
+  onBack?: () => void;
   onBackToHome?: () => void;
   onBackToSelector?: () => void;
 }
@@ -48,6 +49,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   initialChapter = 1,
   initialVerse = 1,
   initialRecordingMode = false,
+  onBack,
   onBackToHome,
   onBackToSelector,
 }) => {
@@ -310,8 +312,23 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
       <div className="flex-1 flex flex-col h-full bg-white relative overflow-hidden select-none text-slate-800">
         {/* 1. Header (Dark Sage / Olive Green #496557) */}
         <header className="bg-[#496557] text-white px-3 py-2 flex items-center justify-between shadow-md z-30 flex-shrink-0">
-          {/* Left: Book & Chapter and Translation */}
-          <div className="flex items-center gap-2">
+          {/* Left: Back button & Book & Chapter and Translation */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (onBack) {
+                  onBack();
+                } else {
+                  setIsRecordingMode(false);
+                }
+              }}
+              className="p-1 hover:bg-white/15 rounded-lg transition cursor-pointer"
+              title="뒤로 가기"
+            >
+              <ChevronLeft className="w-5 h-5 text-white" />
+            </button>
+
             <button
               type="button"
               onClick={() => handleOpenSelector('book')}
@@ -355,7 +372,11 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
               type="button"
               onClick={() => {
                 setIsRecordingNow(false);
-                setIsRecordingMode(false);
+                if (onBack) {
+                  onBack();
+                } else {
+                  setIsRecordingMode(false);
+                }
               }}
               className="p-1 hover:bg-white/15 rounded-lg transition cursor-pointer"
               title="녹음 모드 종료"
@@ -738,11 +759,13 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
       <header className="bg-[#1b64b9] text-white px-3 py-2 flex items-center justify-between shadow-md z-30 flex-shrink-0">
         {/* Left: Back button & Dropdowns */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Back Button -> Back to Selector or Home */}
+          {/* Back Button -> Back to previous screen (Challenge, Selector, or Home) */}
           <button
             type="button"
             onClick={() => {
-              if (onBackToSelector) {
+              if (onBack) {
+                onBack();
+              } else if (onBackToSelector) {
                 onBackToSelector();
               } else if (onBackToHome) {
                 onBackToHome();

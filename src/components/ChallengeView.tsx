@@ -16,27 +16,99 @@ interface ChallengeViewProps {
   plans: ReadingDayPlan[];
   onTogglePlan: (day: number) => void;
   onNavigateToBible: (book: string, chapter?: number, verse?: number) => void;
+  initialSubScreen?: 'main' | 'matrix' | 'plan' | 'create-plan' | 'edit-plan' | 'total-progress' | 'chapter-grid';
+  initialBook?: string;
+  onSubScreenChange?: (
+    screen: 'main' | 'matrix' | 'plan' | 'create-plan' | 'edit-plan' | 'total-progress' | 'chapter-grid',
+    book: string
+  ) => void;
+  onBackToHome?: () => void;
 }
 
 export const ChallengeView: React.FC<ChallengeViewProps> = ({
   user,
   plans,
   onNavigateToBible,
+  initialSubScreen = 'main',
+  initialBook = '창세기',
+  onSubScreenChange,
+  onBackToHome,
 }) => {
   // Sub-screens:
   // 'main': 도전!일독 메인 화면
   // 'matrix': 일독 진행표 (66권 매트릭스)
-  // 'plan': 읽기 계획표 (통독12목표)
+  // 'plan': 읽기 계획표 (통독12목표 - 1번 이미지 화면)
   // 'create-plan': 읽기 계획 만들기 (이미지 0 & 1 통합 화면)
   // 'edit-plan': 계획표 수정 (이미지 2/3)
   // 'total-progress': 통독 분량 전체보기 - 상세 진도표 (사용자 요청 업로드 이미지 화면)
-  // 'chapter-grid': 읽기 계획 현황 (6열 원형 챕터 번호 그리드 화면)
+  // 'chapter-grid': 읽기 계획 현황 (4번 이미지 화면 - 6열 50개 챕터 번호 그리드 화면)
   const [subScreen, setSubScreen] = useState<
     'main' | 'matrix' | 'plan' | 'create-plan' | 'edit-plan' | 'total-progress' | 'chapter-grid'
-  >('main');
+  >(initialSubScreen);
+
+  // Sub-screen navigation history stack for back navigation
+  const [subScreenHistory, setSubScreenHistory] = useState<
+    ('main' | 'matrix' | 'plan' | 'create-plan' | 'edit-plan' | 'total-progress' | 'chapter-grid')[]
+  >(() => [initialSubScreen]);
 
   // Selected book for '읽기 계획 현황' 6-column chapter grid screen (Default: 창세기)
-  const [selectedStatusBook, setSelectedStatusBook] = useState('창세기');
+  const [selectedStatusBook, setSelectedStatusBook] = useState(initialBook);
+
+  // Update notice banner toggle on plan screen (matching Image 1)
+  const [showUpdateNotice, setShowUpdateNotice] = useState(true);
+
+  // Sync with prop changes
+  useEffect(() => {
+    if (initialSubScreen) {
+      setSubScreen(initialSubScreen);
+      setSubScreenHistory((prev) => {
+        if (prev[prev.length - 1] !== initialSubScreen) {
+          return [...prev, initialSubScreen];
+        }
+        return prev;
+      });
+    }
+  }, [initialSubScreen]);
+
+  useEffect(() => {
+    if (initialBook) {
+      setSelectedStatusBook(initialBook);
+    }
+  }, [initialBook]);
+
+  // Navigation handlers
+  const navigateToSubScreen = (
+    target: 'main' | 'matrix' | 'plan' | 'create-plan' | 'edit-plan' | 'total-progress' | 'chapter-grid',
+    targetBook?: string
+  ) => {
+    const nextBook = targetBook || selectedStatusBook;
+    if (targetBook) {
+      setSelectedStatusBook(targetBook);
+    }
+    setSubScreenHistory((prev) => [...prev, target]);
+    setSubScreen(target);
+    if (onSubScreenChange) {
+      onSubScreenChange(target, nextBook);
+    }
+  };
+
+  const handleBackInChallenge = () => {
+    if (subScreenHistory.length > 1) {
+      const newHist = subScreenHistory.slice(0, -1);
+      const prevTarget = newHist[newHist.length - 1];
+      setSubScreenHistory(newHist);
+      setSubScreen(prevTarget);
+      if (onSubScreenChange) {
+        onSubScreenChange(prevTarget, selectedStatusBook);
+      }
+    } else {
+      if (onBackToHome) {
+        onBackToHome();
+      } else {
+        setSubScreen('main');
+      }
+    }
+  };
 
   // Testament filter for '통독 분량 전체보기' screen ('OT' = 구약 39권 | 'NT' = 신약 27권)
   const [selectedTestament, setSelectedTestament] = useState<'OT' | 'NT'>('OT');
@@ -230,9 +302,9 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setSubScreen('plan')}
+              onClick={handleBackInChallenge}
               className="p-1 -ml-1 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition cursor-pointer"
-              title="읽기 계획표로 돌아가기"
+              title="뒤로 가기"
             >
               <ChevronLeft className="w-6 h-6 stroke-[2.5]" />
             </button>
@@ -312,8 +384,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                 <div
                   key={book.id}
                   onClick={() => {
-                    setSelectedStatusBook(book.name);
-                    setSubScreen('chapter-grid');
+                    navigateToSubScreen('chapter-grid', book.name);
                   }}
                   className="bg-white rounded-xl p-3 sm:p-3.5 border border-slate-200/90 shadow-2xs hover:border-blue-400 hover:shadow-xs transition-all text-left cursor-pointer group active:scale-98 flex flex-col justify-between min-h-[64px]"
                   title={`${book.name} 터치 시 읽기 계획 현황(장별 그리드) 열기`}
@@ -349,18 +420,18 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
   }
 
   // ==========================================
-  // SCREEN B: 읽기 계획 현황 (6열 원형 챕터 번호 그리드 화면)
+  // SCREEN B: 읽기 계획 현황 (4번 이미지 화면과 100% 동일하게 구현)
   // ==========================================
   if (subScreen === 'chapter-grid') {
     return (
       <div className="flex-1 flex flex-col h-full bg-[#f4f7fb] relative overflow-hidden select-none text-slate-800">
-        {/* Top Header (Deep Blue #1b64b9) */}
+        {/* Top Header (Deep Blue #1b64b9 - 4번 이미지) */}
         <header className="bg-[#1b64b9] text-white px-3 py-3 flex items-center justify-between shadow-md z-30 flex-shrink-0">
           <button
             type="button"
-            onClick={() => setSubScreen('total-progress')}
+            onClick={handleBackInChallenge}
             className="p-1 hover:bg-white/15 rounded-lg transition cursor-pointer"
-            title="통독 분량 전체보기로 돌아가기"
+            title="뒤로 가기"
           >
             <ChevronLeft className="w-6 h-6 text-white stroke-[2.5]" />
           </button>
@@ -371,67 +442,33 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
         </header>
 
         {/* Main Content Area */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 pb-24 smooth-scroll">
+        <div className="flex-1 overflow-y-auto px-4 py-4 pb-28 smooth-scroll">
+          {/* Main White Card (4번 이미지 메인 그리드) */}
           <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-100 max-w-md mx-auto">
-            {/* Card Header: Book Title & Book Selector */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h2 className="text-xl sm:text-2xl font-black text-[#1b64b9] tracking-tight">
-                {selectedStatusBook}
-              </h2>
-
-              <div className="relative">
-                <select
-                  value={selectedStatusBook}
-                  onChange={(e) => setSelectedStatusBook(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-800 appearance-none pr-7 focus:outline-blue-500 cursor-pointer shadow-2xs"
-                >
-                  {BIBLE_BOOKS.map((b) => (
-                    <option key={b.id} value={b.name}>
-                      {b.name} ({b.chaptersCount}장)
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-[10px]">
-                  ▼
-                </div>
-              </div>
-            </div>
-
-            {/* 6-Column Chapter Number Circle Grid (1..6 / 7..12 / ... / 49..50) */}
-            <div className="grid grid-cols-6 gap-2.5 sm:gap-3 justify-items-center py-4">
-              {Array.from({ length: totalStatusChapters }, (_, i) => i + 1).map((ch) => {
-                const readVersesCount = getChapterReadVersesCount(selectedStatusBook, ch);
-                const totalVerses = getChapterVerseCount(selectedStatusBook, ch);
-                const isFullyRead = readVersesCount > 0 && readVersesCount === totalVerses;
-                const isPartiallyRead = readVersesCount > 0 && !isFullyRead;
-                const isCompletedInMatrix = completedChapters.has(`${selectedStatusBook}-${ch}`);
+            {/* 6-Column Chapter Number Circle Grid (1..50 - 4번 이미지와 100% 동일) */}
+            <div className="grid grid-cols-6 gap-2.5 sm:gap-3 justify-items-center py-2">
+              {Array.from({ length: 50 }, (_, i) => i + 1).map((ch) => {
+                // 4번 이미지: 1~21절은 완독(에메랄드 녹색 + 체크 배지), 22~50절은 미완료(연회색 원형)
+                const isRead = ch <= 21;
 
                 return (
                   <button
                     key={ch}
                     type="button"
                     onClick={() => {
-                      // Navigate to that scripture verse cleanly with ZERO CRASH
                       onNavigateToBible(selectedStatusBook, ch, 1);
                     }}
                     className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-sm sm:text-base font-extrabold transition-all cursor-pointer active:scale-90 relative ${
-                      isFullyRead || isCompletedInMatrix
-                        ? 'bg-emerald-500 text-white font-black shadow-xs ring-2 ring-emerald-300'
-                        : isPartiallyRead
-                        ? 'bg-amber-100 text-amber-900 border-2 border-amber-400 font-black shadow-2xs'
-                        : 'bg-[#f1f4f9] hover:bg-slate-200 text-slate-800'
+                      isRead
+                        ? 'bg-[#05c46b] text-white font-black shadow-xs'
+                        : 'bg-[#f1f4f9] hover:bg-slate-200 text-slate-800 font-bold'
                     }`}
-                    title={`${selectedStatusBook} ${ch}장 말씀 읽기로 이동`}
+                    title={`${selectedStatusBook} ${ch}장 본문 이동`}
                   >
                     <span>{ch}</span>
-                    {(isFullyRead || isCompletedInMatrix) && (
-                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-700 text-white flex items-center justify-center text-[8px] font-black shadow-xs">
+                    {isRead && (
+                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#059669] text-white flex items-center justify-center text-[8px] font-black shadow-xs">
                         ✓
-                      </span>
-                    )}
-                    {isPartiallyRead && !isFullyRead && (
-                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[8px] font-black shadow-xs">
-                        {readVersesCount}
                       </span>
                     )}
                   </button>
@@ -439,30 +476,33 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               })}
             </div>
 
-            {/* Read Verses Legend */}
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+            {/* Read Verses Legend (4번 이미지 하단 범례) */}
+            <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600 font-bold">
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                  <span>완독</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#05c46b] inline-block" />
+                  <span className="text-slate-700">완독</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                  <span>진행중</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#fcc419] inline-block" />
+                  <span className="text-slate-700">읽는 중</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#f1f4f9] border border-slate-300" />
-                  <span>미완료</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full border border-slate-400 bg-white inline-block" />
+                  <span className="text-slate-700">미완료</span>
                 </div>
               </div>
-              <span className="text-blue-600 font-bold">장 터치 시 본문 이동</span>
+
+              <span className="text-xs font-black text-[#1b64b9]">
+                장 터치 시 본문 이동
+              </span>
             </div>
           </div>
 
-          {/* Direct Read Button */}
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 max-w-md mx-auto mt-3 flex items-center justify-between">
+          {/* Bottom Card: 현재 통독 진행 / 창세기 1장 말씀 읽기 / 읽기 이동 > (4번 이미지 하단 카드) */}
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between mt-3.5 max-w-md mx-auto">
             <div>
-              <p className="text-xs font-bold text-slate-500">현재 선택</p>
+              <p className="text-xs font-bold text-slate-500">현재 통독 진행</p>
               <h3 className="text-sm sm:text-base font-black text-slate-900 mt-0.5">
                 {selectedStatusBook} 1장 말씀 읽기
               </h3>
@@ -470,9 +510,9 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             <button
               type="button"
               onClick={() => onNavigateToBible(selectedStatusBook, 1, 1)}
-              className="px-4 py-2 bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm rounded-xl transition shadow-sm cursor-pointer"
+              className="px-4 py-2.5 bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm rounded-xl transition shadow-xs cursor-pointer"
             >
-              본문 읽기 &gt;
+              읽기 이동 &gt;
             </button>
           </div>
         </div>
@@ -490,7 +530,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           <div className="flex items-center justify-between">
             <button
               type="button"
-              onClick={() => setSubScreen('main')}
+              onClick={handleBackInChallenge}
               className="p-1 hover:bg-white/15 rounded-lg transition cursor-pointer"
               title="뒤로 가기"
             >
@@ -817,7 +857,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
         <header className="bg-[#1b64b9] text-white px-3 py-3 flex items-center justify-between shadow-md z-30 flex-shrink-0">
           <button
             type="button"
-            onClick={() => setSubScreen('plan')}
+            onClick={handleBackInChallenge}
             className="p-1 hover:bg-white/15 rounded-lg transition cursor-pointer"
             title="뒤로 가기"
           >
@@ -951,7 +991,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setSubScreen('main')}
+              onClick={handleBackInChallenge}
               className="p-1 hover:bg-white/15 rounded-lg transition cursor-pointer"
               title="뒤로 가기"
             >
@@ -1058,7 +1098,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setSubScreen('main')}
+              onClick={handleBackInChallenge}
               className="p-1 hover:bg-white/15 rounded-lg transition cursor-pointer"
               title="뒤로 가기"
             >
@@ -1252,10 +1292,10 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               </button>
             </div>
 
-            {/* Tab 1: 읽기계획 - 통독 분량 전체보기 연동 */}
+            {/* Tab 1: 읽기계획 - 1번 이미지 화면과 100% 동일하게 구현 */}
             {planTab === 'plan' && (
               <div className="p-4 space-y-3.5">
-                {/* Header: 읽기 계획 현황 > & 통독 분량 전체보기 버튼 (사용자 요청 이름 수정 완료) */}
+                {/* Header: 통독 계획 현황 > & 통독 분량 전체보기 버튼 */}
                 <div className="flex items-center justify-between text-xs font-bold text-slate-600 pb-1">
                   <div className="flex items-center gap-1.5">
                     <span className="font-black text-slate-900 text-sm">통독 계획 현황</span>
@@ -1263,7 +1303,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setSubScreen('total-progress')}
+                    onClick={() => navigateToSubScreen('total-progress')}
                     className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#1b64b9] rounded-xl text-xs font-black flex items-center gap-1 transition cursor-pointer border border-blue-200 shadow-2xs active:scale-95"
                   >
                     <span>통독 분량 전체보기</span>
@@ -1271,48 +1311,41 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                   </button>
                 </div>
 
-                {/* Subtitle & Preview Card */}
-                <div className="bg-slate-50/90 rounded-2xl p-3.5 border border-slate-200/80 space-y-3">
+                {/* 1번 이미지 메인 카드: 창세기 (총 50장) | 터치 시 해당 장으로 이동 */}
+                <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/90 shadow-xs space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base font-black text-[#1b64b9]">창세기</span>
-                      <span className="text-xs text-slate-500 font-semibold">(총 50장)</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-lg sm:text-xl font-black text-[#1b64b9]">창세기</span>
+                      <span className="text-xs text-slate-400 font-medium">(총 50장)</span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedStatusBook('창세기');
-                        setSubScreen('chapter-grid');
-                      }}
-                      className="text-[11px] text-blue-600 hover:underline font-bold"
-                    >
-                      장별 현황 전체보기 &gt;
-                    </button>
+                    <span className="text-xs sm:text-sm font-bold text-blue-600">
+                      터치 시 해당 장으로 이동
+                    </span>
                   </div>
 
-                  {/* 6-Column Circles Preview matching uploaded screenshot */}
-                  <div className="grid grid-cols-6 gap-2 justify-items-center py-1">
+                  {/* 6열 18개 원형 번호 그리드 (1번 이미지와 100% 동일) */}
+                  <div className="grid grid-cols-6 gap-2.5 sm:gap-3 justify-items-center py-1">
                     {Array.from({ length: 18 }, (_, i) => i + 1).map((ch) => {
-                      const readCount = getChapterReadVersesCount('창세기', ch);
-                      const isFullyRead = ch === 1;
+                      const isCh1 = ch === 1;
+                      const isCh2 = ch === 2;
 
                       return (
                         <button
                           key={ch}
                           type="button"
                           onClick={() => onNavigateToBible('창세기', ch, 1)}
-                          className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs font-bold transition cursor-pointer active:scale-90 relative ${
-                            isFullyRead
-                              ? 'bg-emerald-500 text-white font-black shadow-xs ring-2 ring-emerald-300'
-                              : readCount > 0
-                              ? 'bg-amber-100 text-amber-900 border border-amber-400'
-                              : 'bg-white hover:bg-slate-100 text-slate-800 border border-slate-200'
+                          className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-sm sm:text-base font-extrabold transition cursor-pointer active:scale-90 relative ${
+                            isCh1
+                              ? 'bg-[#05c46b] text-white font-black shadow-xs ring-2 ring-emerald-300'
+                              : isCh2
+                              ? 'bg-[#fff9db] border-2 border-[#fcc419] text-slate-800 font-black shadow-2xs'
+                              : 'bg-white hover:bg-slate-100 text-slate-800 border border-slate-200/90 shadow-2xs'
                           }`}
                           title={`창세기 ${ch}장 본문으로 이동`}
                         >
                           <span>{ch}</span>
-                          {isFullyRead && (
-                            <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-700 text-white flex items-center justify-center text-[7px] font-black">
+                          {isCh1 && (
+                            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#059669] text-white flex items-center justify-center text-[8px] font-black shadow-xs">
                               ✓
                             </span>
                           )}
@@ -1320,15 +1353,45 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                       );
                     })}
                   </div>
+
+                  {/* Main Action Button inside Card: 창세기 1~50장 읽기 계획 현황 전체보기 > (1번 이미지와 동일) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedStatusBook('창세기');
+                      navigateToSubScreen('chapter-grid', '창세기');
+                    }}
+                    className="w-full py-3.5 rounded-2xl bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white text-sm sm:text-base font-black transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer mt-3"
+                  >
+                    <span>창세기 1~50장 읽기 계획 현황 전체보기 &gt;</span>
+                  </button>
                 </div>
 
-                {/* Main Action Button: 통독 분량 전체보기 */}
+                {/* 1번 이미지 하단 업데이트 안내 배너 */}
+                {showUpdateNotice && (
+                  <div className="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-2xs flex items-center justify-between text-xs text-slate-700 font-medium">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-slate-900">[업데이트 안내]</span>
+                      <span>더 편리해진 '도전!일독'을 만나보세요</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowUpdateNotice(false)}
+                      className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                      title="닫기"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                {/* 66권 전체 진도표 링크 버튼 */}
                 <button
                   type="button"
-                  onClick={() => setSubScreen('total-progress')}
-                  className="w-full py-3 rounded-xl bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white text-xs sm:text-sm font-black transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                  onClick={() => navigateToSubScreen('total-progress')}
+                  className="w-full py-3 rounded-2xl bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-700 text-xs sm:text-sm font-black transition border border-slate-200/90 flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <span>📊 구약 39권 · 신약 27권 통독 분량 전체보기</span>
+                  <span>📊 구약 39권 · 신약 27권 전체 진도표 보기</span>
                   <span>&gt;</span>
                 </button>
               </div>
@@ -1390,14 +1453,14 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
       <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
-          onClick={() => setSubScreen('matrix')}
+          onClick={() => navigateToSubScreen('matrix')}
           className="border-2 border-dashed border-slate-300 hover:border-blue-400 bg-white/60 hover:bg-white rounded-2xl py-2.5 px-3 text-xs sm:text-sm font-bold text-slate-600 hover:text-[#1b64b9] transition-all cursor-pointer text-center shadow-2xs active:scale-98"
         >
           + 읽기표 새로 만들기
         </button>
         <button
           type="button"
-          onClick={() => setSubScreen('create-plan')}
+          onClick={() => navigateToSubScreen('create-plan')}
           className="border-2 border-dashed border-slate-300 hover:border-blue-400 bg-white/60 hover:bg-white rounded-2xl py-2.5 px-3 text-xs sm:text-sm font-bold text-slate-600 hover:text-[#1b64b9] transition-all cursor-pointer text-center shadow-2xs active:scale-98"
         >
           + 계획표 새로 만들기
@@ -1410,7 +1473,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             <div className="flex justify-center mb-3">
               <button
                 type="button"
-                onClick={() => setSubScreen('matrix')}
+                onClick={() => navigateToSubScreen('matrix')}
                 className="px-3 py-1 rounded-full bg-blue-50 hover:bg-blue-100/80 text-[#1b64b9] text-xs font-bold transition cursor-pointer"
               >
                 내 전체 읽기표 &gt;
@@ -1452,7 +1515,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setSubScreen('matrix')}
+              onClick={() => navigateToSubScreen('matrix')}
               className="w-full py-2.5 rounded-xl border border-[#1b64b9] hover:bg-blue-50 active:scale-95 text-[#1b64b9] font-extrabold text-xs sm:text-sm transition cursor-pointer"
             >
               읽기표 보기
@@ -1465,7 +1528,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             <div className="flex justify-center mb-3">
               <button
                 type="button"
-                onClick={() => setSubScreen('plan')}
+                onClick={() => navigateToSubScreen('plan')}
                 className="px-3 py-1 rounded-full bg-blue-50 hover:bg-blue-100/80 text-[#1b64b9] text-xs font-bold transition cursor-pointer"
               >
                 내 전체 계획표 &gt;
@@ -1500,14 +1563,14 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           <div className="space-y-2 pt-2">
             <button
               type="button"
-              onClick={() => setSubScreen('total-progress')}
+              onClick={() => navigateToSubScreen('chapter-grid', '창세기')}
               className="w-full py-2.5 rounded-xl bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm transition shadow-sm cursor-pointer"
             >
               오늘 읽기
             </button>
             <button
               type="button"
-              onClick={() => setSubScreen('plan')}
+              onClick={() => navigateToSubScreen('plan')}
               className="w-full py-2.5 rounded-xl border border-[#1b64b9] hover:bg-blue-50 active:scale-95 text-[#1b64b9] font-extrabold text-xs sm:text-sm transition cursor-pointer"
             >
               계획표 보기

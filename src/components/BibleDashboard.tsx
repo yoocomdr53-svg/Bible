@@ -64,9 +64,62 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
     verse: 1,
   });
 
+  // ChallengeView initial screen & book state
+  const [challengeInitialSubScreen, setChallengeInitialSubScreen] = useState<
+    'main' | 'matrix' | 'plan' | 'create-plan' | 'edit-plan' | 'total-progress' | 'chapter-grid'
+  >('main');
+  const [challengeSelectedBook, setChallengeSelectedBook] = useState('창세기');
+
+  // Navigation history stack for global back navigation
+  const [navHistory, setNavHistory] = useState<
+    {
+      tab: ActiveTab;
+      bibleSubView?: 'selector' | 'reader';
+      challengeSubScreen?: 'main' | 'matrix' | 'plan' | 'create-plan' | 'edit-plan' | 'total-progress' | 'chapter-grid';
+      challengeBook?: string;
+    }[]
+  >([]);
+
+  const pushHistory = (entry: {
+    tab: ActiveTab;
+    bibleSubView?: 'selector' | 'reader';
+    challengeSubScreen?: 'main' | 'matrix' | 'plan' | 'create-plan' | 'edit-plan' | 'total-progress' | 'chapter-grid';
+    challengeBook?: string;
+  }) => {
+    setNavHistory((prev) => [...prev, entry]);
+  };
+
+  const handleBackFromReader = () => {
+    if (navHistory.length > 0) {
+      const prev = navHistory[navHistory.length - 1];
+      setNavHistory((p) => p.slice(0, -1));
+      setActiveTab(prev.tab);
+      if (prev.tab === 'challenge') {
+        if (prev.challengeSubScreen) {
+          setChallengeInitialSubScreen(prev.challengeSubScreen);
+        }
+        if (prev.challengeBook) {
+          setChallengeSelectedBook(prev.challengeBook);
+        }
+      } else if (prev.tab === 'bible') {
+        setBibleSubView('selector');
+      }
+    } else {
+      // If no history, default back to challenge
+      setActiveTab('challenge');
+    }
+  };
+
   // Tapping "성경" (from Home icon OR bottom nav bar)
   // IMMEDIATELY opens the 3-step selection screen (성경화면 -> 장화면 -> 절화면)
   const handleOpenBibleSelector = () => {
+    if (activeTab !== 'bible') {
+      pushHistory({
+        tab: activeTab,
+        challengeSubScreen: challengeInitialSubScreen,
+        challengeBook: challengeSelectedBook,
+      });
+    }
     setOpenInRecordingMode(false);
     setBibleSubView('selector');
     setBibleSelectorStep('book');
@@ -77,6 +130,12 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
     const book = portion.split(' ')[0] || '창세기';
     const ch = chapter || Number(portion.split(' ')[1]) || 1;
     const v = verse || 1;
+    pushHistory({
+      tab: activeTab,
+      bibleSubView,
+      challengeSubScreen: challengeInitialSubScreen,
+      challengeBook: challengeSelectedBook,
+    });
     setReaderLocation({ book, chapter: ch, verse: v });
     setActiveTab('bible');
     setBibleSubView('reader');
@@ -536,6 +595,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
             initialChapter={readerLocation.chapter}
             initialVerse={readerLocation.verse}
             initialRecordingMode={openInRecordingMode}
+            onBack={handleBackFromReader}
             onBackToHome={() => setActiveTab('home')}
             onBackToSelector={() => {
               setBibleSelectorStep('book');
@@ -561,6 +621,13 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
           plans={readingPlans}
           onTogglePlan={onTogglePlan}
           onNavigateToBible={navigateToPortion}
+          initialSubScreen={challengeInitialSubScreen}
+          initialBook={challengeSelectedBook}
+          onSubScreenChange={(screen, book) => {
+            setChallengeInitialSubScreen(screen);
+            if (book) setChallengeSelectedBook(book);
+          }}
+          onBackToHome={() => setActiveTab('home')}
         />
       )}
 
