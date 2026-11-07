@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
-  Upload,
   Monitor,
   Search,
   Volume2,
@@ -14,7 +13,8 @@ import {
   SkipForward,
   Heart,
   X,
-  Sparkles,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { BIBLE_BOOKS, SAMPLE_VERSES_CHAPTER, getChapterVerseCount } from '../data/bibleData';
 import { BibleVerse } from '../types';
@@ -44,13 +44,20 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   const [selectedVerse, setSelectedVerse] = useState(initialVerse);
   const [selectedTranslation, setSelectedTranslation] = useState<'개역개정' | '개역한글' | '쉬운성경' | 'NIV'>('개역개정');
 
+  // Screen display settings (matching user uploaded screenshot)
+  const [fontFamily, setFontFamily] = useState<'기본' | '나눔고딕' | '나눔명조'>('기본');
+  const [isBold, setIsBold] = useState(false);
+  const [fontSizePt, setFontSizePt] = useState(17);
+  const [scrollSpeed, setScrollSpeed] = useState(13);
+  const [isInverted, setIsInverted] = useState(false);
+
   // Audio state
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(186); // 03:06
   const [voiceType, setVoiceType] = useState('남성(중저음)');
 
-  // UI Dropdowns & Modals
+  // UI Modals
   const [showSelectorModal, setShowSelectorModal] = useState(false);
   const [selectorInitialStep, setSelectorInitialStep] = useState<'book' | 'chapter' | 'verse'>('book');
   const [showTransModal, setShowTransModal] = useState(false);
@@ -59,13 +66,12 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   const [showOfferingModal, setShowOfferingModal] = useState(false);
   const [showVoiceModal, setShowVoiceModal] = useState(false);
 
-  const [fontSize, setFontSize] = useState<'normal' | 'large' | 'xlarge'>('large');
   const [searchQuery, setSearchQuery] = useState('');
   const [highlightedVerses, setHighlightedVerses] = useState<number[]>([]);
 
   const contentRef = useRef<HTMLDivElement>(null);
 
-  // Sync with prop changes if passed from parent
+  // Sync with prop changes
   useEffect(() => {
     setSelectedBook(initialBook);
     setSelectedChapter(initialChapter);
@@ -89,7 +95,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     return generated;
   }, [key, selectedBook, selectedChapter]);
 
-  // Auto-scroll to selected verse and highlight it
+  // Auto-scroll to selected verse and highlight
   useEffect(() => {
     if (selectedVerse) {
       setHighlightedVerses([selectedVerse]);
@@ -171,7 +177,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
 
   const handleScrollDown = () => {
     if (contentRef.current) {
-      contentRef.current.scrollBy({ top: 300, behavior: 'smooth' });
+      contentRef.current.scrollBy({ top: scrollSpeed * 22, behavior: 'smooth' });
     }
   };
 
@@ -193,13 +199,18 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     : verses;
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-white relative overflow-hidden text-slate-800 select-none">
+    <div
+      className={`flex-1 flex flex-col h-full relative overflow-hidden select-none transition-colors duration-200 ${
+        isInverted ? 'bg-[#111827] text-slate-100' : 'bg-white text-slate-800'
+      }`}
+    >
       {/* 1. TOP HEADER (Deep Blue Bar #1b64b9) */}
       <header className="bg-[#1b64b9] text-white px-3 py-2 flex items-center justify-between shadow-md z-30 flex-shrink-0">
         {/* Left: Back button & Dropdowns */}
         <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Back Button -> Back to Selector or Home */}
           <button
+            type="button"
             onClick={() => {
               if (onBackToSelector) {
                 onBackToSelector();
@@ -215,8 +226,9 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
             <ChevronLeft className="w-5 h-5 text-white" />
           </button>
 
-          {/* Book & Chapter Button -> Opens 3-step selector */}
+          {/* Book & Chapter Button */}
           <button
+            type="button"
             onClick={() => {
               if (onBackToSelector) {
                 onBackToSelector();
@@ -236,6 +248,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
 
           {/* Translation Button */}
           <button
+            type="button"
             onClick={() => setShowTransModal(true)}
             className="flex items-center gap-1 bg-white/10 hover:bg-white/20 active:scale-95 px-2.5 py-1 rounded-full border border-white/20 transition cursor-pointer"
           >
@@ -248,21 +261,12 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           </button>
         </div>
 
-        {/* Right Action Icons (원문업로드, 화면설정, 검색) */}
+        {/* Right Action Icons: Only 화면설정 & 검색 (원문업로드 removed as requested) */}
         <div className="flex items-center gap-1 sm:gap-2 text-white">
-          {/* 원문업로드 */}
-          <button
-            onClick={() => alert('수퍼바이블 원문 및 사용자 성경 텍스트 업로드 준비 완료')}
-            className="flex flex-col items-center justify-center px-1.5 py-0.5 hover:bg-white/15 rounded-lg transition cursor-pointer"
-            title="원문 업로드"
-          >
-            <Upload className="w-4 h-4 text-white" />
-            <span className="text-[9px] font-medium leading-tight mt-0.5 text-center">원문업로드</span>
-          </button>
-
           {/* 화면설정 */}
           <button
-            onClick={() => setShowScreenSettings(!showScreenSettings)}
+            type="button"
+            onClick={() => setShowScreenSettings(true)}
             className="flex flex-col items-center justify-center px-1.5 py-0.5 hover:bg-white/15 rounded-lg transition cursor-pointer"
             title="화면 설정"
           >
@@ -272,6 +276,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
 
           {/* 검색 */}
           <button
+            type="button"
             onClick={() => setShowSearch(!showSearch)}
             className="flex flex-col items-center justify-center px-1.5 py-0.5 hover:bg-white/15 rounded-lg transition cursor-pointer"
             title="본문 검색"
@@ -282,39 +287,55 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
         </div>
       </header>
 
-      {/* 2. SUB-TOOLBAR (White Bar with Controls & Badges) */}
-      <div className="bg-white border-b border-slate-200 px-3 py-1.5 flex items-center justify-between text-xs flex-shrink-0 z-20">
+      {/* 2. SUB-TOOLBAR (Controls & Badges) */}
+      <div
+        className={`border-b px-3 py-1.5 flex items-center justify-between text-xs flex-shrink-0 z-20 ${
+          isInverted ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'
+        }`}
+      >
         {/* Left Quick Navigation Icons */}
         <div className="flex items-center gap-1">
           <button
+            type="button"
             onClick={handlePrevChapter}
             title="이전장"
-            className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 cursor-pointer"
+            className={`w-7 h-7 flex items-center justify-center rounded-lg border cursor-pointer ${
+              isInverted ? 'border-slate-700 hover:bg-slate-800 text-slate-200' : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+            }`}
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           <button
+            type="button"
             onClick={handleNextChapter}
             title="다음장"
-            className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 cursor-pointer"
+            className={`w-7 h-7 flex items-center justify-center rounded-lg border cursor-pointer ${
+              isInverted ? 'border-slate-700 hover:bg-slate-800 text-slate-200' : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+            }`}
           >
             <ChevronRight className="w-4 h-4" />
           </button>
           <button
+            type="button"
             onClick={togglePlay}
             title={isPlaying ? '음성 중지' : '음성 듣기'}
             className={`w-7 h-7 flex items-center justify-center rounded-lg border cursor-pointer transition ${
               isPlaying
                 ? 'bg-blue-600 text-white border-blue-600'
+                : isInverted
+                ? 'border-slate-700 hover:bg-slate-800 text-slate-200'
                 : 'border-slate-200 hover:bg-slate-50 text-slate-700'
             }`}
           >
             {isPlaying ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
           </button>
           <button
+            type="button"
             onClick={handleScrollDown}
             title="아래로 스크롤"
-            className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 cursor-pointer"
+            className={`w-7 h-7 flex items-center justify-center rounded-lg border cursor-pointer ${
+              isInverted ? 'border-slate-700 hover:bg-slate-800 text-slate-200' : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+            }`}
           >
             <ArrowDown className="w-4 h-4" />
           </button>
@@ -324,6 +345,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
         <div className="flex items-center gap-1.5">
           {/* 선교 헌금 Badge */}
           <button
+            type="button"
             onClick={() => setShowOfferingModal(true)}
             className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-50 hover:bg-red-100/80 border border-red-200/80 text-red-600 font-bold text-[11px] transition cursor-pointer"
           >
@@ -333,8 +355,11 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
 
           {/* 남성(중저음) Voice Badge */}
           <button
+            type="button"
             onClick={() => setShowVoiceModal(true)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 font-bold text-[11px] transition cursor-pointer"
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-full border font-bold text-[11px] transition cursor-pointer ${
+              isInverted ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-100 border-slate-200 text-slate-800'
+            }`}
           >
             <span>👦</span>
             <span>{voiceType}</span>
@@ -342,49 +367,25 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
         </div>
       </div>
 
-      {/* Screen Settings Popover */}
-      {showScreenSettings && (
-        <div className="bg-slate-50 border-b border-slate-200 px-4 py-2 flex items-center justify-between text-xs animate-in slide-in-from-top duration-150 z-20">
-          <span className="font-bold text-slate-700">글자 크기:</span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setFontSize('normal')}
-              className={`px-2 py-0.5 rounded ${fontSize === 'normal' ? 'bg-[#1b64b9] text-white font-bold' : 'bg-white border'}`}
-            >
-              보통
-            </button>
-            <button
-              onClick={() => setFontSize('large')}
-              className={`px-2 py-0.5 rounded ${fontSize === 'large' ? 'bg-[#1b64b9] text-white font-bold' : 'bg-white border'}`}
-            >
-              크게
-            </button>
-            <button
-              onClick={() => setFontSize('xlarge')}
-              className={`px-2 py-0.5 rounded ${fontSize === 'xlarge' ? 'bg-[#1b64b9] text-white font-bold' : 'bg-white border'}`}
-            >
-              아주크게
-            </button>
-          </div>
-          <button onClick={() => setShowScreenSettings(false)} className="text-slate-400 p-1">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
       {/* Search Input Bar */}
       {showSearch && (
-        <div className="bg-blue-50/70 border-b border-blue-200 px-4 py-2 flex items-center gap-2 animate-in slide-in-from-top duration-150 z-20">
-          <Search className="w-4 h-4 text-blue-600" />
+        <div
+          className={`border-b px-4 py-2 flex items-center gap-2 animate-in slide-in-from-top duration-150 z-20 ${
+            isInverted ? 'bg-slate-900 border-slate-800' : 'bg-blue-50/70 border-blue-200'
+          }`}
+        >
+          <Search className="w-4 h-4 text-blue-500" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="본문 구절 검색 (예: 하나님, 궁창, 빛)"
-            className="flex-1 bg-white border border-blue-200 rounded-lg px-2.5 py-1 text-xs focus:outline-none"
+            className={`flex-1 border rounded-lg px-2.5 py-1 text-xs focus:outline-none ${
+              isInverted ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-blue-200 text-slate-900'
+            }`}
             autoFocus
           />
-          <button onClick={() => setShowSearch(false)} className="text-slate-400 p-1">
+          <button type="button" onClick={() => setShowSearch(false)} className="text-slate-400 p-1">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -393,9 +394,45 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
       {/* 3. BIBLE VERSES BODY */}
       <div
         ref={contentRef}
-        className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 bg-white smooth-scroll"
+        className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 smooth-scroll"
+        style={{
+          fontFamily:
+            fontFamily === '나눔고딕'
+              ? "'Nanum Gothic', sans-serif"
+              : fontFamily === '나눔명조'
+              ? "'Nanum Myeongjo', serif"
+              : "'Noto Sans KR', sans-serif",
+        }}
       >
         <div className="max-w-2xl mx-auto space-y-4">
+          {/* Section banner matching user image */}
+          {selectedBook === '창세기' && selectedChapter === 1 && (
+            <div className="pt-2 pb-1">
+              <button
+                type="button"
+                className="bg-[#3b747c] hover:bg-[#32636a] text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-xs transition cursor-pointer"
+              >
+                창세기 이해하기
+              </button>
+              <h3 className={`text-base sm:text-lg font-extrabold mt-3 mb-1 ${isInverted ? 'text-blue-400' : 'text-[#1b64b9]'}`}>
+                천지 창조
+              </h3>
+            </div>
+          )}
+          {selectedBook === '창세기' && selectedChapter === 2 && (
+            <div className="pt-2 pb-1">
+              <button
+                type="button"
+                className="bg-[#3b747c] hover:bg-[#32636a] text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-xs transition cursor-pointer"
+              >
+                창세기 이해하기
+              </button>
+              <h3 className={`text-base sm:text-lg font-extrabold mt-3 mb-1 ${isInverted ? 'text-blue-400' : 'text-[#1b64b9]'}`}>
+                안식일과 에덴 동산
+              </h3>
+            </div>
+          )}
+
           {filteredVerses.map((v) => {
             const isHighlighted = highlightedVerses.includes(v.verse);
             return (
@@ -407,26 +444,33 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                     prev.includes(v.verse) ? prev.filter((n) => n !== v.verse) : [...prev, v.verse]
                   );
                 }}
-                className={`flex items-start gap-3.5 py-2 px-3 rounded-xl transition cursor-pointer ${
+                className={`flex items-start gap-3.5 py-1.5 px-2.5 rounded-xl transition cursor-pointer ${
                   isHighlighted
-                    ? 'bg-amber-100/80 border-2 border-amber-400 shadow-sm'
+                    ? isInverted
+                      ? 'bg-amber-950/60 border border-amber-500/80 shadow-xs'
+                      : 'bg-amber-100/80 border-2 border-amber-400 shadow-sm'
+                    : isInverted
+                    ? 'hover:bg-slate-800/60'
                     : 'hover:bg-slate-50'
                 }`}
               >
                 {/* Verse Number */}
-                <span className="text-base sm:text-lg font-black text-slate-900 select-none min-w-[20px] pt-0.5">
+                <span
+                  className={`text-base sm:text-lg font-black select-none min-w-[20px] pt-0.5 ${
+                    isInverted ? 'text-amber-400' : 'text-slate-900'
+                  }`}
+                >
                   {v.verse}
                 </span>
 
-                {/* Verse Text */}
+                {/* Verse Text with dynamic font size, weight, and family */}
                 <p
-                  className={`flex-1 text-slate-800 font-normal tracking-tight ${
-                    fontSize === 'xlarge'
-                      ? 'text-[20px] leading-[1.85]'
-                      : fontSize === 'large'
-                      ? 'text-[17.5px] leading-[1.8]'
-                      : 'text-[15.5px] leading-[1.7]'
-                  }`}
+                  className={`flex-1 tracking-tight ${isInverted ? 'text-slate-100' : 'text-slate-800'}`}
+                  style={{
+                    fontSize: `${fontSizePt}px`,
+                    lineHeight: `${fontSizePt * 1.8}px`,
+                    fontWeight: isBold ? 700 : 400,
+                  }}
                 >
                   {v.text}
                 </p>
@@ -437,17 +481,23 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
       </div>
 
       {/* 4. CHAPTER NAVIGATION ROW (Right above audio player) */}
-      <div className="bg-white border-t border-slate-100 px-4 py-2 flex items-center justify-between z-20 flex-shrink-0">
+      <div
+        className={`border-t px-4 py-2 flex items-center justify-between z-20 flex-shrink-0 ${
+          isInverted ? 'bg-slate-900 border-slate-800 text-slate-200' : 'bg-white border-slate-100 text-slate-800'
+        }`}
+      >
         {/* 이전장 */}
         <button
+          type="button"
           onClick={handlePrevChapter}
-          className="text-xs font-semibold text-slate-400 hover:text-slate-700 transition cursor-pointer"
+          className="text-xs font-semibold text-slate-400 hover:text-slate-600 transition cursor-pointer"
         >
           &lt; 이전장
         </button>
 
         {/* 창세기 1장 ∨ (Click opens 3-step selector) */}
         <button
+          type="button"
           onClick={() => {
             if (onBackToSelector) {
               onBackToSelector();
@@ -455,7 +505,9 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
               handleOpenSelector('chapter');
             }
           }}
-          className="flex items-center gap-1 text-sm font-extrabold text-[#1b64b9] hover:underline cursor-pointer"
+          className={`flex items-center gap-1 text-sm font-extrabold hover:underline cursor-pointer ${
+            isInverted ? 'text-blue-400' : 'text-[#1b64b9]'
+          }`}
         >
           <span>{selectedBook} {selectedChapter}장</span>
           <span className="text-xs">∨</span>
@@ -463,6 +515,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
 
         {/* 다음장 > */}
         <button
+          type="button"
           onClick={handleNextChapter}
           className="bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-xs transition cursor-pointer"
         >
@@ -472,16 +525,24 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
       </div>
 
       {/* 5. AUDIO PLAYER (Sticky Bottom Bar) */}
-      <div className="bg-[#f8fafc] border-t border-slate-200 px-4 py-2.5 z-20 flex-shrink-0 shadow-lg">
+      <div
+        className={`border-t px-4 py-2.5 z-20 flex-shrink-0 shadow-lg ${
+          isInverted ? 'bg-slate-900 border-slate-800 text-slate-200' : 'bg-[#f8fafc] border-slate-200 text-slate-800'
+        }`}
+      >
         {/* Timestamp & Reader Voice Badge */}
         <div className="flex items-center justify-between text-xs">
-          <span className="font-mono text-xs text-slate-700">{formatTime(currentTime)}</span>
+          <span className="font-mono text-xs text-slate-500">{formatTime(currentTime)}</span>
 
-          <div className="px-3 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-bold border border-blue-100/80 shadow-2xs">
+          <div
+            className={`px-3 py-0.5 rounded-full text-[11px] font-bold border shadow-2xs ${
+              isInverted ? 'bg-slate-800 text-blue-300 border-slate-700' : 'bg-blue-50 text-blue-700 border-blue-100/80'
+            }`}
+          >
             낭독: {voiceType}
           </div>
 
-          <span className="font-mono text-xs text-slate-700">{formatTime(duration)}</span>
+          <span className="font-mono text-xs text-slate-500">{formatTime(duration)}</span>
         </div>
 
         {/* Progress Timeline Slider */}
@@ -492,7 +553,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
             max={duration}
             value={currentTime}
             onChange={(e) => setCurrentTime(Number(e.target.value))}
-            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#1b64b9]"
+            className="w-full h-1.5 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-[#1b64b9]"
           />
         </div>
 
@@ -501,8 +562,9 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           {/* Audio Playback Buttons */}
           <div className="flex items-center gap-3">
             <button
+              type="button"
               onClick={() => setCurrentTime(Math.max(0, currentTime - 15))}
-              className="p-1 text-slate-700 hover:text-black cursor-pointer"
+              className="p-1 text-slate-600 hover:text-black cursor-pointer"
               title="15초 전으로"
             >
               <SkipBack className="w-4 h-4" />
@@ -510,6 +572,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
 
             {/* Play/Pause Main Circle */}
             <button
+              type="button"
               onClick={togglePlay}
               className="w-10 h-10 rounded-full bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white flex items-center justify-center shadow-md transition cursor-pointer"
               title={isPlaying ? '일시 정지' : '재생'}
@@ -518,8 +581,9 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={() => setCurrentTime(Math.min(duration, currentTime + 15))}
-              className="p-1 text-slate-700 hover:text-black cursor-pointer"
+              className="p-1 text-slate-600 hover:text-black cursor-pointer"
               title="15초 후로"
             >
               <SkipForward className="w-4 h-4" />
@@ -530,6 +594,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           <div className="flex items-center gap-2">
             {/* 녹음 버튼 */}
             <button
+              type="button"
               onClick={() =>
                 onOpenRecorder({
                   book: selectedBook,
@@ -539,7 +604,9 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                   translation: selectedTranslation,
                 })
               }
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-xs font-bold text-slate-800 transition shadow-2xs cursor-pointer"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition shadow-2xs cursor-pointer ${
+                isInverted ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700' : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50'
+              }`}
             >
               <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
               <span>녹음</span>
@@ -547,8 +614,11 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
 
             {/* 음원 설정 버튼 */}
             <button
+              type="button"
               onClick={() => setShowVoiceModal(true)}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-xs font-bold text-slate-800 transition shadow-2xs cursor-pointer"
+              className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition shadow-2xs cursor-pointer ${
+                isInverted ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700' : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50'
+              }`}
             >
               음원 설정
             </button>
@@ -556,7 +626,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
         </div>
       </div>
 
-      {/* 6. FULL 3-STEP BIBLE SELECTOR MODAL (성경 -> 장 -> 절) */}
+      {/* 6. FULL 3-STEP BIBLE SELECTOR MODAL (Fallback when triggered directly) */}
       <BibleSelectorModal
         isOpen={showSelectorModal}
         initialBook={selectedBook}
@@ -566,6 +636,195 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
         onClose={() => setShowSelectorModal(false)}
         onSelectLocation={handleSelectLocation}
       />
+
+      {/* 7. 화면설정 Bottom Sheet (Exact Match to User Uploaded Screenshot) */}
+      {showScreenSettings && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex flex-col justify-end animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowScreenSettings(false);
+          }}
+        >
+          {/* Close 'X' Button on top-right above sheet */}
+          <div className="w-full max-w-lg mx-auto flex justify-end px-5 pb-2">
+            <button
+              type="button"
+              onClick={() => setShowScreenSettings(false)}
+              className="text-white hover:text-slate-200 p-1 cursor-pointer transition active:scale-90"
+              title="닫기"
+            >
+              <X className="w-8 h-8 stroke-[2.2]" />
+            </button>
+          </div>
+
+          {/* Bottom Sheet Card */}
+          <div className="w-full max-w-lg mx-auto bg-white rounded-t-[28px] p-6 sm:p-7 shadow-2xl space-y-6 text-slate-900 animate-in slide-in-from-bottom duration-200 border-t border-slate-100">
+            {/* 1. 폰트변경 */}
+            <div className="flex items-center justify-between">
+              <span className="text-[15px] font-bold text-slate-900">폰트변경</span>
+              <div className="flex items-center text-[15px]">
+                <button
+                  type="button"
+                  onClick={() => setFontFamily('기본')}
+                  className={`cursor-pointer transition-colors ${
+                    fontFamily === '기본' ? 'text-[#0284c7] font-bold' : 'text-slate-800'
+                  }`}
+                >
+                  기본
+                </button>
+                <span className="text-slate-300 mx-2.5 font-light">|</span>
+                <button
+                  type="button"
+                  onClick={() => setFontFamily('나눔고딕')}
+                  className={`cursor-pointer transition-colors ${
+                    fontFamily === '나눔고딕' ? 'text-[#0284c7] font-bold' : 'text-slate-800'
+                  }`}
+                >
+                  나눔고딕
+                </button>
+                <span className="text-slate-300 mx-2.5 font-light">|</span>
+                <button
+                  type="button"
+                  onClick={() => setFontFamily('나눔명조')}
+                  className={`cursor-pointer transition-colors ${
+                    fontFamily === '나눔명조' ? 'text-[#0284c7] font-bold' : 'text-slate-800'
+                  }`}
+                >
+                  나눔명조
+                </button>
+              </div>
+            </div>
+
+            {/* 2. 폰트굵기 */}
+            <div className="flex items-center justify-between">
+              <span className="text-[15px] font-bold text-slate-900">폰트굵기</span>
+              <button
+                type="button"
+                onClick={() => setIsBold(!isBold)}
+                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors cursor-pointer ${
+                  isBold ? 'bg-[#0284c7]' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-md transition-transform ${
+                    isBold ? 'translate-x-7' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* 3. 글자크기 */}
+            <div className="flex items-center justify-between">
+              <span className="text-[15px] font-bold text-slate-900">글자크기</span>
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setFontSizePt((prev) => Math.max(12, prev - 1))}
+                  className="w-7 h-7 rounded-full border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 font-bold active:scale-90 cursor-pointer"
+                >
+                  －
+                </button>
+                <div className="w-28 sm:w-36 flex items-center">
+                  <input
+                    type="range"
+                    min={12}
+                    max={26}
+                    value={fontSizePt}
+                    onChange={(e) => setFontSizePt(Number(e.target.value))}
+                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0284c7]"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFontSizePt((prev) => Math.min(26, prev + 1))}
+                  className="w-7 h-7 rounded-full border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 font-bold active:scale-90 cursor-pointer"
+                >
+                  ＋
+                </button>
+                <span className="text-[15px] font-bold text-slate-900 min-w-[38px] text-right">
+                  {fontSizePt}pt
+                </span>
+              </div>
+            </div>
+
+            {/* 4. 스크롤 속도 */}
+            <div>
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="text-[15px] font-bold text-slate-900 leading-tight">스크롤</span>
+                  <span className="text-[15px] font-bold text-slate-900 leading-tight">속도</span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setScrollSpeed((prev) => Math.max(1, prev - 1))}
+                    className="w-7 h-7 rounded-full border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 font-bold active:scale-90 cursor-pointer"
+                  >
+                    －
+                  </button>
+                  <div className="w-28 sm:w-36 flex items-center">
+                    <input
+                      type="range"
+                      min={1}
+                      max={30}
+                      value={scrollSpeed}
+                      onChange={(e) => setScrollSpeed(Number(e.target.value))}
+                      className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0284c7]"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setScrollSpeed((prev) => Math.min(30, prev + 1))}
+                    className="w-7 h-7 rounded-full border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 font-bold active:scale-90 cursor-pointer"
+                  >
+                    ＋
+                  </button>
+                  <span className="text-[15px] font-bold text-slate-900 min-w-[38px] text-right">
+                    {scrollSpeed}
+                  </span>
+                </div>
+              </div>
+              <p className="text-xs text-slate-500 mt-1.5">
+                (숫자가 클수록 스크롤 속도가 빨라집니다)
+              </p>
+            </div>
+
+            {/* 5. 화면 색반전 */}
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[15px] font-bold text-slate-900">화면 색반전</span>
+              <div className="flex items-center gap-3">
+                {/* Light Mode Button (Sun) */}
+                <button
+                  type="button"
+                  onClick={() => setIsInverted(false)}
+                  className={`w-11 h-11 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                    !isInverted
+                      ? 'bg-[#0284c7] text-white shadow-md ring-2 ring-blue-300 scale-105'
+                      : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                  }`}
+                  title="주간 모드 (밝은 화면)"
+                >
+                  <Sun className="w-6 h-6 fill-amber-300 text-amber-300" />
+                </button>
+
+                {/* Dark Mode Button (Moon) */}
+                <button
+                  type="button"
+                  onClick={() => setIsInverted(true)}
+                  className={`w-11 h-11 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                    isInverted
+                      ? 'bg-slate-900 text-amber-300 shadow-md ring-2 ring-amber-400 scale-105'
+                      : 'bg-slate-100 text-amber-500 hover:bg-slate-200'
+                  }`}
+                  title="야간 모드 (색반전 어두운 화면)"
+                >
+                  <Moon className="w-6 h-6 fill-amber-300 text-amber-300" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: Translation Picker */}
       {showTransModal && (
@@ -581,6 +840,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
               {(['개역개정', '개역한글', '쉬운성경', 'NIV'] as const).map((trans) => (
                 <button
                   key={trans}
+                  type="button"
                   onClick={() => {
                     setSelectedTranslation(trans);
                     setShowTransModal(false);
@@ -614,6 +874,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
               {['남성(중저음)', '여성(맑은음)', 'AI 청년 목소리', '드라마 입체 낭독'].map((voice) => (
                 <button
                   key={voice}
+                  type="button"
                   onClick={() => {
                     setVoiceType(voice);
                     setShowVoiceModal(false);
@@ -654,8 +915,9 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
               <p className="mt-1">농협 351-1234-5678-91 (예금주: 로고스선교회)</p>
             </div>
             <button
+              type="button"
               onClick={() => setShowOfferingModal(false)}
-              className="w-full py-2.5 rounded-xl bg-[#1b64b9] text-white text-xs font-bold hover:bg-blue-700 transition"
+              className="w-full py-2.5 rounded-xl bg-[#1b64b9] text-white text-xs font-bold hover:bg-blue-700 transition cursor-pointer"
             >
               확인
             </button>
