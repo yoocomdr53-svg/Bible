@@ -15,6 +15,9 @@ import {
   X,
   Sun,
   Moon,
+  Mic,
+  Share2,
+  Check,
 } from 'lucide-react';
 import { BIBLE_BOOKS, SAMPLE_VERSES_CHAPTER, getChapterVerseCount } from '../data/bibleData';
 import { BibleVerse } from '../types';
@@ -26,6 +29,7 @@ interface BibleReaderViewProps {
   initialBook?: string;
   initialChapter?: number;
   initialVerse?: number;
+  initialRecordingMode?: boolean;
   onBackToHome?: () => void;
   onBackToSelector?: () => void;
 }
@@ -36,6 +40,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   initialBook = '창세기',
   initialChapter = 1,
   initialVerse = 1,
+  initialRecordingMode = false,
   onBackToHome,
   onBackToSelector,
 }) => {
@@ -57,6 +62,15 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   const [duration, setDuration] = useState(186); // 03:06
   const [voiceType, setVoiceType] = useState('남성(중저음)');
 
+  // Bible Reading Recording Mode (성경낭독녹음 모드 - matching user uploaded screenshot)
+  const [isRecordingMode, setIsRecordingMode] = useState(initialRecordingMode);
+  const [activeRecordVerse, setActiveRecordVerse] = useState<number>(initialVerse || 1);
+  const [isRecordingNow, setIsRecordingNow] = useState(false);
+  const [recordDurationSec, setRecordDurationSec] = useState(0);
+  const [isContinuousRecording, setIsContinuousRecording] = useState(true);
+  const [recordedVerses, setRecordedVerses] = useState<number[]>([]);
+  const [showShareModal, setShowShareModal] = useState(false);
+
   // UI Modals
   const [showSelectorModal, setShowSelectorModal] = useState(false);
   const [selectorInitialStep, setSelectorInitialStep] = useState<'book' | 'chapter' | 'verse'>('book');
@@ -76,6 +90,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     setSelectedBook(initialBook);
     setSelectedChapter(initialChapter);
     setSelectedVerse(initialVerse);
+    setActiveRecordVerse(initialVerse || 1);
   }, [initialBook, initialChapter, initialVerse]);
 
   // Generate or fetch verses
@@ -97,7 +112,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
 
   // Auto-scroll to selected verse and highlight
   useEffect(() => {
-    if (selectedVerse) {
+    if (selectedVerse && !isRecordingMode) {
       setHighlightedVerses([selectedVerse]);
       const timer = setTimeout(() => {
         const el = document.getElementById(`verse-row-${selectedVerse}`);
@@ -107,7 +122,17 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
       }, 150);
       return () => clearTimeout(timer);
     }
-  }, [selectedBook, selectedChapter, selectedVerse]);
+  }, [selectedBook, selectedChapter, selectedVerse, isRecordingMode]);
+
+  // Scroll to active recording verse in recording mode
+  useEffect(() => {
+    if (isRecordingMode && activeRecordVerse) {
+      const el = document.getElementById(`record-verse-row-${activeRecordVerse}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }, [isRecordingMode, activeRecordVerse]);
 
   // Audio speech synthesis simulation
   useEffect(() => {
@@ -127,6 +152,17 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     }
     return () => clearInterval(interval);
   }, [isPlaying, duration]);
+
+  // Recording timer simulation
+  useEffect(() => {
+    let interval: any;
+    if (isRecordingNow) {
+      interval = setInterval(() => {
+        setRecordDurationSec((prev) => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isRecordingNow]);
 
   const togglePlay = () => {
     if ('speechSynthesis' in window) {
@@ -155,10 +191,18 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  const formatHMS = (sec: number) => {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
   const handlePrevChapter = () => {
     if (selectedChapter > 1) {
       setSelectedChapter((prev) => prev - 1);
       setSelectedVerse(1);
+      setActiveRecordVerse(1);
       setCurrentTime(0);
       setIsPlaying(false);
     }
@@ -170,6 +214,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     if (selectedChapter < maxCh) {
       setSelectedChapter((prev) => prev + 1);
       setSelectedVerse(1);
+      setActiveRecordVerse(1);
       setCurrentTime(0);
       setIsPlaying(false);
     }
@@ -190,14 +235,465 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     setSelectedBook(book);
     setSelectedChapter(chapter);
     setSelectedVerse(verse);
+    setActiveRecordVerse(verse);
     setCurrentTime(0);
     setIsPlaying(false);
+  };
+
+  // Recording controls
+  const handleToggleRecord = () => {
+    if (isRecordingNow) {
+      // Stop recording
+      setIsRecordingNow(false);
+      if (!recordedVerses.includes(activeRecordVerse)) {
+        setRecordedVerses((prev) => [...prev, activeRecordVerse]);
+      }
+      // If continuous recording, advance to next verse
+      if (isContinuousRecording && activeRecordVerse < verses.length) {
+        setActiveRecordVerse((prev) => prev + 1);
+      }
+    } else {
+      // Start recording
+      setIsRecordingNow(true);
+    }
+  };
+
+  const handleCompleteRecording = () => {
+    setIsRecordingNow(false);
+    alert(`${selectedBook} ${selectedChapter}장 낭독 녹음이 안전하게 저장되었습니다.`);
+    setIsRecordingMode(false);
   };
 
   const filteredVerses = searchQuery.trim()
     ? verses.filter((v) => v.text.toLowerCase().includes(searchQuery.toLowerCase()))
     : verses;
 
+  // ==========================================
+  // MODE 1: 성경 낭독 녹음 화면 (Matching User Uploaded Image)
+  // ==========================================
+  if (isRecordingMode) {
+    return (
+      <div className="flex-1 flex flex-col h-full bg-white relative overflow-hidden select-none text-slate-800">
+        {/* 1. Header (Dark Sage / Olive Green #496557) */}
+        <header className="bg-[#496557] text-white px-3 py-2 flex items-center justify-between shadow-md z-30 flex-shrink-0">
+          {/* Left: Book & Chapter and Translation */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleOpenSelector('book')}
+              className="flex items-center gap-1 hover:bg-white/10 px-2 py-0.5 rounded-lg transition cursor-pointer"
+            >
+              <span className="text-[15px] sm:text-base font-extrabold whitespace-nowrap">
+                {selectedBook} {selectedChapter}장
+              </span>
+              <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px]">
+                ▽
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowTransModal(true)}
+              className="flex items-center gap-1 hover:bg-white/10 px-2 py-0.5 rounded-lg transition cursor-pointer"
+            >
+              <span className="text-[13px] sm:text-sm font-bold whitespace-nowrap">
+                {selectedTranslation}
+              </span>
+              <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px]">
+                ▽
+              </span>
+            </button>
+          </div>
+
+          {/* Right: A 글자 and ✕ Close button */}
+          <div className="flex items-center gap-3 text-white">
+            <button
+              type="button"
+              onClick={() => setShowScreenSettings(true)}
+              className="flex flex-col items-center justify-center hover:bg-white/15 px-1.5 py-0.5 rounded-lg transition cursor-pointer"
+              title="글자 크기 및 화면 설정"
+            >
+              <span className="text-base font-serif font-black leading-none">A</span>
+              <span className="text-[9px] font-medium leading-none mt-0.5">글자</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsRecordingNow(false);
+                setIsRecordingMode(false);
+              }}
+              className="p-1 hover:bg-white/15 rounded-lg transition cursor-pointer"
+              title="녹음 모드 종료"
+            >
+              <X className="w-6 h-6 stroke-[2.2]" />
+            </button>
+          </div>
+        </header>
+
+        {/* 2. Top Notice Banner: "성경낭독녹음 기능을 이용하고 계십니다" */}
+        <div className="bg-[#f8faf9] border-b border-slate-200/90 px-4 py-2 flex items-center gap-2.5 z-20 flex-shrink-0">
+          <div className="w-6 h-6 rounded-full bg-[#8c6d58] text-white flex items-center justify-center flex-shrink-0 shadow-2xs">
+            <Mic className="w-3.5 h-3.5" />
+          </div>
+          <span className="text-xs sm:text-sm font-bold text-slate-800">
+            성경낭독녹음 기능을 이용하고 계십니다
+          </span>
+        </div>
+
+        {/* 3. Sub-toolbar: < > | 녹음현황·공유 ➦ | 연속 녹음 ON */}
+        <div className="bg-white border-b border-slate-200 px-3 py-1.5 flex items-center justify-between text-xs flex-shrink-0 z-20">
+          {/* Left Chevrons: navigate active recording verse */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setActiveRecordVerse((prev) => Math.max(1, prev - 1))}
+              className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 cursor-pointer"
+              title="이전 절 선택"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveRecordVerse((prev) => Math.min(verses.length, prev + 1))}
+              className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 cursor-pointer"
+              title="다음 절 선택"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Center: 녹음현황·공유 ➦ */}
+          <button
+            type="button"
+            onClick={() => setShowShareModal(true)}
+            className="flex items-center gap-1 px-3 py-1 rounded-full border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-[11px] transition shadow-2xs cursor-pointer"
+          >
+            <span>녹음현황·공유</span>
+            <span className="text-[13px]">➦</span>
+          </button>
+
+          {/* Right: 연속 녹음 ON/OFF */}
+          <button
+            type="button"
+            onClick={() => setIsContinuousRecording(!isContinuousRecording)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold text-[11px] transition shadow-2xs cursor-pointer"
+          >
+            <span>연속 녹음</span>
+            <span
+              className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded-full text-white ${
+                isContinuousRecording ? 'bg-[#dc2626]' : 'bg-slate-400'
+              }`}
+            >
+              {isContinuousRecording ? 'ON' : 'OFF'}
+            </span>
+          </button>
+        </div>
+
+        {/* 4. Verse List Body with Selection Radio Circles */}
+        <div
+          ref={contentRef}
+          className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 smooth-scroll bg-white"
+          style={{
+            fontFamily:
+              fontFamily === '나눔고딕'
+                ? "'Nanum Gothic', sans-serif"
+                : fontFamily === '나눔명조'
+                ? "'Nanum Myeongjo', serif"
+                : "'Noto Sans KR', sans-serif",
+          }}
+        >
+          <div className="max-w-2xl mx-auto space-y-3.5">
+            {verses.map((v) => {
+              const isSelected = activeRecordVerse === v.verse;
+              const isRecorded = recordedVerses.includes(v.verse);
+
+              return (
+                <div
+                  id={`record-verse-row-${v.verse}`}
+                  key={v.verse}
+                  onClick={() => setActiveRecordVerse(v.verse)}
+                  className={`flex items-start gap-3 py-2 px-3 rounded-xl transition cursor-pointer ${
+                    isSelected
+                      ? 'bg-emerald-50/70 border border-emerald-300 shadow-xs'
+                      : 'hover:bg-slate-50'
+                  }`}
+                >
+                  {/* Selection Radio Circle */}
+                  <div className="pt-1 flex-shrink-0">
+                    <div
+                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
+                        isSelected
+                          ? 'border-[#496557] bg-[#496557]'
+                          : isRecorded
+                          ? 'border-emerald-500 bg-emerald-500'
+                          : 'border-slate-300 bg-slate-100'
+                      }`}
+                    >
+                      {isSelected ? (
+                        <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                      ) : isRecorded ? (
+                        <Check className="w-3 h-3 text-white stroke-[3]" />
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {/* Verse Number */}
+                  <span className="text-[15px] sm:text-base font-black text-slate-900 select-none min-w-[16px] pt-0.5">
+                    {v.verse}
+                  </span>
+
+                  {/* Verse Text */}
+                  <p
+                    className="flex-1 text-slate-800 tracking-tight"
+                    style={{
+                      fontSize: `${fontSizePt}px`,
+                      lineHeight: `${fontSizePt * 1.8}px`,
+                      fontWeight: isBold ? 700 : 400,
+                    }}
+                  >
+                    {v.text}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 5. Audio Recording Bottom Control Bar (Matching User Screenshot) */}
+        <div className="bg-[#fcfdfc] border-t border-slate-200 px-4 pt-2.5 pb-3 z-20 flex-shrink-0 shadow-lg">
+          {/* Progress Timeline with Timestamps 00:00:00 */}
+          <div className="space-y-1">
+            <div className="relative w-full flex items-center">
+              <input
+                type="range"
+                min={0}
+                max={Math.max(60, recordDurationSec + 30)}
+                value={recordDurationSec}
+                onChange={() => {}}
+                className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0284c7]"
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs font-mono font-bold text-slate-700">
+              <span>{formatHMS(recordDurationSec)}</span>
+              <span>{formatHMS(0)}</span>
+            </div>
+          </div>
+
+          {/* Floating Tooltip: "녹음 버튼을 누르시면 N절이 녹음됩니다" */}
+          <div className="flex justify-center my-2">
+            <div
+              className={`text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-md transition-all ${
+                isRecordingNow ? 'bg-red-600 animate-pulse' : 'bg-[#4a5568]'
+              }`}
+            >
+              {isRecordingNow
+                ? `🔴 ${activeRecordVerse}절 낭독 녹음 중입니다... (터치 시 정지)`
+                : `녹음 버튼을 누르시면 ${activeRecordVerse}절이 녹음됩니다`}
+            </div>
+          </div>
+
+          {/* 3 Main Action Buttons: 전체 재생 | 🎙 (Microphone) | 완료 */}
+          <div className="flex items-center justify-around px-4 pt-1">
+            {/* 1. 전체 재생 Button */}
+            <div className="flex flex-col items-center">
+              <button
+                type="button"
+                onClick={togglePlay}
+                className="w-12 h-12 rounded-full border-2 border-slate-600 bg-white hover:bg-slate-50 active:scale-95 flex items-center justify-center text-slate-800 shadow-sm transition cursor-pointer"
+                title="전체 재생"
+              >
+                {isPlaying ? <Pause className="w-5 h-5 fill-slate-800" /> : <Play className="w-5 h-5 fill-slate-800 ml-0.5" />}
+              </button>
+              <span className="text-[11px] font-bold text-slate-800 mt-1">전체 재생</span>
+            </div>
+
+            {/* 2. Main Red Microphone Circle Button */}
+            <div className="flex flex-col items-center">
+              <button
+                type="button"
+                onClick={handleToggleRecord}
+                className={`w-16 h-16 rounded-full flex items-center justify-center text-white shadow-xl transition-all cursor-pointer active:scale-90 ${
+                  isRecordingNow
+                    ? 'bg-red-600 ring-4 ring-red-300 animate-pulse scale-105'
+                    : 'bg-[#ef4444] hover:bg-red-600 ring-4 ring-red-100'
+                }`}
+                title={isRecordingNow ? '녹음 정지' : '녹음 시작'}
+              >
+                <Mic className="w-8 h-8 stroke-[2.2]" />
+              </button>
+            </div>
+
+            {/* 3. 완료 Button */}
+            <div className="flex flex-col items-center">
+              <button
+                type="button"
+                onClick={handleCompleteRecording}
+                className="w-12 h-12 rounded-full bg-[#786455] hover:bg-[#685548] active:scale-95 text-white flex items-center justify-center shadow-sm transition cursor-pointer"
+                title="완료 및 저장"
+              >
+                <Check className="w-6 h-6 stroke-[2.5]" />
+              </button>
+              <span className="text-[11px] font-bold text-slate-800 mt-1">완료</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Share & Recording Status Modal */}
+        {showShareModal && (
+          <div
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowShareModal(false);
+            }}
+          >
+            <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-2xl border text-center">
+              <div className="w-12 h-12 rounded-full bg-blue-100 text-[#0284c7] flex items-center justify-center mx-auto mb-3">
+                <Share2 className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-extrabold text-slate-900 mb-1">녹음 현황 및 공유</h3>
+              <p className="text-xs text-slate-600 mb-3">
+                {selectedBook} {selectedChapter}장 총 {verses.length}절 중{' '}
+                <span className="font-bold text-[#0284c7]">{recordedVerses.length}개 구절</span>이 녹음되었습니다.
+              </p>
+              <div className="p-3 bg-slate-50 rounded-xl border text-xs text-slate-700 text-left mb-4 space-y-1">
+                <p>• 녹음된 구절: {recordedVerses.length > 0 ? recordedVerses.join(', ') + '절' : '아직 녹음된 구절이 없습니다.'}</p>
+                <p>• 저장 위치: 수퍼바이블 클라우드 성도 저장소</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    alert('낭독 오디오 공유 링크가 복사되었습니다!');
+                    setShowShareModal(false);
+                  }}
+                  className="flex-1 py-2 rounded-xl bg-[#0284c7] text-white text-xs font-bold hover:bg-blue-600 transition"
+                >
+                  공유 링크 복사
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowShareModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 transition"
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Screen Settings Modal can be opened via 'A 글자' in header */}
+        {showScreenSettings && (
+          <div
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex flex-col justify-end animate-in fade-in duration-200"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowScreenSettings(false);
+            }}
+          >
+            <div className="w-full max-w-lg mx-auto flex justify-end px-5 pb-2">
+              <button
+                type="button"
+                onClick={() => setShowScreenSettings(false)}
+                className="text-white hover:text-slate-200 p-1 cursor-pointer transition active:scale-90"
+                title="닫기"
+              >
+                <X className="w-8 h-8 stroke-[2.2]" />
+              </button>
+            </div>
+            <div className="w-full max-w-lg mx-auto bg-white rounded-t-[28px] p-6 sm:p-7 shadow-2xl space-y-6 text-slate-900 animate-in slide-in-from-bottom duration-200 border-t border-slate-100">
+              <div className="flex items-center justify-between">
+                <span className="text-[15px] font-bold text-slate-900">폰트변경</span>
+                <div className="flex items-center text-[15px]">
+                  <button
+                    type="button"
+                    onClick={() => setFontFamily('기본')}
+                    className={`cursor-pointer transition-colors ${
+                      fontFamily === '기본' ? 'text-[#0284c7] font-bold' : 'text-slate-800'
+                    }`}
+                  >
+                    기본
+                  </button>
+                  <span className="text-slate-300 mx-2.5 font-light">|</span>
+                  <button
+                    type="button"
+                    onClick={() => setFontFamily('나눔고딕')}
+                    className={`cursor-pointer transition-colors ${
+                      fontFamily === '나눔고딕' ? 'text-[#0284c7] font-bold' : 'text-slate-800'
+                    }`}
+                  >
+                    나눔고딕
+                  </button>
+                  <span className="text-slate-300 mx-2.5 font-light">|</span>
+                  <button
+                    type="button"
+                    onClick={() => setFontFamily('나눔명조')}
+                    className={`cursor-pointer transition-colors ${
+                      fontFamily === '나눔명조' ? 'text-[#0284c7] font-bold' : 'text-slate-800'
+                    }`}
+                  >
+                    나눔명조
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[15px] font-bold text-slate-900">폰트굵기</span>
+                <button
+                  type="button"
+                  onClick={() => setIsBold(!isBold)}
+                  className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors cursor-pointer ${
+                    isBold ? 'bg-[#0284c7]' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-md transition-transform ${
+                      isBold ? 'translate-x-7' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[15px] font-bold text-slate-900">글자크기</span>
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setFontSizePt((prev) => Math.max(12, prev - 1))}
+                    className="w-7 h-7 rounded-full border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 font-bold active:scale-90 cursor-pointer"
+                  >
+                    －
+                  </button>
+                  <div className="w-28 sm:w-36 flex items-center">
+                    <input
+                      type="range"
+                      min={12}
+                      max={26}
+                      value={fontSizePt}
+                      onChange={(e) => setFontSizePt(Number(e.target.value))}
+                      className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0284c7]"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFontSizePt((prev) => Math.min(26, prev + 1))}
+                    className="w-7 h-7 rounded-full border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 font-bold active:scale-90 cursor-pointer"
+                  >
+                    ＋
+                  </button>
+                  <span className="text-[15px] font-bold text-slate-900 min-w-[38px] text-right">
+                    {fontSizePt}pt
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ==========================================
+  // MODE 2: 일반 성경 본문 화면 (Normal Reader Mode)
+  // ==========================================
   return (
     <div
       className={`flex-1 flex flex-col h-full relative overflow-hidden select-none transition-colors duration-200 ${
@@ -261,7 +757,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           </button>
         </div>
 
-        {/* Right Action Icons: Only 화면설정 & 검색 (원문업로드 removed as requested) */}
+        {/* Right Action Icons: Only 화면설정 & 검색 (원문업로드 removed) */}
         <div className="flex items-center gap-1 sm:gap-2 text-white">
           {/* 화면설정 */}
           <button
@@ -405,7 +901,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
         }}
       >
         <div className="max-w-2xl mx-auto space-y-4">
-          {/* Section banner matching user image */}
+          {/* Section banner */}
           {selectedBook === '창세기' && selectedChapter === 1 && (
             <div className="pt-2 pb-1">
               <button
@@ -592,18 +1088,13 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
 
           {/* Right Action Buttons: 녹음 & 음원 설정 */}
           <div className="flex items-center gap-2">
-            {/* 녹음 버튼 */}
+            {/* 녹음 버튼 -> Activates the new full Recording Mode Screen from uploaded image! */}
             <button
               type="button"
-              onClick={() =>
-                onOpenRecorder({
-                  book: selectedBook,
-                  chapter: selectedChapter,
-                  verse: selectedVerse || 1,
-                  text: verses[0]?.text || '',
-                  translation: selectedTranslation,
-                })
-              }
+              onClick={() => {
+                setActiveRecordVerse(selectedVerse || 1);
+                setIsRecordingMode(true);
+              }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition shadow-2xs cursor-pointer ${
                 isInverted ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700' : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50'
               }`}
@@ -626,7 +1117,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
         </div>
       </div>
 
-      {/* 6. FULL 3-STEP BIBLE SELECTOR MODAL (Fallback when triggered directly) */}
+      {/* 6. FULL 3-STEP BIBLE SELECTOR MODAL (Fallback) */}
       <BibleSelectorModal
         isOpen={showSelectorModal}
         initialBook={selectedBook}

@@ -52,6 +52,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
   // 'reader' = scripture verse reading screen
   const [bibleSubView, setBibleSubView] = useState<'selector' | 'reader'>('selector');
   const [bibleSelectorStep, setBibleSelectorStep] = useState<'book' | 'chapter' | 'verse'>('book');
+  const [openInRecordingMode, setOpenInRecordingMode] = useState(false);
   const [readerLocation, setReaderLocation] = useState<{
     book: string;
     chapter: number;
@@ -65,6 +66,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
   // Tapping "성경" (from Home icon OR bottom nav bar)
   // IMMEDIATELY opens the 3-step selection screen (성경화면 -> 장화면 -> 절화면)
   const handleOpenBibleSelector = () => {
+    setOpenInRecordingMode(false);
     setBibleSubView('selector');
     setBibleSelectorStep('book');
     setActiveTab('bible');
@@ -289,7 +291,11 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
               {/* 4. 낭독녹음 */}
               <button
                 type="button"
-                onClick={() => onOpenRecorder(TODAY_VERSE)}
+                onClick={() => {
+                  setOpenInRecordingMode(true);
+                  setBibleSubView('reader');
+                  setActiveTab('bible');
+                }}
                 className="bg-white rounded-xl p-3 flex flex-col items-center justify-center shadow-soft border border-slate-100 hover:border-blue-200 active:scale-95 transition-all cursor-pointer"
               >
                 <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#0083e3] mb-2">
@@ -524,6 +530,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
             initialBook={readerLocation.book}
             initialChapter={readerLocation.chapter}
             initialVerse={readerLocation.verse}
+            initialRecordingMode={openInRecordingMode}
             onBackToHome={() => setActiveTab('home')}
             onBackToSelector={() => {
               setBibleSelectorStep('book');
@@ -559,7 +566,11 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
           <div className="relative">
             <button
               type="button"
-              onClick={() => onOpenRecorder(TODAY_VERSE)}
+              onClick={() => {
+                setOpenInRecordingMode(true);
+                setBibleSubView('reader');
+                setActiveTab('bible');
+              }}
               aria-label="빠른 음성 낭독녹음 시작"
               className="w-13 h-13 p-3.5 rounded-full bg-[#0083e3] hover:bg-blue-600 active:scale-90 text-white shadow-xl flex items-center justify-center transition-all cursor-pointer"
             >
