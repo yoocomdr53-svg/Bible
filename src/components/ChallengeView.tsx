@@ -7,6 +7,14 @@ import {
   BellOff,
   Info,
   X,
+  Trophy,
+  Award,
+  Sparkles,
+  Crown,
+  Medal,
+  Flame,
+  Star,
+  Lock,
 } from 'lucide-react';
 import {
   BIBLE_BOOKS,
@@ -18,6 +26,32 @@ import {
   resetAllReadingProgress,
 } from '../data/bibleData';
 import { ReadingDayPlan, User } from '../types';
+
+export const READINGS_COUNT_KEY = 'superbible_completed_readings_count';
+
+export interface ReadingBadge {
+  level: number;
+  name: string;
+  subtitle: string;
+  desc: string;
+  icon: string;
+  tag: string;
+}
+
+export const READING_BADGES_12: ReadingBadge[] = [
+  { level: 1, name: '1독 첫걸음', subtitle: '말씀과의 첫 걸음', desc: '말씀의 바다로 내딛은 거룩한 첫 발걸음', icon: '🌱', tag: '첫걸음' },
+  { level: 2, name: '2독 성실', subtitle: '날마다 주와 동행', desc: '날마다 말씀과 동행하는 성실함과 은혜', icon: '🌿', tag: '성실' },
+  { level: 3, name: '3독 등불', subtitle: '내 발의 등이요', desc: '주의 말씀은 내 발의 등이요 내 길에 빛이니이다', icon: '🕯️', tag: '등불' },
+  { level: 4, name: '4독 단비', subtitle: '은혜의 단비', desc: '갈급한 영혼을 흠뻑 적시는 시원한 말씀의 단비', icon: '💧', tag: '은혜' },
+  { level: 5, name: '5독 방패', subtitle: '진리의 방패', desc: '진리의 말씀으로 무장한 굳건하고 단단한 방패', icon: '🛡️', tag: '진리' },
+  { level: 6, name: '6독 반환점', subtitle: '빛나는 결실', desc: '12목표의 절반을 돌파한 빛나는 끈기와 결실', icon: '⭐', tag: '반환점' },
+  { level: 7, name: '7독 순종', subtitle: '완전한 순종', desc: '주의 계명을 사모하며 온전함으로 나아가는 순종', icon: '✨', tag: '순종' },
+  { level: 8, name: '8독 비상', subtitle: '독수리의 비상', desc: '새 힘을 얻어 독수리 날개 치며 솟아오르는 믿음', icon: '🕊️', tag: '비상' },
+  { level: 9, name: '9독 열매', subtitle: '성령의 아홉 열매', desc: '사랑과 희락과 화평, 성령의 풍성하고 아름다운 열매', icon: '🍇', tag: '열매' },
+  { level: 10, name: '10독 거장', subtitle: '믿음의 거장', desc: '반석 위에 집을 지은 지혜로운 믿음의 거장', icon: '🏅', tag: '거장' },
+  { level: 11, name: '11독 소망', subtitle: '영원한 소망', desc: '하늘에 예비된 영원한 영광을 바라보는 소망', icon: '💎', tag: '소망' },
+  { level: 12, name: '12독 영광의 면류관', subtitle: '통독 12목표 완수!', desc: '대장정의 완수! 의의 재판장이 예비하신 영광의 면류관', icon: '👑', tag: '12목표 완수' },
+];
 
 interface ChallengeViewProps {
   user?: User;
@@ -228,6 +262,291 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
   ).length;
   const planProgressPercent = Math.min(100, Math.round((genesisReadChapters / 50) * 100));
 
+  // Completed Bible Readings count (통독 수) - 1독 완료 시마다 배지 1개씩 추가, 12독 목표 달성 시 축하 모달 표시
+  const [completedReadingsCount, setCompletedReadingsCount] = useState<number>(() => {
+    try {
+      const raw = localStorage.getItem(READINGS_COUNT_KEY);
+      return raw !== null ? Math.max(0, parseInt(raw, 10)) : 0;
+    } catch {
+      return 0;
+    }
+  });
+
+  const [showBadgeModal, setShowBadgeModal] = useState(false);
+  const [showCelebrationModal, setShowCelebrationModal] = useState(false);
+
+  const updateReadingsCount = (updater: (prev: number) => number) => {
+    setCompletedReadingsCount((prev) => {
+      const next = Math.max(0, updater(prev));
+      try {
+        localStorage.setItem(READINGS_COUNT_KEY, next.toString());
+      } catch (e) {
+        console.error(e);
+      }
+      if (next >= 12 && prev < 12) {
+        setShowCelebrationModal(true);
+      }
+      return next;
+    });
+  };
+
+  // Modals for Reading Badges and 12-Goal Celebration
+  const renderModals = () => (
+    <>
+      {/* 1. 통독 12목표 달성 축하 모달 */}
+      {showCelebrationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border-2 border-amber-400 text-center animate-in zoom-in-95 duration-200">
+            {/* 상단 화려한 황금 리본 배너 */}
+            <div className="bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 py-6 px-4 text-white relative overflow-hidden">
+              <div className="absolute inset-0 opacity-25 flex justify-around items-center select-none text-2xl">
+                <span>✨</span><span>🌟</span><span>⭐</span><span>✨</span><span>🎉</span>
+              </div>
+              <div className="relative z-10 flex flex-col items-center">
+                <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-4xl shadow-inner border border-white/40 mb-2 animate-bounce">
+                  🏆
+                </div>
+                <span className="inline-block bg-white/30 text-yellow-50 text-[11px] font-black px-3 py-0.5 rounded-full mb-1 tracking-wider uppercase">
+                  Goal Accomplished
+                </span>
+                <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight drop-shadow-sm">
+                  축하합니다!
+                </h2>
+                <p className="text-sm sm:text-base font-extrabold text-yellow-100 mt-0.5">
+                  통독 12목표에 달성했습니다! 👑
+                </p>
+              </div>
+            </div>
+
+            {/* 축하 본문 */}
+            <div className="p-5 space-y-4">
+              <p className="text-xs sm:text-sm text-slate-700 font-bold leading-relaxed">
+                살아계신 하나님의 말씀을 주야로 묵상하며<br />
+                <span className="text-amber-600 font-black">12번의 성경 통독 목표</span>를 온전히 이루셨습니다!
+              </p>
+
+              {/* 말씀 구절 카드 (디모데후서 4:7-8) */}
+              <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 text-left shadow-2xs">
+                <p className="text-xs text-amber-950 font-bold leading-relaxed italic">
+                  “내가 선한 싸움을 싸우고 나의 달려갈 길을 마치고 믿음을 지켰으니 이제 후로는 나를 위하여 의의 면류관이 예비되었으므로 주 곧 의로우신 재판장이 그 날에 내게 주실 것이며”
+                </p>
+                <p className="text-[11px] text-amber-700 font-extrabold text-right mt-1.5">
+                  — 디모데후서 4:7-8 —
+                </p>
+              </div>
+
+              {/* 12개 통독 배지 미니 요약 */}
+              <div className="bg-slate-50 border border-slate-100 rounded-2xl p-3">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-600 mb-2 px-1">
+                  <span>획득한 12개 통독 배지</span>
+                  <span className="text-amber-600 font-black">12 / 12 완료</span>
+                </div>
+                <div className="grid grid-cols-6 gap-2">
+                  {READING_BADGES_12.map((b) => (
+                    <div
+                      key={b.level}
+                      className="flex flex-col items-center bg-white rounded-xl p-1.5 border border-amber-200 shadow-2xs"
+                      title={`${b.level}독: ${b.name}`}
+                    >
+                      <span className="text-xl">{b.icon}</span>
+                      <span className="text-[9px] font-black text-amber-700 mt-0.5">{b.level}독</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 버튼 액션 */}
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCelebrationModal(false);
+                    setShowBadgeModal(true);
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-black text-xs sm:text-sm border border-amber-300 transition active:scale-95 cursor-pointer"
+                >
+                  배지 모음 확인하기
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCelebrationModal(false)}
+                  className="flex-1 py-3 rounded-xl bg-[#1b64b9] hover:bg-blue-700 text-white font-black text-xs sm:text-sm shadow-md transition active:scale-95 cursor-pointer"
+                >
+                  확인 (닫기)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. 성경 통독 배지 모음함 모달 */}
+      {showBadgeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200 max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200 text-slate-800">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-[#1b64b9] to-[#0284c7] px-4 sm:px-5 py-3.5 text-white flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <Award className="w-5 h-5 text-yellow-300" />
+                <h3 className="text-base sm:text-lg font-black tracking-tight">
+                  성경 통독 배지 모음함
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBadgeModal(false)}
+                className="p-1 rounded-full hover:bg-white/20 transition cursor-pointer text-white"
+                title="닫기"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
+              {/* Status Card */}
+              <div className="bg-gradient-to-br from-slate-50 to-blue-50/50 rounded-2xl p-4 border border-blue-100 shadow-2xs">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <span className="text-xs font-bold text-slate-500">목표: 통독 12목표 달성</span>
+                    <p className="text-lg font-black text-slate-900">
+                      현재 달성: <span className="text-[#1b64b9]">{completedReadingsCount}독</span>
+                      <span className="text-xs text-slate-400 font-bold ml-1">/ 12독</span>
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-black px-2.5 py-1 rounded-full bg-blue-100 text-[#1b64b9]">
+                      {Math.min(100, Math.round((completedReadingsCount / 12) * 100))}% 달성
+                    </span>
+                  </div>
+                </div>
+
+                <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden mb-2">
+                  <div
+                    className="bg-gradient-to-r from-blue-500 to-amber-500 h-full rounded-full transition-all duration-300"
+                    style={{ width: `${Math.min(100, (completedReadingsCount / 12) * 100)}%` }}
+                  />
+                </div>
+
+                <p className="text-xs font-semibold text-slate-600">
+                  {completedReadingsCount >= 12 ? (
+                    <span className="text-amber-700 font-bold">
+                      🎉 통독 12목표를 모두 달성하셨습니다! 의의 면류관을 받으셨습니다!
+                    </span>
+                  ) : (
+                    <span>
+                      12목표까지 앞으로 <strong className="text-[#1b64b9] font-bold">{12 - completedReadingsCount}번</strong>의 통독이 남았습니다. 힘내세요!
+                    </span>
+                  )}
+                </p>
+              </div>
+
+              {/* 12 Badges Grid */}
+              <div>
+                <h4 className="text-xs font-bold text-slate-400 mb-2.5 uppercase tracking-wider">
+                  12독 목표 배지 리스트 (일독할 때마다 활성화)
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {READING_BADGES_12.map((badge) => {
+                    const isEarned = completedReadingsCount >= badge.level;
+                    return (
+                      <div
+                        key={badge.level}
+                        className={`rounded-2xl p-3 border transition-all text-left relative overflow-hidden flex flex-col justify-between ${
+                          isEarned
+                            ? 'bg-gradient-to-br from-amber-50 via-yellow-50/70 to-white border-amber-300 shadow-xs'
+                            : 'bg-slate-50/80 border-slate-200/80 opacity-60'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-2xl">{badge.icon}</span>
+                          <span
+                            className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${
+                              isEarned
+                                ? 'bg-amber-500 text-white shadow-2xs'
+                                : 'bg-slate-200 text-slate-500'
+                            }`}
+                          >
+                            {isEarned ? '✓ 획득' : '🔒 대기'}
+                          </span>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs font-black text-slate-900">{badge.name}</span>
+                          </div>
+                          <p className="text-[10px] font-bold text-slate-500 line-clamp-1 mt-0.5">
+                            {badge.subtitle}
+                          </p>
+                          <p className="text-[9px] text-slate-400 mt-1 line-clamp-2 leading-tight">
+                            {badge.desc}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Quick Management Tools (사용자 설정 / 테스트 도구) */}
+              <div className="pt-3 border-t border-slate-100">
+                <p className="text-xs font-bold text-slate-500 mb-2">통독 기록 간편 설정</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => updateReadingsCount((c) => c + 1)}
+                    className="py-2 px-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#1b64b9] font-black text-xs border border-blue-200 flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer"
+                  >
+                    <span>+ 1독 완료</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateReadingsCount((c) => Math.max(0, c - 1))}
+                    className="py-2 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-200 flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer"
+                  >
+                    <span>- 1독 취소</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateReadingsCount(() => 12);
+                      setShowCelebrationModal(true);
+                    }}
+                    className="py-2 px-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-black text-xs border border-amber-300 flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer col-span-2 sm:col-span-1"
+                  >
+                    <span>🎉 12독 달성</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm('통독 수 기록을 0으로 초기화하시겠습니까?')) {
+                        updateReadingsCount(() => 0);
+                      }
+                    }}
+                    className="py-2 px-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer col-span-2 sm:col-span-1"
+                  >
+                    <span>초기화</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-end flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowBadgeModal(false)}
+                className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-extrabold text-xs transition active:scale-95 cursor-pointer"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   // Toggle chapter in Matrix
   const toggleChapter = (bookName: string, ch: number) => {
     toggleChapterDirect(bookName, ch);
@@ -367,9 +686,26 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               </h1>
             </div>
 
-            <span className="px-2.5 py-0.5 rounded-full bg-[#eff6ff] text-[#2563eb] border border-[#bfdbfe] text-xs font-black">
-              현재 1독
-            </span>
+            <button
+              type="button"
+              onClick={() => setShowBadgeModal(true)}
+              className="px-2.5 py-0.5 rounded-full bg-[#eff6ff] hover:bg-blue-100 text-[#2563eb] border border-[#bfdbfe] text-xs font-black cursor-pointer transition active:scale-95 flex items-center gap-1 shadow-2xs"
+              title="통독 배지 모음함 열기"
+            >
+              {completedReadingsCount >= 12 ? (
+                <>
+                  <span>👑</span>
+                  <span>12독 목표 완수</span>
+                </>
+              ) : (
+                <>
+                  <span>현재 {completedReadingsCount + 1}독</span>
+                  {completedReadingsCount > 0 && (
+                    <span className="text-[10px] text-blue-600 font-extrabold">({completedReadingsCount}독 배지)</span>
+                  )}
+                </>
+              )}
+            </button>
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -475,6 +811,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             })}
           </div>
         </div>
+        {renderModals()}
       </div>
     );
   }
@@ -579,6 +916,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </button>
           </div>
         </div>
+        {renderModals()}
       </div>
     );
   }
@@ -1147,6 +1485,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </div>
           </div>
         </div>
+        {renderModals()}
       </div>
     );
   }
@@ -1249,6 +1588,35 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3.5 pb-20">
           {/* Main Plan Card */}
           <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-100">
+            {/* 12 Readings Completed Celebration Banner */}
+            {completedReadingsCount >= 12 && (
+              <div
+                onClick={() => setShowCelebrationModal(true)}
+                className="mb-3.5 p-3 sm:p-3.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-white rounded-2xl shadow-md flex items-center justify-between cursor-pointer hover:brightness-105 active:scale-98 transition animate-pulse"
+                title="통독 12목표 달성 축하 메시지 보기"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-2xl flex-shrink-0 backdrop-blur-xs">
+                    🏆
+                  </div>
+                  <div className="text-left">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-black bg-white/25 px-2 py-0.5 rounded-full text-yellow-50">
+                        목표 달성!
+                      </span>
+                      <span className="text-xs font-bold text-yellow-100">통독 12목표 완수</span>
+                    </div>
+                    <p className="text-xs sm:text-sm font-black text-white mt-0.5 tracking-tight">
+                      축하합니다! 12독 목표를 모두 달성하셨습니다! 👑
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs font-black bg-white text-amber-700 px-2.5 py-1 rounded-xl shadow-xs flex-shrink-0 ml-1">
+                  축하보기 &gt;
+                </span>
+              </div>
+            )}
+
             <div className="flex items-center gap-2 mb-1">
               <BookOpen className="w-5 h-5 text-slate-800" />
               <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
@@ -1270,12 +1638,19 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                 <p className="text-xs text-slate-400 font-bold mb-1">연속읽기</p>
                 <p className="text-xl sm:text-2xl font-black text-slate-900">2일</p>
               </div>
-              <div className="cursor-pointer" onClick={() => alert('획득한 성경 통독 배지 목록')}>
-                <p className="text-xs text-slate-400 font-bold mb-1 flex items-center justify-center gap-0.5">
+              <div
+                className="cursor-pointer group hover:bg-amber-50/50 rounded-xl py-0.5 transition"
+                onClick={() => setShowBadgeModal(true)}
+                title="통독 배지 모음함 열기"
+              >
+                <p className="text-xs text-slate-400 group-hover:text-amber-600 font-bold mb-1 flex items-center justify-center gap-0.5 transition">
                   <span>배지</span>
                   <span>&gt;</span>
                 </p>
-                <p className="text-xl sm:text-2xl font-black text-slate-900">2개</p>
+                <p className="text-xl sm:text-2xl font-black text-amber-600 flex items-center justify-center gap-1">
+                  {completedReadingsCount >= 12 && <span className="text-base">👑</span>}
+                  <span>{completedReadingsCount}개</span>
+                </p>
               </div>
             </div>
 
@@ -1307,6 +1682,26 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                 />
               </div>
             </div>
+
+            {/* If current plan reaches 100%, show option to record +1 reading completion */}
+            {planProgressPercent === 100 && (
+              <div className="mt-3.5 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                <div className="flex items-center gap-2 text-emerald-800 text-xs sm:text-sm font-bold">
+                  <span>🎉</span>
+                  <span>이번 통독 분량을 100% 완독하셨습니다!</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateReadingsCount((c) => c + 1);
+                    alert(`축하합니다! 통독 수가 ${completedReadingsCount + 1}독으로 기록되었습니다.`);
+                  }}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black rounded-lg shadow-xs transition cursor-pointer flex-shrink-0 ml-2"
+                >
+                  +1독 완독 기록
+                </button>
+              </div>
+            )}
 
             <div className="pt-5 border-t border-slate-100 mt-4">
               <div className="flex items-center justify-between mb-3">
@@ -1485,6 +1880,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </div>
           )}
         </div>
+        {renderModals()}
       </div>
     );
   }
@@ -1609,8 +2005,18 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               {planTitle}
             </h2>
 
-            <p className="text-sm font-extrabold text-[#0284c7] text-center mt-1">
-              {planProgressPercent}% 진행 중
+            <p className="text-sm font-extrabold text-[#0284c7] text-center mt-1 flex items-center justify-center gap-1.5 flex-wrap">
+              <span>{planProgressPercent}% 진행 중</span>
+              {completedReadingsCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowBadgeModal(true)}
+                  className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-black cursor-pointer hover:bg-amber-100 transition active:scale-95"
+                  title="통독 배지 모음함 열기"
+                >
+                  {completedReadingsCount >= 12 ? '👑 12독 완수' : `🏅 ${completedReadingsCount}독 배지`}
+                </button>
+              )}
             </p>
 
             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden my-3">
@@ -1639,6 +2045,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           </div>
         </div>
       </div>
+      {renderModals()}
     </div>
   );
 };
