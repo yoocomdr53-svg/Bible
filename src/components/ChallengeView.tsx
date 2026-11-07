@@ -222,6 +222,12 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
   const readChaptersCount = completedChapters.size;
   const matrixProgressPercent = Math.round((readChaptersCount / TOTAL_CHAPTERS) * 100);
 
+  // Genesis Plan progress (50 chapters, each chapter is 2%)
+  const genesisReadChapters = Array.from({ length: 50 }, (_, i) => i + 1).filter((ch) =>
+    isChapterFullyRead('창세기', ch, completedVerses)
+  ).length;
+  const planProgressPercent = Math.min(100, Math.round((genesisReadChapters / 50) * 100));
+
   // Toggle chapter in Matrix
   const toggleChapter = (bookName: string, ch: number) => {
     toggleChapterDirect(bookName, ch);
@@ -1257,7 +1263,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               <div>
                 <p className="text-xs text-slate-400 font-bold mb-1">진행률</p>
                 <p className="text-xl sm:text-2xl font-black text-slate-900">
-                  {matrixProgressPercent}%
+                  {planProgressPercent}%
                 </p>
               </div>
               <div>
@@ -1276,19 +1282,28 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             <div className="pt-4 pb-1">
               <div className="relative w-full h-8 flex items-center">
                 <div
-                  className="absolute bottom-1.5 transition-all duration-300"
-                  style={{ left: `${Math.max(8, Math.min(90, matrixProgressPercent))}%` }}
+                  className="absolute bottom-1 transition-all duration-300"
+                  style={{
+                    left: `${Math.max(2, Math.min(96, planProgressPercent))}%`,
+                    transform: 'translateX(-50%)',
+                  }}
                 >
-                  <span className="text-2xl select-none" role="img" aria-label="runner">
+                  <span
+                    className="text-2xl select-none inline-block transition-transform"
+                    style={{ transform: 'scaleX(-1)' }}
+                    role="img"
+                    aria-label="runner"
+                    title={`성경읽기 진행률 ${planProgressPercent}% (오른쪽으로 달리는 중)`}
+                  >
                     🏃
                   </span>
                 </div>
               </div>
 
-              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
                 <div
                   className="bg-[#1b64b9] h-full rounded-full transition-all duration-300"
-                  style={{ width: `${Math.max(5, matrixProgressPercent)}%` }}
+                  style={{ width: `${planProgressPercent}%` }}
                 />
               </div>
             </div>
@@ -1540,13 +1555,13 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </h2>
 
             <p className="text-sm font-extrabold text-[#0284c7] text-center mt-1">
-              {matrixProgressPercent}% 진행 중
+              {planProgressPercent}% 진행 중
             </p>
 
             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden my-3">
               <div
                 className="bg-[#1b64b9] h-full rounded-full transition-all duration-300"
-                style={{ width: `${Math.max(2, matrixProgressPercent)}%` }}
+                style={{ width: `${planProgressPercent}%` }}
               />
             </div>
           </div>
@@ -1595,13 +1610,13 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </h2>
 
             <p className="text-sm font-extrabold text-[#0284c7] text-center mt-1">
-              {matrixProgressPercent}% 진행 중
+              {planProgressPercent}% 진행 중
             </p>
 
             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden my-3">
               <div
                 className="bg-[#1b64b9] h-full rounded-full transition-all duration-300"
-                style={{ width: `${Math.max(2, matrixProgressPercent)}%` }}
+                style={{ width: `${planProgressPercent}%` }}
               />
             </div>
           </div>
