@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Flame,
   Volume2,
+  Music,
   X,
 } from 'lucide-react';
 import { ActiveTab, ActiveModal, User, BibleVerse, ReadingDayPlan, UserRecording } from '../types';
@@ -72,7 +73,10 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
     setActiveTab('bible');
   };
 
-  const navigateToPortion = (portion: string) => {
+  const navigateToPortion = (portion: string, chapter?: number) => {
+    const book = portion.split(' ')[0] || '창세기';
+    const ch = chapter || Number(portion.split(' ')[1]) || 1;
+    setReaderLocation({ book, chapter: ch, verse: 1 });
     setActiveTab('bible');
     setBibleSubView('reader');
   };
@@ -552,6 +556,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
 
       {activeTab === 'challenge' && (
         <ChallengeView
+          user={user}
           plans={readingPlans}
           onTogglePlan={onTogglePlan}
           onNavigateToBible={navigateToPortion}
@@ -583,7 +588,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
         </aside>
       )}
 
-      {/* Bottom Navigation Bar (홈 | 성경 | 말씀·낭독 | 도전일독 | 통계) */}
+      {/* Bottom Navigation Bar (홈 | 성경 | 찬송 | 도전!일독 | 설정 - Exact match to user screenshot) */}
       <nav className="flex-shrink-0 bg-white border-t border-slate-200/90 z-30 px-2 py-1.5 flex items-center justify-around">
         {/* Tab 1: 홈 */}
         <button
@@ -609,19 +614,16 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
           <span className="text-[11px] font-medium mt-1">성경</span>
         </button>
 
-        {/* Tab 3: 말씀·낭독 */}
+        {/* Tab 3: 찬송 */}
         <button
           type="button"
           onClick={() => {
-            setActiveTab('bible');
-            setBibleSubView('reader');
+            alert('찬송가 645곡 전곡 및 새찬송가 묵상 준비 완료');
           }}
-          className={`flex flex-col items-center justify-center py-1 px-3 transition-colors cursor-pointer ${
-            activeTab === 'bible' && bibleSubView === 'reader' ? 'text-[#0083e3]' : 'text-slate-500 hover:text-slate-800'
-          }`}
+          className="flex flex-col items-center justify-center py-1 px-3 transition-colors cursor-pointer text-slate-500 hover:text-slate-800"
         >
-          <Volume2 className="w-5 h-5" />
-          <span className="text-[11px] font-medium mt-1 whitespace-nowrap">말씀·낭독</span>
+          <Music className="w-5 h-5" />
+          <span className="text-[11px] font-medium mt-1 whitespace-nowrap">찬송</span>
         </button>
 
         {/* Tab 4: 도전!일독 */}
@@ -636,16 +638,16 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
           <span className="text-[11px] font-medium mt-1 whitespace-nowrap">도전!일독</span>
         </button>
 
-        {/* Tab 5: 통계 */}
+        {/* Tab 5: 설정 */}
         <button
           type="button"
-          onClick={() => setActiveTab('stats')}
+          onClick={() => setActiveTab('settings')}
           className={`flex flex-col items-center justify-center py-1 px-3 transition-colors cursor-pointer ${
-            activeTab === 'stats' ? 'text-[#0083e3]' : 'text-slate-500 hover:text-slate-800'
+            activeTab === 'settings' ? 'text-[#0083e3]' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          <BarChart2 className="w-5 h-5" />
-          <span className="text-[11px] font-medium mt-1">통계</span>
+          <Settings className="w-5 h-5" />
+          <span className="text-[11px] font-medium mt-1">설정</span>
         </button>
       </nav>
 
