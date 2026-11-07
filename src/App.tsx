@@ -10,6 +10,62 @@ import { HelpModals } from './components/HelpModals';
 import { VerseCardModal } from './components/VerseCardModal';
 import { AudioRecordingModal } from './components/AudioRecordingModal';
 
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  onReset?: () => void;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('ErrorBoundary caught error:', error, errorInfo);
+  }
+
+  handleReset = () => {
+    this.setState({ hasError: false, error: undefined });
+    if (this.props.onReset) {
+      this.props.onReset();
+    }
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center p-6 bg-slate-900 text-white text-center">
+          <div className="w-16 h-16 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center mb-4">
+            <span className="text-3xl">📖</span>
+          </div>
+          <h2 className="text-lg font-black text-white mb-2">성경 읽기 화면 불러오기</h2>
+          <p className="text-xs text-slate-400 mb-6 max-w-xs leading-relaxed">
+            화면 전환 중 일시적 지연이 발생했습니다.<br />아래 버튼을 누르면 성경 첫 화면으로 즉시 연결됩니다.
+          </p>
+          <button
+            type="button"
+            onClick={this.handleReset}
+            className="px-6 py-3 rounded-2xl bg-[#1b64b9] hover:bg-blue-600 active:scale-95 text-white font-black text-sm shadow-md transition cursor-pointer"
+          >
+            말씀 읽기 화면으로 이동
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const [currentView, setCurrentView] = useState<'login' | 'dashboard'>('login');
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
@@ -167,17 +223,19 @@ export default function App() {
             onOpenSettings={() => setCurrentView('dashboard')}
           />
         ) : (
-          <BibleDashboard
-            user={user}
-            onLogout={handleLogout}
-            openModal={handleOpenModal}
-            onOpenVerseCard={handleOpenVerseCard}
-            onOpenRecorder={handleOpenRecorder}
-            readingPlans={readingPlans}
-            onTogglePlan={handleTogglePlan}
-            recordings={recordings}
-            onDeleteRecording={handleDeleteRecording}
-          />
+          <ErrorBoundary>
+            <BibleDashboard
+              user={user}
+              onLogout={handleLogout}
+              openModal={handleOpenModal}
+              onOpenVerseCard={handleOpenVerseCard}
+              onOpenRecorder={handleOpenRecorder}
+              readingPlans={readingPlans}
+              onTogglePlan={handleTogglePlan}
+              recordings={recordings}
+              onDeleteRecording={handleDeleteRecording}
+            />
+          </ErrorBoundary>
         )}
       </div>
 

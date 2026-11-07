@@ -15,7 +15,7 @@ interface ChallengeViewProps {
   user?: User;
   plans: ReadingDayPlan[];
   onTogglePlan: (day: number) => void;
-  onNavigateToBible: (book: string, chapter?: number) => void;
+  onNavigateToBible: (book: string, chapter?: number, verse?: number) => void;
 }
 
 export const ChallengeView: React.FC<ChallengeViewProps> = ({
@@ -29,13 +29,17 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
   // 'plan': 읽기 계획표 (통독12목표)
   // 'create-plan': 읽기 계획 만들기 (이미지 0 & 1 통합 화면)
   // 'edit-plan': 계획표 수정 (이미지 2/3)
-  // 'today-portion': 읽기 계획 현황 (사용자 최신 업로드 6열 챕터 화면)
+  // 'total-progress': 통독 분량 전체보기 - 상세 진도표 (사용자 요청 업로드 이미지 화면)
+  // 'chapter-grid': 읽기 계획 현황 (6열 원형 챕터 번호 그리드 화면)
   const [subScreen, setSubScreen] = useState<
-    'main' | 'matrix' | 'plan' | 'create-plan' | 'edit-plan' | 'today-portion'
+    'main' | 'matrix' | 'plan' | 'create-plan' | 'edit-plan' | 'total-progress' | 'chapter-grid'
   >('main');
 
-  // Selected book for '읽기 계획 현황' screen (Default: 창세기)
+  // Selected book for '읽기 계획 현황' 6-column chapter grid screen (Default: 창세기)
   const [selectedStatusBook, setSelectedStatusBook] = useState('창세기');
+
+  // Testament filter for '통독 분량 전체보기' screen ('OT' = 구약 39권 | 'NT' = 신약 27권)
+  const [selectedTestament, setSelectedTestament] = useState<'OT' | 'NT'>('OT');
 
   // Plan Details state (editable via '계획표 수정')
   const [planTitle, setPlanTitle] = useState('통독12목표');
@@ -76,18 +80,16 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
     };
   }, []);
 
-  // Completed chapters set in Matrix
+  // Completed chapters set in Matrix (Default: 창세기 50/50장, 출애굽기 40/40장 완독 상태로 초기화)
   const [completedChapters, setCompletedChapters] = useState<Set<string>>(() => {
     const initial = new Set<string>();
-    // 창세기 1~21장 (21 chapters)
-    for (let i = 1; i <= 21; i++) {
+    for (let i = 1; i <= 50; i++) {
       initial.add(`창세기-${i}`);
     }
-    // 출애굽기 13~17장 (5 chapters)
-    for (let i = 13; i <= 17; i++) {
+    for (let i = 1; i <= 40; i++) {
       initial.add(`출애굽기-${i}`);
     }
-    return initial; // total 26 chapters!
+    return initial;
   });
 
   // State for reading plan screen
@@ -129,24 +131,236 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
   // Display user name matching screenshot
   const greetingName = user?.name || 'wounhee“pollRuy”Ruy';
 
-  // Book metadata for '읽기 계획 현황'
+  // Filter books for '통독 분량 전체보기' screen
+  const displayedBooks = BIBLE_BOOKS.filter((b) => b.testament === selectedTestament);
+
+  // Metadata for current book in '읽기 계획 현황'
   const currentStatusBookObj =
     BIBLE_BOOKS.find((b) => b.name === selectedStatusBook) || BIBLE_BOOKS[0];
   const totalStatusChapters = currentStatusBookObj.chaptersCount || 50;
 
   // ==========================================
-  // SCREEN 6: 읽기 계획 현황 (사용자 최신 업로드 이미지 화면 1:1 완벽 일치)
+  // SCREEN A: 통독 분량 전체보기 - 상세 진도표 (사용자 업로드 이미지 화면)
   // ==========================================
-  if (subScreen === 'today-portion') {
+  if (subScreen === 'total-progress') {
+    return (
+      <div className="flex-1 flex flex-col h-full bg-[#f8fafc] relative overflow-hidden select-none text-slate-800">
+        {/* 1. Top Bar (수퍼바이블 + 앱 설치 + 아이콘들) */}
+        <div className="bg-white px-3 sm:px-4 py-2 border-b border-slate-100 flex items-center justify-between flex-shrink-0 z-30">
+          <div className="flex items-center gap-1.5">
+            <div className="w-6 h-6 rounded-md bg-rose-50 flex items-center justify-center text-rose-500">
+              <svg className="w-5 h-5 fill-rose-500" viewBox="0 0 24 24">
+                <path d="M12 2L2 9h3v11h14V9h3L12 2zm0 3.5L17 9H7l5-3.5zM7 11h3v7H7v-7zm7 0h3v7h-3v-7z" />
+              </svg>
+            </div>
+            <span className="text-[17px] font-black tracking-tight text-[#0284c7]">수퍼바이블</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => alert('수퍼바이블 모바일 웹앱 설치 안내')}
+              className="bg-[#fef3c7] hover:bg-[#fde68a] border border-amber-300 text-amber-900 text-[11px] font-bold px-2.5 py-1 rounded-xl flex items-center gap-1 shadow-2xs transition cursor-pointer"
+            >
+              <span>📱</span>
+              <span>앱 설치</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => alert('사용자 정보')}
+              className="p-1 text-slate-700 hover:text-slate-900 cursor-pointer"
+              title="사용자"
+            >
+              <svg className="w-5 h-5 fill-slate-700" viewBox="0 0 24 24">
+                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => alert('화면 설정')}
+              className="p-1 text-slate-700 hover:text-slate-900 cursor-pointer"
+              title="설정"
+            >
+              <svg className="w-5 h-5 fill-slate-700" viewBox="0 0 24 24">
+                <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.485.485 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+              </svg>
+            </button>
+            <div className="w-7 h-7 rounded-full bg-[#1b64b9] text-white flex items-center justify-center text-xs font-black shadow-xs">
+              유
+            </div>
+          </div>
+        </div>
+
+        {/* 2. Dark Sub-Bar (관리자 모드, BIBLEONLINE 3.0, 앱 설치, 🔄, 심) */}
+        <div className="bg-[#1e2026] text-white px-3 sm:px-4 py-2 flex items-center justify-between text-xs flex-shrink-0 border-b border-slate-700/50 z-30">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            <div className="border border-amber-400/80 rounded-md px-2 py-0.5 text-amber-300 font-bold text-[11px] flex items-center gap-1 flex-shrink-0">
+              <span>👑</span>
+              <span>관리자 모드</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] font-black text-emerald-400 flex-shrink-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>BIBLEONLINE 3.0</span>
+            </div>
+            <div className="text-amber-300 text-[11px] font-bold flex items-center gap-1 flex-shrink-0">
+              <span>📱</span>
+              <span>앱 설치</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+            <button
+              type="button"
+              onClick={() => alert('데이터 동기화 완료')}
+              className="p-1 text-slate-300 hover:text-white transition cursor-pointer"
+              title="동기화"
+            >
+              <svg className="w-4 h-4 fill-none stroke-currentColor stroke-2" viewBox="0 0 24 24">
+                <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+            <div className="w-5 h-5 rounded-full bg-[#3b82f6] text-white flex items-center justify-center text-[10px] font-black">
+              심
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Section Header: 📊 상세 진도표 | 현재 1독 | 🗄 데이터 아카이브 */}
+        <div className="px-3 sm:px-4 pt-3.5 pb-2 flex items-center justify-between bg-white flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSubScreen('plan')}
+              className="p-1 -ml-1 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+              title="읽기 계획표로 돌아가기"
+            >
+              <ChevronLeft className="w-6 h-6 stroke-[2.5]" />
+            </button>
+
+            <div className="flex items-center gap-1.5">
+              <div className="flex items-end gap-0.5 h-4">
+                <div className="w-1 h-3 bg-purple-500 rounded-xs" />
+                <div className="w-1 h-4 bg-blue-500 rounded-xs" />
+                <div className="w-1 h-2 bg-teal-400 rounded-xs" />
+              </div>
+              <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                상세 진도표
+              </h1>
+            </div>
+
+            <span className="px-2.5 py-0.5 rounded-full bg-[#eff6ff] text-[#2563eb] border border-[#bfdbfe] text-xs font-black">
+              현재 1독
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => alert('데이터 아카이브: 과거 통독 기록')}
+            className="px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-lg flex items-center gap-1 shadow-2xs transition cursor-pointer"
+          >
+            <span>🗄</span>
+            <span>데이터 아카이브</span>
+          </button>
+        </div>
+
+        {/* 4. Subtitle: 구약 성경 (39권) / 신약 성경 (27권) | 책 클릭 시 해당 성경으로 바로 이동 */}
+        <div className="px-3 sm:px-4 py-2 flex items-center justify-between bg-white border-b border-slate-100 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedTestament('OT')}
+              className={`text-sm sm:text-base font-black transition cursor-pointer pb-0.5 ${
+                selectedTestament === 'OT'
+                  ? 'text-slate-900 border-b-2 border-[#1b64b9]'
+                  : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              구약 성경 (39권)
+            </button>
+            <span className="text-slate-300">|</span>
+            <button
+              type="button"
+              onClick={() => setSelectedTestament('NT')}
+              className={`text-sm sm:text-base font-black transition cursor-pointer pb-0.5 ${
+                selectedTestament === 'NT'
+                  ? 'text-slate-900 border-b-2 border-[#1b64b9]'
+                  : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              신약 성경 (27권)
+            </button>
+          </div>
+
+          <span className="text-[11px] sm:text-xs text-slate-400 font-medium">
+            책 클릭 시 해당 성경으로 바로 이동
+          </span>
+        </div>
+
+        {/* 5. 2-Column Cards Grid (책 목록 및 50/50장, 40/40장 녹색 진행바) */}
+        <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 pb-24 bg-[#f8fafc]">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+            {displayedBooks.map((book) => {
+              let readCount = 0;
+              for (let ch = 1; ch <= book.chaptersCount; ch++) {
+                if (completedChapters.has(`${book.name}-${ch}`)) {
+                  readCount++;
+                }
+              }
+              const progressPercent = Math.round((readCount / book.chaptersCount) * 100);
+
+              return (
+                <div
+                  key={book.id}
+                  onClick={() => {
+                    setSelectedStatusBook(book.name);
+                    setSubScreen('chapter-grid');
+                  }}
+                  className="bg-white rounded-xl p-3 sm:p-3.5 border border-slate-200/90 shadow-2xs hover:border-blue-400 hover:shadow-xs transition-all text-left cursor-pointer group active:scale-98 flex flex-col justify-between min-h-[64px]"
+                  title={`${book.name} 터치 시 읽기 계획 현황(장별 그리드) 열기`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-sm sm:text-base font-black text-slate-900 group-hover:text-[#1b64b9] transition-colors">
+                      {book.name}
+                    </span>
+                    <span
+                      className={`text-xs sm:text-sm font-bold ${
+                        readCount > 0 ? 'text-slate-600' : 'text-slate-400'
+                      }`}
+                    >
+                      {readCount}/{book.chaptersCount}장
+                    </span>
+                  </div>
+
+                  {readCount > 0 && (
+                    <div className="w-full bg-slate-100 h-1.5 sm:h-2 rounded-full overflow-hidden mt-2">
+                      <div
+                        className="bg-[#10b981] h-full rounded-full transition-all duration-300"
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // SCREEN B: 읽기 계획 현황 (6열 원형 챕터 번호 그리드 화면)
+  // ==========================================
+  if (subScreen === 'chapter-grid') {
     return (
       <div className="flex-1 flex flex-col h-full bg-[#f4f7fb] relative overflow-hidden select-none text-slate-800">
         {/* Top Header (Deep Blue #1b64b9) */}
         <header className="bg-[#1b64b9] text-white px-3 py-3 flex items-center justify-between shadow-md z-30 flex-shrink-0">
           <button
             type="button"
-            onClick={() => setSubScreen('plan')}
+            onClick={() => setSubScreen('total-progress')}
             className="p-1 hover:bg-white/15 rounded-lg transition cursor-pointer"
-            title="읽기 계획표로 돌아가기"
+            title="통독 분량 전체보기로 돌아가기"
           >
             <ChevronLeft className="w-6 h-6 text-white stroke-[2.5]" />
           </button>
@@ -158,15 +372,13 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
 
         {/* Main Content Area */}
         <div className="flex-1 overflow-y-auto px-4 py-4 pb-24 smooth-scroll">
-          {/* Main White Card matching screenshot */}
           <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-100 max-w-md mx-auto">
-            {/* Card Header: Book Title (창세기) & Quick Book Selector */}
+            {/* Card Header: Book Title & Book Selector */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h2 className="text-xl sm:text-2xl font-black text-[#1b64b9] tracking-tight">
                 {selectedStatusBook}
               </h2>
 
-              {/* Book Select Dropdown */}
               <div className="relative">
                 <select
                   value={selectedStatusBook}
@@ -185,7 +397,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               </div>
             </div>
 
-            {/* 6-Column Chapter Number Circle Grid (Exact match to uploaded screenshot: 1..6 / 7..12 / ... / 49..50) */}
+            {/* 6-Column Chapter Number Circle Grid (1..6 / 7..12 / ... / 49..50) */}
             <div className="grid grid-cols-6 gap-2.5 sm:gap-3 justify-items-center py-4">
               {Array.from({ length: totalStatusChapters }, (_, i) => i + 1).map((ch) => {
                 const readVersesCount = getChapterReadVersesCount(selectedStatusBook, ch);
@@ -198,7 +410,10 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                   <button
                     key={ch}
                     type="button"
-                    onClick={() => onNavigateToBible(selectedStatusBook, ch)}
+                    onClick={() => {
+                      // Navigate to that scripture verse cleanly with ZERO CRASH
+                      onNavigateToBible(selectedStatusBook, ch, 1);
+                    }}
                     className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-sm sm:text-base font-extrabold transition-all cursor-pointer active:scale-90 relative ${
                       isFullyRead || isCompletedInMatrix
                         ? 'bg-emerald-500 text-white font-black shadow-xs ring-2 ring-emerald-300'
@@ -206,7 +421,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                         ? 'bg-amber-100 text-amber-900 border-2 border-amber-400 font-black shadow-2xs'
                         : 'bg-[#f1f4f9] hover:bg-slate-200 text-slate-800'
                     }`}
-                    title={`${selectedStatusBook} ${ch}장 (완료된 절: ${readVersesCount}/${totalVerses}절)`}
+                    title={`${selectedStatusBook} ${ch}장 말씀 읽기로 이동`}
                   >
                     <span>{ch}</span>
                     {(isFullyRead || isCompletedInMatrix) && (
@@ -224,7 +439,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               })}
             </div>
 
-            {/* Read Verses Legend & Helper text */}
+            {/* Read Verses Legend */}
             <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1">
@@ -233,7 +448,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                  <span>읽는 중</span>
+                  <span>진행중</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#f1f4f9] border border-slate-300" />
@@ -244,20 +459,20 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </div>
           </div>
 
-          {/* Quick Action Card: Direct Read */}
+          {/* Direct Read Button */}
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 max-w-md mx-auto mt-3 flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold text-slate-500">현재 통독 진행</p>
+              <p className="text-xs font-bold text-slate-500">현재 선택</p>
               <h3 className="text-sm sm:text-base font-black text-slate-900 mt-0.5">
                 {selectedStatusBook} 1장 말씀 읽기
               </h3>
             </div>
             <button
               type="button"
-              onClick={() => onNavigateToBible(selectedStatusBook, 1)}
+              onClick={() => onNavigateToBible(selectedStatusBook, 1, 1)}
               className="px-4 py-2 bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm rounded-xl transition shadow-sm cursor-pointer"
             >
-              읽기 이동 &gt;
+              본문 읽기 &gt;
             </button>
           </div>
         </div>
@@ -271,7 +486,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
   if (subScreen === 'create-plan') {
     return (
       <div className="flex-1 flex flex-col h-full bg-[#f4f7fb] relative overflow-hidden select-none text-slate-800">
-        {/* Top Header (Deep Blue #1b64b9) */}
         <header className="bg-[#1b64b9] text-white px-4 pt-3 pb-3.5 shadow-md z-30 flex-shrink-0">
           <div className="flex items-center justify-between">
             <button
@@ -292,13 +506,10 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           </p>
         </header>
 
-        {/* Scrollable Form Content */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 pb-6">
-          {/* Section 1: 참여 유형 */}
           <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-100 space-y-4">
             <h2 className="text-base font-black text-slate-900">참여 유형</h2>
             <div className="grid grid-cols-3 gap-2 sm:gap-3 justify-items-center">
-              {/* 혼자 읽기 */}
               <button
                 type="button"
                 onClick={() => setParticipationType('alone')}
@@ -335,7 +546,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                 </span>
               </button>
 
-              {/* 가족과 함께 읽기 */}
               <button
                 type="button"
                 onClick={() => setParticipationType('family')}
@@ -371,7 +581,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                 </span>
               </button>
 
-              {/* 교회/그룹 */}
               <button
                 type="button"
                 onClick={() => setParticipationType('church')}
@@ -408,7 +617,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </div>
           </div>
 
-          {/* Section 2: 성경 번역본 선택 */}
           <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-100 space-y-3">
             <div className="flex items-center gap-1.5">
               <h2 className="text-base font-black text-slate-900">성경 번역본 선택</h2>
@@ -435,7 +643,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </div>
           </div>
 
-          {/* Section 3: 읽을 범위 */}
           <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-100 space-y-3">
             <h2 className="text-base font-black text-slate-900">읽을 범위</h2>
             <div className="grid grid-cols-3 gap-2.5">
@@ -466,7 +673,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                 );
               })}
             </div>
-            {/* 권 별 선택 button below */}
             <button
               type="button"
               onClick={() => setReadingScope('custom')}
@@ -485,11 +691,9 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </button>
           </div>
 
-          {/* Section 4: 방법 선택 */}
           <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-100 space-y-4">
             <h2 className="text-base font-black text-slate-900">방법 선택</h2>
             <div className="grid grid-cols-2 gap-4 justify-items-center">
-              {/* 읽거나 듣기 */}
               <button
                 type="button"
                 onClick={() => setReadingMethod('read')}
@@ -534,7 +738,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                 </span>
               </button>
 
-              {/* 녹음 */}
               <button
                 type="button"
                 onClick={() => setReadingMethod('record')}
@@ -580,12 +783,10 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           </div>
         </div>
 
-        {/* Bottom Sticky Action: 다음 */}
         <div className="p-3 bg-white border-t border-slate-200 shadow-lg flex-shrink-0">
           <button
             type="button"
             onClick={() => {
-              // Apply choices to plan
               setPlanTranslation(selectedTranslation);
               if (readingScope === 'ot') {
                 setPlanPortion('구약');
@@ -613,7 +814,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
   if (subScreen === 'edit-plan') {
     return (
       <div className="flex-1 flex flex-col h-full bg-[#f4f7fb] relative overflow-hidden select-none text-slate-800">
-        {/* Top Header (Deep Blue #1b64b9) */}
         <header className="bg-[#1b64b9] text-white px-3 py-3 flex items-center justify-between shadow-md z-30 flex-shrink-0">
           <button
             type="button"
@@ -629,10 +829,8 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           <div className="w-6" />
         </header>
 
-        {/* Form Fields Card */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
           <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-100 space-y-4">
-            {/* 제목 */}
             <div className="flex items-center gap-3">
               <label className="w-16 sm:w-20 text-sm font-extrabold text-[#1b64b9] flex-shrink-0">
                 제목
@@ -646,7 +844,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               />
             </div>
 
-            {/* 시작일 */}
             <div className="flex items-center gap-3">
               <label className="w-16 sm:w-20 text-sm font-extrabold text-[#1b64b9] flex-shrink-0">
                 시작일
@@ -660,7 +857,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               />
             </div>
 
-            {/* 분량 */}
             <div className="flex items-center gap-3">
               <label className="w-16 sm:w-20 text-sm font-extrabold text-[#1b64b9] flex-shrink-0">
                 분량
@@ -670,7 +866,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               </div>
             </div>
 
-            {/* 번역본 */}
             <div className="flex items-center gap-3">
               <label className="w-16 sm:w-20 text-sm font-extrabold text-[#1b64b9] flex-shrink-0">
                 번역본
@@ -684,7 +879,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               />
             </div>
 
-            {/* 장수 변경 */}
             <div className="flex items-center gap-3">
               <label className="w-16 sm:w-20 text-sm font-extrabold text-[#1b64b9] flex-shrink-0 leading-tight">
                 장수<br />변경
@@ -698,7 +892,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               />
             </div>
 
-            {/* 읽기 계획 푸시 알림 */}
             <div className="flex items-center justify-between pt-2">
               <span className="text-sm font-extrabold text-slate-800">
                 읽기 계획 푸시 알림
@@ -720,7 +913,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           </div>
         </div>
 
-        {/* Bottom Split Action Buttons: 취소 (Left Gray) | 수정 (Right Deep Blue) */}
         <div className="flex border-t border-slate-200 z-30 flex-shrink-0">
           <button
             type="button"
@@ -732,7 +924,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           <button
             type="button"
             onClick={() => {
-              // Save edits to plan state
               setPlanTitle(editTitle);
               setPlanStartDate(editStartDate);
               setPlanPortion(editPortion);
@@ -751,12 +942,11 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
   }
 
   // ==========================================
-  // SCREEN 2: 일독 진행표 (Image 1)
+  // SCREEN 2: 일독 진행표 (66권 매트릭스)
   // ==========================================
   if (subScreen === 'matrix') {
     return (
       <div className="flex-1 flex flex-col h-full bg-[#f8fafc] relative overflow-hidden select-none text-slate-800">
-        {/* Top Header (Deep Blue #1b64b9) */}
         <header className="bg-[#1b64b9] text-white px-3 py-2.5 flex items-center justify-between shadow-md z-30 flex-shrink-0">
           <div className="flex items-center gap-2">
             <button
@@ -777,7 +967,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           <div className="w-6" />
         </header>
 
-        {/* 66 Books Chapter Matrix List */}
         <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 space-y-4 pb-28 bg-white">
           {BIBLE_BOOKS.map((book) => {
             const chapters = Array.from({ length: book.chaptersCount }, (_, i) => i + 1);
@@ -787,14 +976,13 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                 key={book.id}
                 className="flex items-start border-b border-slate-100 pb-3.5 pt-1"
               >
-                {/* Left Column: Book Name & 본문보기 > button */}
                 <div className="w-20 sm:w-24 flex-shrink-0 pr-2 pt-0.5">
                   <h3 className="text-[15px] sm:text-base font-black text-[#1b64b9] leading-tight">
                     {book.name}
                   </h3>
                   <button
                     type="button"
-                    onClick={() => onNavigateToBible(book.name, 1)}
+                    onClick={() => onNavigateToBible(book.name, 1, 1)}
                     className="mt-1.5 px-2 py-0.5 rounded-md bg-slate-500 hover:bg-slate-600 text-white text-[10px] font-bold tracking-tight flex items-center gap-0.5 transition cursor-pointer active:scale-95 shadow-2xs"
                   >
                     <span>본문보기</span>
@@ -802,7 +990,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                   </button>
                 </div>
 
-                {/* Right Column: 10-Column Chapter Number Grid */}
                 <div className="flex-1 grid grid-cols-10 gap-1 sm:gap-1.5 justify-items-center">
                   {chapters.map((ch) => {
                     const isRead = completedChapters.has(`${book.name}-${ch}`);
@@ -816,7 +1003,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                             ? 'bg-[#f59e0b] text-slate-950 font-black shadow-xs'
                             : 'text-slate-800 hover:bg-slate-100'
                         }`}
-                        title={`${book.name} ${ch}장 (터치하여 읽음/미완료 토글)`}
+                        title={`${book.name} ${ch}장`}
                       >
                         {ch}
                       </button>
@@ -828,10 +1015,8 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           })}
         </div>
 
-        {/* Bottom Sticky Floating Status Bar (Dark Charcoal, matching screenshot) */}
         <div className="absolute left-3 right-3 bottom-3 z-30">
           <div className="bg-[#2c333e] text-white rounded-2xl p-3 sm:p-3.5 shadow-2xl border border-slate-700/60 backdrop-blur-md">
-            {/* Top row: Plan title & percentage */}
             <div className="flex items-center justify-between text-xs sm:text-sm font-bold pb-2">
               <div className="flex items-center gap-1.5 truncate">
                 <span className="truncate">채은성 - 개역개정 | 구약/신약</span>
@@ -844,7 +1029,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               </span>
             </div>
 
-            {/* Progress track */}
             <div className="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden my-1">
               <div
                 className="bg-white h-full rounded-full transition-all duration-300"
@@ -852,7 +1036,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               />
             </div>
 
-            {/* Bottom row: 진행률 & chapters count */}
             <div className="flex items-center justify-between text-[11px] sm:text-xs text-slate-300 pt-1 font-semibold">
               <span>진행률</span>
               <span className="font-mono text-white">
@@ -871,7 +1054,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
   if (subScreen === 'plan') {
     return (
       <div className="flex-1 flex flex-col h-full bg-[#f4f7fb] relative overflow-hidden select-none text-slate-800">
-        {/* Top Header (Deep Blue #1b64b9) */}
         <header className="bg-[#1b64b9] text-white px-3 py-2.5 flex items-center justify-between shadow-md z-30 flex-shrink-0">
           <div className="flex items-center gap-2">
             <button
@@ -885,7 +1067,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             <h1 className="text-base sm:text-lg font-bold tracking-tight text-white">읽기 계획표</h1>
           </div>
 
-          {/* Right: Notification Mute icon | 관리 */}
           <div className="flex items-center gap-2 text-white text-xs font-bold">
             <button
               type="button"
@@ -897,7 +1078,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </button>
             <span className="text-white/40">|</span>
 
-            {/* 관리 버튼 & 설정/수정/삭제 팝업 메뉴 */}
             <div className="relative">
               <button
                 type="button"
@@ -909,15 +1089,12 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
 
               {showManageMenu && (
                 <>
-                  {/* Backdrop */}
                   <div
                     className="fixed inset-0 z-40 bg-black/20"
                     onClick={() => setShowManageMenu(false)}
                   />
 
-                  {/* Menu Options Sheet/Popup */}
                   <div className="absolute right-0 top-full mt-2 w-32 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-100">
-                    {/* 설정 */}
                     <button
                       type="button"
                       onClick={() => {
@@ -929,12 +1106,10 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                       설정
                     </button>
 
-                    {/* 수정 -> 계획표 수정 화면으로 이동 */}
                     <button
                       type="button"
                       onClick={() => {
                         setShowManageMenu(false);
-                        // initialize edit state
                         setEditTitle(planTitle);
                         setEditStartDate(planStartDate);
                         setEditPortion(planPortion);
@@ -948,7 +1123,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                       수정
                     </button>
 
-                    {/* 삭제 */}
                     <button
                       type="button"
                       onClick={() => {
@@ -969,11 +1143,9 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           </div>
         </header>
 
-        {/* Content Area */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3.5 pb-20">
           {/* Main Plan Card */}
           <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-100">
-            {/* Card Header: Open Book icon + Title & Date Range */}
             <div className="flex items-center gap-2 mb-1">
               <BookOpen className="w-5 h-5 text-slate-800" />
               <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
@@ -984,7 +1156,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               {planStartDate} ~ {planEndDate}
             </p>
 
-            {/* 3 Stats Columns */}
             <div className="grid grid-cols-3 divide-x divide-slate-100 py-1 text-center">
               <div>
                 <p className="text-xs text-slate-400 font-bold mb-1">진행률</p>
@@ -1005,7 +1176,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               </div>
             </div>
 
-            {/* Cute Runner Illustration above progress bar */}
             <div className="pt-4 pb-1">
               <div className="relative w-full h-8 flex items-center">
                 <div
@@ -1018,7 +1188,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                 </div>
               </div>
 
-              {/* Progress Bar Track */}
               <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                 <div
                   className="bg-[#1b64b9] h-full rounded-full transition-all duration-300"
@@ -1027,7 +1196,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               </div>
             </div>
 
-            {/* 이번주 읽기 현황 Section */}
             <div className="pt-5 border-t border-slate-100 mt-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-1.5 text-xs sm:text-sm font-extrabold text-slate-800 cursor-pointer">
@@ -1037,10 +1205,9 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                 <Info className="w-4 h-4 text-blue-500 cursor-pointer" />
               </div>
 
-              {/* Day of Week Circles (일 월 화 수 목 금 토) */}
               <div className="grid grid-cols-7 gap-1.5 justify-items-center">
                 {['일', '월', '화', '수', '목', '금', '토'].map((day, idx) => {
-                  const isToday = idx === 6; // Saturday
+                  const isToday = idx === 6;
                   return (
                     <div
                       key={day}
@@ -1085,36 +1252,42 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               </button>
             </div>
 
-            {/* Tab 1: 읽기계획 - 오늘 통독 분량 전체보기 (사용자 요청 읽기 계획 현황 연동) */}
+            {/* Tab 1: 읽기계획 - 통독 분량 전체보기 연동 */}
             {planTab === 'plan' && (
               <div className="p-4 space-y-3.5">
-                {/* Header: 읽기 계획 현황 > & 오늘 통독 분량 전체보기 버튼 */}
+                {/* Header: 읽기 계획 현황 > & 통독 분량 전체보기 버튼 (사용자 요청 이름 수정 완료) */}
                 <div className="flex items-center justify-between text-xs font-bold text-slate-600 pb-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-black text-slate-900 text-sm">읽기 계획 현황</span>
+                    <span className="font-black text-slate-900 text-sm">통독 계획 현황</span>
                     <span className="text-slate-400 font-bold">&gt;</span>
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      setSelectedStatusBook('창세기');
-                      setSubScreen('today-portion');
-                    }}
-                    className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-[#1b64b9] rounded-lg text-xs font-black flex items-center gap-1 transition cursor-pointer border border-blue-200 shadow-2xs active:scale-95"
+                    onClick={() => setSubScreen('total-progress')}
+                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#1b64b9] rounded-xl text-xs font-black flex items-center gap-1 transition cursor-pointer border border-blue-200 shadow-2xs active:scale-95"
                   >
-                    <span>오늘 통독 분량 전체보기</span>
+                    <span>통독 분량 전체보기</span>
                     <span>&gt;</span>
                   </button>
                 </div>
 
-                {/* Subtitle & Book Name Card */}
+                {/* Subtitle & Preview Card */}
                 <div className="bg-slate-50/90 rounded-2xl p-3.5 border border-slate-200/80 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-base font-black text-[#1b64b9]">창세기</span>
                       <span className="text-xs text-slate-500 font-semibold">(총 50장)</span>
                     </div>
-                    <span className="text-[11px] text-blue-600 font-bold">터치 시 해당 장으로 이동</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedStatusBook('창세기');
+                        setSubScreen('chapter-grid');
+                      }}
+                      className="text-[11px] text-blue-600 hover:underline font-bold"
+                    >
+                      장별 현황 전체보기 &gt;
+                    </button>
                   </div>
 
                   {/* 6-Column Circles Preview matching uploaded screenshot */}
@@ -1127,14 +1300,15 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                         <button
                           key={ch}
                           type="button"
-                          onClick={() => onNavigateToBible('창세기', ch)}
-                          className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs font-bold transition cursor-pointer relative ${
+                          onClick={() => onNavigateToBible('창세기', ch, 1)}
+                          className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs font-bold transition cursor-pointer active:scale-90 relative ${
                             isFullyRead
                               ? 'bg-emerald-500 text-white font-black shadow-xs ring-2 ring-emerald-300'
                               : readCount > 0
                               ? 'bg-amber-100 text-amber-900 border border-amber-400'
                               : 'bg-white hover:bg-slate-100 text-slate-800 border border-slate-200'
                           }`}
+                          title={`창세기 ${ch}장 본문으로 이동`}
                         >
                           <span>{ch}</span>
                           {isFullyRead && (
@@ -1148,16 +1322,13 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                   </div>
                 </div>
 
-                {/* Button to open full 50-chapter view */}
+                {/* Main Action Button: 통독 분량 전체보기 */}
                 <button
                   type="button"
-                  onClick={() => {
-                    setSelectedStatusBook('창세기');
-                    setSubScreen('today-portion');
-                  }}
-                  className="w-full py-2.5 rounded-xl bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white text-xs sm:text-sm font-extrabold transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                  onClick={() => setSubScreen('total-progress')}
+                  className="w-full py-3 rounded-xl bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white text-xs sm:text-sm font-black transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <span>창세기 1~50장 읽기 계획 현황 전체보기</span>
+                  <span>📊 구약 39권 · 신약 27권 통독 분량 전체보기</span>
                   <span>&gt;</span>
                 </button>
               </div>
@@ -1175,7 +1346,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             )}
           </div>
 
-          {/* Bottom Update Notice Banner */}
           {showNotificationBanner && (
             <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-sm flex items-center justify-between text-xs text-slate-700">
               <span className="font-semibold truncate">
@@ -1200,7 +1370,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
   // ==========================================
   return (
     <div className="flex-1 overflow-y-auto smooth-scroll no-scrollbar bg-[#f4f7fb] pb-24 text-slate-800 p-4 space-y-4 select-none">
-      {/* 1. Top Greeting Header */}
       <div className="flex items-center justify-between pt-1 pb-1">
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-[#1b64b9] tracking-tight">
@@ -1211,7 +1380,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           </p>
         </div>
 
-        {/* User Profile Avatar Icon */}
         <div className="w-12 h-12 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-md flex-shrink-0">
           <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24">
             <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
@@ -1219,7 +1387,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
         </div>
       </div>
 
-      {/* 2. Dashed Action Buttons: + 읽기표 새로 만들기 | + 계획표 새로 만들기 */}
       <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
@@ -1237,12 +1404,9 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
         </button>
       </div>
 
-      {/* 3. Two Side-by-Side Cards: 내 전체 읽기표 (Left) vs 내 전체 계획표 (Right) */}
       <div className="grid grid-cols-2 gap-3 pt-1">
-        {/* CARD 1: 내 전체 읽기표 (Left Card) */}
         <div className="bg-white rounded-[26px] p-4 sm:p-5 shadow-sm border border-slate-100 flex flex-col justify-between">
           <div>
-            {/* Top link pill: 내 전체 읽기표 > */}
             <div className="flex justify-center mb-3">
               <button
                 type="button"
@@ -1253,7 +1417,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               </button>
             </div>
 
-            {/* Icon: Open Book with Checkmark */}
             <div className="flex justify-center my-3">
               <div className="w-16 h-14 rounded-xl bg-blue-50 flex items-center justify-center text-[#1b64b9] shadow-inner relative">
                 <BookOpen className="w-9 h-9 stroke-[1.8]" />
@@ -1263,17 +1426,14 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               </div>
             </div>
 
-            {/* Title: 채은성 */}
             <h2 className="text-base sm:text-lg font-black text-slate-900 text-center tracking-tight">
               채은성
             </h2>
 
-            {/* Progress: 진행률 */}
             <p className="text-sm font-extrabold text-[#0284c7] text-center mt-1">
               {matrixProgressPercent}% 진행 중
             </p>
 
-            {/* Progress Bar */}
             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden my-3">
               <div
                 className="bg-[#1b64b9] h-full rounded-full transition-all duration-300"
@@ -1282,11 +1442,10 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </div>
           </div>
 
-          {/* Action Buttons: 읽기 시작 / 읽기표 보기 */}
           <div className="space-y-2 pt-2">
             <button
               type="button"
-              onClick={() => onNavigateToBible('출애굽기', 18)}
+              onClick={() => onNavigateToBible('출애굽기', 18, 1)}
               className="w-full py-2.5 rounded-xl bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm transition shadow-sm cursor-pointer"
             >
               읽기 시작
@@ -1301,10 +1460,8 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           </div>
         </div>
 
-        {/* CARD 2: 내 전체 계획표 (Right Card) */}
         <div className="bg-white rounded-[26px] p-4 sm:p-5 shadow-sm border border-slate-100 flex flex-col justify-between">
           <div>
-            {/* Top link pill: 내 전체 계획표 > */}
             <div className="flex justify-center mb-3">
               <button
                 type="button"
@@ -1315,7 +1472,6 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               </button>
             </div>
 
-            {/* Icon: Calendar with Checkmark */}
             <div className="flex justify-center my-3">
               <div className="w-16 h-14 rounded-xl bg-blue-50 flex items-center justify-center text-[#1b64b9] shadow-inner relative">
                 <Calendar className="w-9 h-9 stroke-[1.8]" />
@@ -1325,17 +1481,14 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               </div>
             </div>
 
-            {/* Title: 통독12목표 */}
             <h2 className="text-base sm:text-lg font-black text-slate-900 text-center tracking-tight">
               {planTitle}
             </h2>
 
-            {/* Progress */}
             <p className="text-sm font-extrabold text-[#0284c7] text-center mt-1">
               {matrixProgressPercent}% 진행 중
             </p>
 
-            {/* Progress Bar */}
             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden my-3">
               <div
                 className="bg-[#1b64b9] h-full rounded-full transition-all duration-300"
@@ -1344,14 +1497,10 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </div>
           </div>
 
-          {/* Action Buttons: 오늘 읽기 / 계획표 보기 */}
           <div className="space-y-2 pt-2">
             <button
               type="button"
-              onClick={() => {
-                setSelectedStatusBook('창세기');
-                setSubScreen('today-portion');
-              }}
+              onClick={() => setSubScreen('total-progress')}
               className="w-full py-2.5 rounded-xl bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm transition shadow-sm cursor-pointer"
             >
               오늘 읽기

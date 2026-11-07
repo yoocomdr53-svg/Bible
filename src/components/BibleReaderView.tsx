@@ -103,20 +103,6 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     };
   }, []);
 
-  const handleToggleVerseRead = (v: number) => {
-    toggleVerseCompleted(selectedBook, selectedChapter, v);
-    setCompletedVerses(getCompletedVerses());
-  };
-
-  const handleCompleteAllChapterVerses = () => {
-    markChapterVersesCompleted(selectedBook, selectedChapter, verses.length);
-    setCompletedVerses(getCompletedVerses());
-  };
-
-  const chapterReadVersesCount = verses.filter((v) =>
-    completedVerses.has(`${selectedBook}-${selectedChapter}-${v.verse}`)
-  ).length;
-
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Sync with prop changes
@@ -127,7 +113,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     setActiveRecordVerse(initialVerse || 1);
   }, [initialBook, initialChapter, initialVerse]);
 
-  // Generate or fetch verses
+  // Generate or fetch verses (defined BEFORE any derived counts to prevent temporal dead zone ReferenceError!)
   const key = `${selectedBook}-${selectedChapter}`;
   const verses = React.useMemo(() => {
     if (SAMPLE_VERSES_CHAPTER[key]) {
@@ -143,6 +129,20 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     }
     return generated;
   }, [key, selectedBook, selectedChapter]);
+
+  const handleToggleVerseRead = (v: number) => {
+    toggleVerseCompleted(selectedBook, selectedChapter, v);
+    setCompletedVerses(getCompletedVerses());
+  };
+
+  const handleCompleteAllChapterVerses = () => {
+    markChapterVersesCompleted(selectedBook, selectedChapter, verses.length);
+    setCompletedVerses(getCompletedVerses());
+  };
+
+  const chapterReadVersesCount = verses.filter((v) =>
+    completedVerses.has(`${selectedBook}-${selectedChapter}-${v.verse}`)
+  ).length;
 
   // Auto-scroll to selected verse and highlight
   useEffect(() => {

@@ -73,10 +73,11 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
     setActiveTab('bible');
   };
 
-  const navigateToPortion = (portion: string, chapter?: number) => {
+  const navigateToPortion = (portion: string, chapter?: number, verse?: number) => {
     const book = portion.split(' ')[0] || '창세기';
     const ch = chapter || Number(portion.split(' ')[1]) || 1;
-    setReaderLocation({ book, chapter: ch, verse: 1 });
+    const v = verse || 1;
+    setReaderLocation({ book, chapter: ch, verse: v });
     setActiveTab('bible');
     setBibleSubView('reader');
   };
