@@ -301,9 +301,10 @@ export const INITIAL_RECORDINGS: UserRecording[] = [
 ];
 
 // ==========================================
-// 성경 읽기 완료된 절 (Completed Read Verses) 관리
+// 성경 읽기 완료된 절 및 완독된 장 (Completed Verses & Chapters) 관리
 // ==========================================
-const READ_VERSES_STORAGE_KEY = 'superbible_completed_verses_set';
+const READ_VERSES_STORAGE_KEY = 'superbible_completed_verses_v2';
+const COMPLETED_CHAPTERS_STORAGE_KEY = 'superbible_completed_chapters_v2';
 
 export function getCompletedVerses(): Set<string> {
   try {
@@ -314,15 +315,8 @@ export function getCompletedVerses(): Set<string> {
   } catch (e) {
     console.error('Failed to load completed verses:', e);
   }
-  // 기본 샘플: 창세기 1장 1~31절 및 창세기 2장 1~3절 읽기 완료 처리
-  const initial = new Set<string>();
-  for (let i = 1; i <= 31; i++) {
-    initial.add(`창세기-1-${i}`);
-  }
-  initial.add('창세기-2-1');
-  initial.add('창세기-2-2');
-  initial.add('창세기-2-3');
-  return initial;
+  // 초기화 상태: 완료된 절 없음 (0개)
+  return new Set<string>();
 }
 
 export function saveCompletedVerses(versesSet: Set<string>): void {
@@ -333,18 +327,74 @@ export function saveCompletedVerses(versesSet: Set<string>): void {
   }
 }
 
-export function toggleVerseCompleted(book: string, chapter: number, verse: number): boolean {
-  const current = getCompletedVerses();
-  const key = `${book}-${chapter}-${verse}`;
-  let isDone = false;
-  if (current.has(key)) {
-    current.delete(key);
-    isDone = false;
-  } else {
-    current.add(key);
-    isDone = true;
+export function getCompletedChapters(): Set<string> {
+  try {
+    const raw = localStorage.getItem(COMPLETED_CHAPTERS_STORAGE_KEY);
+    if (raw) {
+      return new Set<string>(JSON.parse(raw));
+    }
+  } catch (e) {
+    console.error('Failed to load completed chapters:', e);
   }
-  saveCompletedVerses(current);
+  // 초기화 상태: 완독된 장 없음 (0개)
+  return new Set<string>();
+}
+
+export function saveCompletedChapters(chaptersSet: Set<string>): void {
+  try {
+    localStorage.setItem(COMPLETED_CHAPTERS_STORAGE_KEY, JSON.stringify(Array.from(chaptersSet)));
+  } catch (e) {
+    console.error('Failed to save completed chapters:', e);
+  }
+}
+
+export function isChapterFullyRead(book: string, chapter: number, versesSet?: Set<string>): boolean {
+  const currentVerses = versesSet || getCompletedVerses();
+  const currentChapters = getCompletedChapters();
+  if (currentChapters.has(`${book}-${chapter}`)) {
+    return true;
+  }
+  const total = getChapterVerseCount(book, chapter);
+  if (total <= 0) return false;
+  let count = 0;
+  for (let v = 1; v <= total; v++) {
+    if (currentVerses.has(`${book}-${chapter}-${v}`)) {
+      count++;
+    }
+  }
+  return count >= total;
+}
+
+export function toggleVerseCompleted(book: string, chapter: number, verse: number): boolean {
+  const currentVerses = getCompletedVerses();
+  const currentChapters = getCompletedChapters();
+  const verseKey = `${book}-${chapter}-${verse}`;
+  const chapterKey = `${book}-${chapter}`;
+
+  let isDone = false;
+  if (currentVerses.has(verseKey)) {
+    currentVerses.delete(verseKey);
+    isDone = false;
+    currentChapters.delete(chapterKey);
+  } else {
+    currentVerses.add(verseKey);
+    isDone = true;
+    const total = getChapterVerseCount(book, chapter);
+    let allDone = true;
+    for (let v = 1; v <= total; v++) {
+      if (!currentVerses.has(`${book}-${chapter}-${v}`)) {
+        allDone = false;
+        break;
+      }
+    }
+    if (allDone) {
+      currentChapters.add(chapterKey);
+    }
+  }
+
+  saveCompletedVerses(currentVerses);
+  saveCompletedChapters(currentChapters);
+
   window.dispatchEvent(
     new CustomEvent('superbible_verse_read_changed', {
       detail: { book, chapter, verse, isDone },
@@ -353,15 +403,102 @@ export function toggleVerseCompleted(book: string, chapter: number, verse: numbe
   return isDone;
 }
 
-export function markChapterVersesCompleted(book: string, chapter: number, totalVerses: number): void {
-  const current = getCompletedVerses();
+export function toggleChapterVersesCompleted(book: string, chapter: number, totalVerses: number): boolean {
+  const currentVerses = getCompletedVerses();
+  const currentChapters = getCompletedChapters();
+  const chapterKey = `${book}-${chapter}`;
+
+  // Check if currently all verses in this chapter are read
+  let allRead = true;
   for (let v = 1; v <= totalVerses; v++) {
-    current.add(`${book}-${chapter}-${v}`);
+    if (!currentVerses.has(`${book}-${chapter}-${v}`)) {
+      allRead = false;
+      break;
+    }
   }
-  saveCompletedVerses(current);
+  if (currentChapters.has(chapterKey)) {
+    allRead = true;
+  }
+
+  let nextDone = false;
+  if (allRead) {
+    // 이미 완독됨 -> 전체 해제
+    for (let v = 1; v <= totalVerses; v++) {
+      currentVerses.delete(`${book}-${chapter}-${v}`);
+    }
+    currentChapters.delete(chapterKey);
+    nextDone = false;
+  } else {
+    // 완독되지 않음 -> 전체 완독 체크
+    for (let v = 1; v <= totalVerses; v++) {
+      currentVerses.add(`${book}-${chapter}-${v}`);
+    }
+    currentChapters.add(chapterKey);
+    nextDone = true;
+  }
+
+  saveCompletedVerses(currentVerses);
+  saveCompletedChapters(currentChapters);
+
   window.dispatchEvent(
     new CustomEvent('superbible_verse_read_changed', {
-      detail: { book, chapter, isAll: true },
+      detail: { book, chapter, isDone: nextDone, isAll: true },
+    })
+  );
+
+  return nextDone;
+}
+
+export function toggleChapterDirect(book: string, chapter: number): boolean {
+  const currentVerses = getCompletedVerses();
+  const currentChapters = getCompletedChapters();
+  const chapterKey = `${book}-${chapter}`;
+  const total = getChapterVerseCount(book, chapter);
+
+  let nextDone = false;
+  if (currentChapters.has(chapterKey)) {
+    currentChapters.delete(chapterKey);
+    for (let v = 1; v <= total; v++) {
+      currentVerses.delete(`${book}-${chapter}-${v}`);
+    }
+    nextDone = false;
+  } else {
+    currentChapters.add(chapterKey);
+    for (let v = 1; v <= total; v++) {
+      currentVerses.add(`${book}-${chapter}-${v}`);
+    }
+    nextDone = true;
+  }
+
+  saveCompletedVerses(currentVerses);
+  saveCompletedChapters(currentChapters);
+
+  window.dispatchEvent(
+    new CustomEvent('superbible_verse_read_changed', {
+      detail: { book, chapter, isDone: nextDone, isAll: true },
+    })
+  );
+
+  return nextDone;
+}
+
+export function markChapterVersesCompleted(book: string, chapter: number, totalVerses: number): void {
+  toggleChapterVersesCompleted(book, chapter, totalVerses);
+}
+
+export function resetAllReadingProgress(): void {
+  try {
+    localStorage.removeItem(READ_VERSES_STORAGE_KEY);
+    localStorage.removeItem(COMPLETED_CHAPTERS_STORAGE_KEY);
+    // Also clear old legacy keys if present
+    localStorage.removeItem('superbible_completed_verses_set');
+    localStorage.removeItem('superbible_completed_chapters_set');
+  } catch (e) {
+    console.error('Failed to reset reading progress:', e);
+  }
+  window.dispatchEvent(
+    new CustomEvent('superbible_verse_read_changed', {
+      detail: { isResetAll: true },
     })
   );
 }

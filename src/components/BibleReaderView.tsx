@@ -25,6 +25,7 @@ import {
   getChapterVerseCount,
   getCompletedVerses,
   toggleVerseCompleted,
+  toggleChapterVersesCompleted,
   markChapterVersesCompleted,
 } from '../data/bibleData';
 import { BibleVerse } from '../types';
@@ -161,8 +162,8 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     setCompletedVerses(getCompletedVerses());
   };
 
-  const handleCompleteAllChapterVerses = () => {
-    markChapterVersesCompleted(selectedBook, selectedChapter, verses.length);
+  const handleToggleCompleteAllChapterVerses = () => {
+    toggleChapterVersesCompleted(selectedBook, selectedChapter, verses.length);
     setCompletedVerses(getCompletedVerses());
   };
 
@@ -1023,14 +1024,23 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
             </div>
             <button
               type="button"
-              onClick={handleCompleteAllChapterVerses}
-              className={`px-3 py-1 rounded-xl text-xs font-black transition cursor-pointer shadow-xs active:scale-95 ${
-                chapterReadVersesCount === verses.length
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+              onClick={handleToggleCompleteAllChapterVerses}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shadow-xs active:scale-95 flex items-center gap-1 ${
+                chapterReadVersesCount === verses.length && verses.length > 0
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-300'
+                  : 'bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300'
               }`}
+              title={
+                chapterReadVersesCount === verses.length && verses.length > 0
+                  ? '클릭 시 이 장 전체 완독 해제'
+                  : '클릭 시 이 장 전체 완독 체크'
+              }
             >
-              {chapterReadVersesCount === verses.length ? '전체 완독됨 ✓' : '이 장 전체 완독 ✓'}
+              <span>
+                {chapterReadVersesCount === verses.length && verses.length > 0
+                  ? '전체 완독됨 ✓'
+                  : '이 장 전체 완독 ✓'}
+              </span>
             </button>
           </div>
 

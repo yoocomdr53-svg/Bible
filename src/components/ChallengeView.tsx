@@ -8,7 +8,15 @@ import {
   Info,
   X,
 } from 'lucide-react';
-import { BIBLE_BOOKS, getCompletedVerses, getChapterVerseCount } from '../data/bibleData';
+import {
+  BIBLE_BOOKS,
+  getCompletedVerses,
+  getCompletedChapters,
+  isChapterFullyRead,
+  getChapterVerseCount,
+  toggleChapterDirect,
+  resetAllReadingProgress,
+} from '../data/bibleData';
 import { ReadingDayPlan, User } from '../types';
 
 interface ChallengeViewProps {
@@ -189,30 +197,20 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
   const [readingScope, setReadingScope] = useState<'all' | 'ot' | 'nt' | 'custom'>('all');
   const [readingMethod, setReadingMethod] = useState<'read' | 'record'>('read');
 
-  // Completed verses tracking
+  // Completed verses and chapters tracking from unified storage
   const [completedVerses, setCompletedVerses] = useState<Set<string>>(() => getCompletedVerses());
+  const [completedChapters, setCompletedChapters] = useState<Set<string>>(() => getCompletedChapters());
 
   useEffect(() => {
     const handleVerseChanged = () => {
       setCompletedVerses(getCompletedVerses());
+      setCompletedChapters(getCompletedChapters());
     };
     window.addEventListener('superbible_verse_read_changed', handleVerseChanged);
     return () => {
       window.removeEventListener('superbible_verse_read_changed', handleVerseChanged);
     };
   }, []);
-
-  // Completed chapters set in Matrix (Default: 창세기 50/50장, 출애굽기 40/40장 완독 상태로 초기화)
-  const [completedChapters, setCompletedChapters] = useState<Set<string>>(() => {
-    const initial = new Set<string>();
-    for (let i = 1; i <= 50; i++) {
-      initial.add(`창세기-${i}`);
-    }
-    for (let i = 1; i <= 40; i++) {
-      initial.add(`출애굽기-${i}`);
-    }
-    return initial;
-  });
 
   // State for reading plan screen
   const [planTab, setPlanTab] = useState<'plan' | 'attendance'>('plan');
@@ -226,16 +224,9 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
 
   // Toggle chapter in Matrix
   const toggleChapter = (bookName: string, ch: number) => {
-    const key = `${bookName}-${ch}`;
-    setCompletedChapters((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
+    toggleChapterDirect(bookName, ch);
+    setCompletedVerses(getCompletedVerses());
+    setCompletedChapters(getCompletedChapters());
   };
 
   // Get completed verses count for a specific book and chapter
@@ -375,14 +366,29 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={() => alert('데이터 아카이브: 과거 통독 기록')}
-            className="px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-lg flex items-center gap-1 shadow-2xs transition cursor-pointer"
-          >
-            <span>🗄</span>
-            <span>데이터 아카이브</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('모든 성경 통독 완료 기록을 초기화하시겠습니까?')) {
+                  resetAllReadingProgress();
+                }
+              }}
+              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold rounded-lg flex items-center gap-1 shadow-2xs transition cursor-pointer"
+              title="통독한 데이터 모두 초기화"
+            >
+              <span>🔄</span>
+              <span>통독 초기화</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => alert('데이터 아카이브: 과거 통독 기록')}
+              className="px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-lg flex items-center gap-1 shadow-2xs transition cursor-pointer"
+            >
+              <span>🗄</span>
+              <span>데이터 아카이브</span>
+            </button>
+          </div>
         </div>
 
         {/* 4. Subtitle: 구약 성경 (39권) / 신약 성경 (27권) | 책 클릭 시 해당 성경으로 바로 이동 */}
@@ -424,7 +430,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             {displayedBooks.map((book) => {
               let readCount = 0;
               for (let ch = 1; ch <= book.chaptersCount; ch++) {
-                if (completedChapters.has(`${book.name}-${ch}`)) {
+                if (isChapterFullyRead(book.name, ch, completedVerses)) {
                   readCount++;
                 }
               }
@@ -495,9 +501,10 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-100 max-w-md mx-auto">
             {/* 6-Column Chapter Number Circle Grid (1..50 - 4번 이미지와 100% 동일) */}
             <div className="grid grid-cols-6 gap-2.5 sm:gap-3 justify-items-center py-2">
-              {Array.from({ length: 50 }, (_, i) => i + 1).map((ch) => {
-                // 4번 이미지: 1~21절은 완독(에메랄드 녹색 + 체크 배지), 22~50절은 미완료(연회색 원형)
-                const isRead = ch <= 21;
+              {Array.from({ length: currentStatusBookObj?.chaptersCount || 50 }, (_, i) => i + 1).map((ch) => {
+                const isDone = isChapterFullyRead(selectedStatusBook, ch, completedVerses);
+                const readCount = getChapterReadVersesCount(selectedStatusBook, ch);
+                const isReading = !isDone && readCount > 0;
 
                 return (
                   <button
@@ -507,14 +514,16 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                       onNavigateToBible(selectedStatusBook, ch, 1);
                     }}
                     className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-sm sm:text-base font-extrabold transition-all cursor-pointer active:scale-90 relative ${
-                      isRead
-                        ? 'bg-[#05c46b] text-white font-black shadow-xs'
+                      isDone
+                        ? 'bg-[#05c46b] text-white font-black shadow-xs ring-2 ring-emerald-300'
+                        : isReading
+                        ? 'bg-[#fff9db] border-2 border-[#fcc419] text-slate-800 font-black shadow-2xs'
                         : 'bg-[#f1f4f9] hover:bg-slate-200 text-slate-800 font-bold'
                     }`}
-                    title={`${selectedStatusBook} ${ch}장 본문 이동`}
+                    title={`${selectedStatusBook} ${ch}장 본문 이동 (${isDone ? '완독' : isReading ? `${readCount}절 읽는 중` : '미완료'})`}
                   >
                     <span>{ch}</span>
-                    {isRead && (
+                    {isDone && (
                       <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#059669] text-white flex items-center justify-center text-[8px] font-black shadow-xs">
                         ✓
                       </span>
@@ -1374,8 +1383,9 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                   {/* 6열 50개 전체 장 원형 번호 그리드 (창세기 1~50장 전체 표시) */}
                   <div className="grid grid-cols-6 gap-2.5 sm:gap-3 justify-items-center py-1">
                     {Array.from({ length: 50 }, (_, i) => i + 1).map((ch) => {
-                      const isCh1 = ch === 1;
-                      const isCh2 = ch === 2;
+                      const isDone = isChapterFullyRead('창세기', ch, completedVerses);
+                      const readCount = getChapterReadVersesCount('창세기', ch);
+                      const isReading = !isDone && readCount > 0;
 
                       return (
                         <button
@@ -1383,16 +1393,16 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                           type="button"
                           onClick={() => onNavigateToBible('창세기', ch, 1)}
                           className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-sm sm:text-base font-extrabold transition cursor-pointer active:scale-90 relative ${
-                            isCh1
+                            isDone
                               ? 'bg-[#05c46b] text-white font-black shadow-xs ring-2 ring-emerald-300'
-                              : isCh2
+                              : isReading
                               ? 'bg-[#fff9db] border-2 border-[#fcc419] text-slate-800 font-black shadow-2xs'
                               : 'bg-white hover:bg-slate-100 text-slate-800 border border-slate-200/90 shadow-2xs'
                           }`}
-                          title={`창세기 ${ch}장 본문으로 이동`}
+                          title={`창세기 ${ch}장 본문으로 이동 (${isDone ? '완독' : isReading ? `${readCount}절 읽는 중` : '미완료'})`}
                         >
                           <span>{ch}</span>
-                          {isCh1 && (
+                          {isDone && (
                             <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#059669] text-white flex items-center justify-center text-[8px] font-black shadow-xs">
                               ✓
                             </span>
