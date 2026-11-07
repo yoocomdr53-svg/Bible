@@ -4,12 +4,14 @@ import { ActiveModal, User } from '../types';
 
 interface LoginViewProps {
   onLoginSuccess: (user: Partial<User>) => void;
+  onGoogleLogin?: () => void;
   openModal: (modal: ActiveModal) => void;
   onOpenSettings?: () => void;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({
   onLoginSuccess,
+  onGoogleLogin,
   openModal,
   onOpenSettings,
 }) => {
@@ -239,7 +241,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
             <button
               id="googleSignInBtn"
               type="button"
-              onClick={() => openModal('google-chooser')}
+              onClick={onGoogleLogin}
               className="w-full h-11 bg-white hover:bg-slate-50 active:scale-[0.99] text-slate-700 font-medium text-[13.5px] rounded-xl border border-slate-200 shadow-xs transition-all duration-150 flex items-center justify-center gap-2.5 tracking-tight focus:outline-none focus:ring-1.5 focus:ring-slate-400 cursor-pointer"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">

@@ -61,6 +61,22 @@ export default function App() {
     setCurrentView('dashboard');
   };
 
+  // Direct Google login without account chooser modal
+  const handleDirectGoogleLogin = () => {
+    setUser((prev) => ({
+      ...prev,
+      id: 'user-yooc',
+      name: 'yooc',
+      email: 'yooc.dev@gmail.com',
+      avatarText: 'yooc',
+      role: 'saint',
+      provider: 'google',
+      schoolName: '로고스 바이블 애플 공동체',
+      department: '청장년 성경통독부',
+    }));
+    setCurrentView('dashboard');
+  };
+
   // Direct login from standard form (logos_admin@school.ac.kr)
   const handleStandardLogin = (userData: Partial<User>) => {
     setUser((prev) => ({ ...prev, ...userData }));
@@ -146,6 +162,7 @@ export default function App() {
         {currentView === 'login' ? (
           <LoginView
             onLoginSuccess={handleStandardLogin}
+            onGoogleLogin={handleDirectGoogleLogin}
             openModal={handleOpenModal}
             onOpenSettings={() => setCurrentView('dashboard')}
           />
