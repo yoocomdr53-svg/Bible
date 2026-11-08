@@ -86,13 +86,28 @@ export const getVoiceProfile = (
     (v) => v.lang.toLowerCase().includes('ko') || v.lang.toLowerCase().includes('kr')
   );
 
+  // 구형 기계음 SAPI 보이스(Microsoft Heami Desktop 등)는 깡통 기계음의 원인이므로 완전 배제
+  const isRoboticSapi = (v: SpeechSynthesisVoice) => {
+    const n = v.name.toLowerCase();
+    return n.includes('heami') || n.includes('혜미') || n.includes('desktop');
+  };
+
+  const isNatural = (v: SpeechSynthesisVoice) => {
+    const n = v.name.toLowerCase();
+    return (
+      n.includes('natural') ||
+      n.includes('online') ||
+      n.includes('neural') ||
+      n.includes('google') ||
+      n.includes('apple')
+    );
+  };
+
   const isFemale = (v: SpeechSynthesisVoice) => {
     const n = v.name.toLowerCase();
     return (
       n.includes('sunhi') ||
       n.includes('선희') ||
-      n.includes('heami') ||
-      n.includes('혜미') ||
       n.includes('yuna') ||
       n.includes('유나') ||
       n.includes('sora') ||
@@ -100,8 +115,6 @@ export const getVoiceProfile = (
       n.includes('seoyeon') ||
       n.includes('서연') ||
       n.includes('female') ||
-      n.includes('woman') ||
-      n.includes('여성') ||
       n.includes('google')
     );
   };
@@ -118,75 +131,51 @@ export const getVoiceProfile = (
       n.includes('봉진') ||
       n.includes('male') ||
       n.includes('man') ||
-      n.includes('남성') ||
-      n.includes('boy')
+      n.includes('남성')
     );
   };
 
-  const isNatural = (v: SpeechSynthesisVoice) => {
-    const n = v.name.toLowerCase();
-    return n.includes('natural') || n.includes('online') || n.includes('neural');
-  };
-
-  // Find natural female
-  const naturalFemale = koVoices.find((v) => isFemale(v) && isNatural(v));
-  const anyFemale = naturalFemale || koVoices.find((v) => isFemale(v));
-
-  // Find natural male
+  // 고음질 뉴럴 남성 보이스 (Microsoft InJoon Online Natural 등)
   const naturalMale = koVoices.find((v) => isMale(v) && isNatural(v));
-  const anyMale = naturalMale || koVoices.find((v) => isMale(v));
+  const anyNonRoboticMale = naturalMale || koVoices.find((v) => isMale(v) && !isRoboticSapi(v));
 
-  // 1. 여성 (맑고 부드러운 음성)
-  // 인위적인 피치 변조(기계음 원인)를 100% 제거하고, 천연 고음질 여성 뉴럴 보이스를 원음 그대로 재생!
-  if (type.includes('여성') || type.includes('맑은음')) {
-    const voice = anyFemale || koVoices.find((v) => !isMale(v)) || koVoices[0] || null;
+  // 고음질 뉴럴 여성 보이스 (Microsoft SunHi Online Natural / Google 한국어 등)
+  const naturalFemale = koVoices.find((v) => isFemale(v) && isNatural(v) && !isRoboticSapi(v));
+
+  // 1. 여성 (자연스러운 중저음)
+  // 기계음 유발 보이스(Heami)는 완전 차단하고, 천연 고음질 여성 뉴럴 보이스(SunHi/Google) 또는 자연스러운 부드러운 중저음 적용
+  if (type.includes('여성')) {
+    if (naturalFemale) {
+      return {
+        voice: naturalFemale,
+        pitch: 0.95, // 고음 기계음 왜곡을 없앤 차분하고 부드러운 여성 중저음 (알토 톤)
+        rate: baseRate,
+        pauseMs: 60,
+        engineName: naturalFemale.name,
+        summary: '기계음 왜곡 없는 부드럽고 차분한 여성 중저음(알토) 낭독입니다.',
+      };
+    }
+    // 뉴럴 여성 보이스가 기기에 없는 경우 기계음 Heami를 사용하지 않고 검증된 고음질 자연어 보이스로 부드럽게 낭독
+    const fallbackNatural = naturalMale || anyNonRoboticMale || koVoices.find((v) => !isRoboticSapi(v)) || koVoices[0] || null;
     return {
-      voice,
-      pitch: 1.0, // 왜곡 없는 순수 사람 목소리 톤 (남성 음성처럼 자연스럽고 매끄러움)
+      voice: fallbackNatural,
+      pitch: 0.96,
       rate: baseRate,
       pauseMs: 60,
-      engineName: voice ? voice.name : '자연스러운 고음질 여성 엔진',
-      summary: '기계음 왜곡 없이 부드럽고 은혜로운 100% 자연 여성 음성입니다.',
+      engineName: fallbackNatural ? `${fallbackNatural.name} (자연 중저음)` : '자연스러운 중저음 엔진',
+      summary: '기계음 없이 부드럽고 차분한 자연스러운 중저음으로 낭독합니다.',
     };
   }
 
-  // 2. AI 청년 (젊은 남성 톤)
-  // 사용자 요구: "청년목소리면 남자인데 왜 여자 목소리가 나오는지 모르겠다" -> 반드시 남성 보이스 사용!
-  if (type.includes('청년')) {
-    const voice = naturalMale || anyMale || koVoices.find((v) => !isFemale(v)) || koVoices[0] || null;
-    return {
-      voice,
-      pitch: 1.02, // 젊은 남성의 맑고 생동감 있는 톤
-      rate: Math.round(baseRate * 1.05 * 100) / 100, // 젊은 청년 특유의 밝고 거침없는 낭독
-      pauseMs: 50,
-      engineName: voice ? `${voice.name} (청년 남성)` : 'AI 청년 남성 보이스',
-      summary: '젊고 활기찬 청년 형제의 맑고 또렷한 남성 목소리입니다.',
-    };
-  }
-
-  // 3. 드라마 입체 낭독 (엄숙하고 경건한 대하 낭독)
-  // 거북한 인공 배경음(전자 부저음)을 완전히 삭제하고, 깊고 거룩한 대하 드라마풍 중저음 낭독으로 구현!
-  if (type.includes('드라마')) {
-    const voice = naturalMale || anyMale || koVoices[0] || null;
-    return {
-      voice,
-      pitch: 0.94, // 장엄하고 거룩한 저음
-      rate: Math.round(Math.max(0.95, baseRate * 0.95) * 100) / 100, // 성경의 장엄함을 살리는 엄숙한 낭독
-      pauseMs: 120, // 성경 말씀의 깊은 묵상을 위한 자연스러운 호흡
-      engineName: voice ? `${voice.name} (드라마 낭독)` : '드라마 입체 낭독 엔진',
-      summary: '인공 잡음 없이 깊고 장엄한 울림의 대하 드라마풍 거룩한 낭독입니다.',
-    };
-  }
-
-  // 4. 남성 (자연스러운 중저음) - 기본값
-  const voice = naturalMale || anyMale || koVoices.find((v) => !isFemale(v)) || koVoices[0] || null;
+  // 2. 자연스러운 중저음 (권장 / 기본값)
+  const voice = naturalMale || anyNonRoboticMale || koVoices.find((v) => !isFemale(v) && !isRoboticSapi(v)) || koVoices[0] || null;
   return {
     voice,
-    pitch: 0.96, // 깊고 편안한 남성 중저음
+    pitch: 0.96, // 깊고 편안한 자연스러운 중저음 바리톤
     rate: baseRate,
     pauseMs: 60,
-    engineName: voice ? voice.name : '한국어 고음질 남성 엔진',
-    summary: '깊고 따뜻한 울림의 편안한 표준 남성 중저음(바리톤)입니다.',
+    engineName: voice ? voice.name : '한국어 고음질 자연어 엔진',
+    summary: '기계음 없이 깊고 따뜻한 울림의 편안한 자연스러운 중저음(바리톤)입니다.',
   };
 };
 
@@ -213,16 +202,18 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   const [scrollSpeed, setScrollSpeed] = useState(13);
   const [isInverted, setIsInverted] = useState(false);
 
-  // Audio state
+  // Audio state - 자연스러운 중저음 기본 활성화
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(186); // 03:06
   const [voiceType, setVoiceType] = useState<string>(() => {
     try {
       const saved = localStorage.getItem('superbible_voice_type');
-      if (saved) return saved;
+      if (saved && saved.includes('여성')) {
+        return '여성 (자연스러운 중저음)';
+      }
     } catch (e) {}
-    return '남성(중저음)';
+    return '자연스러운 중저음';
   });
 
   // Natural Korean TTS Speech Synthesis
@@ -467,10 +458,11 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   };
 
   const handleSelectVoiceType = (type: string) => {
-    setVoiceType(type);
-    voiceTypeRef.current = type;
+    const normalized = type.includes('여성') ? '여성 (자연스러운 중저음)' : '자연스러운 중저음';
+    setVoiceType(normalized);
+    voiceTypeRef.current = normalized;
     try {
-      localStorage.setItem('superbible_voice_type', type);
+      localStorage.setItem('superbible_voice_type', normalized);
     } catch (e) {}
 
     if (isPreviewPlaying && 'speechSynthesis' in window) {
@@ -1294,15 +1286,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
               isInverted ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-100 border-slate-200 text-slate-800'
             }`}
           >
-            <span>
-              {voiceType.includes('여성')
-                ? '🌸'
-                : voiceType.includes('청년')
-                ? '👦'
-                : voiceType.includes('드라마')
-                ? '🎭'
-                : '🎙️'}
-            </span>
+            <span>{voiceType.includes('여성') ? '🌸' : '🎙️'}</span>
             <span>{voiceType}</span>
             <span className="text-[10px] text-[#1b64b9] font-black">{speechRate}x</span>
           </button>
@@ -1597,15 +1581,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                   : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100/70'
               }`}
             >
-              <span>
-                {voiceType.includes('여성')
-                  ? '🌸'
-                  : voiceType.includes('청년')
-                  ? '👦'
-                  : voiceType.includes('드라마')
-                  ? '🎭'
-                  : '🎙️'}
-              </span>
+              <span>{voiceType.includes('여성') ? '🌸' : '🎙️'}</span>
               <span>낭독: {voiceType}</span>
               <span className="px-1.5 py-0.2 bg-[#1b64b9] text-white rounded-full text-[10px] font-black">
                 {speechRate}x
@@ -2000,75 +1976,66 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
               <div className="space-y-1.5">
                 {[
                   {
-                    id: '남성(중저음)',
-                    label: '남성 (자연스러운 중저음)',
-                    sub: '깊고 편안한 바리톤 울림, 안정감 있는 낭독 (권장)',
-                    tag: '남성 바리톤',
+                    id: '자연스러운 중저음',
+                    label: '자연스러운 중저음 (남성 권장)',
+                    sub: '기계음 왜곡 없는 깊고 편안한 100% 자연 육성 바리톤',
+                    tag: '표준 바리톤',
                     icon: '🎙️',
                   },
                   {
-                    id: '여성(맑은음)',
-                    label: '여성 (맑고 부드러운 음성)',
-                    sub: '기계음 왜곡 없는 100% 자연스럽고 은혜로운 여성 목소리',
-                    tag: '자연 여성음',
+                    id: '여성 (자연스러운 중저음)',
+                    label: '여성 (자연스러운 중저음)',
+                    sub: '기계음을 제거한 차분하고 부드러운 자연 여성 알토 톤',
+                    tag: '자연 알토',
                     icon: '🌸',
                   },
-                  {
-                    id: 'AI 청년 목소리',
-                    label: 'AI 청년 (젊은 남성 톤)',
-                    sub: '젊고 활기찬 청년 형제의 맑고 또렷한 남성 목소리',
-                    tag: '청년 남성',
-                    icon: '👦',
-                  },
-                  {
-                    id: '드라마 입체 낭독',
-                    label: '드라마 입체 낭독 (엄숙·경건)',
-                    sub: '잡음 없이 깊고 장엄한 대하 드라마풍 거룩한 낭독',
-                    tag: '엄숙한 대하 낭독',
-                    icon: '🎭',
-                  },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => handleSelectVoiceType(item.id)}
-                    className={`w-full p-2.5 rounded-2xl text-left border transition cursor-pointer flex items-center justify-between ${
-                      voiceType === item.id
-                        ? 'bg-blue-50 border-2 border-[#1b64b9] shadow-xs'
-                        : 'hover:bg-slate-50 border-slate-200 text-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-xl">{item.icon}</span>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <p
-                            className={`text-xs font-black ${
-                              voiceType === item.id ? 'text-[#1b64b9]' : 'text-slate-900'
-                            }`}
-                          >
-                            {item.label}
-                          </p>
-                          <span
-                            className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${
-                              voiceType === item.id
-                                ? 'bg-blue-200/80 text-blue-800'
-                                : 'bg-slate-100 text-slate-500'
-                            }`}
-                          >
-                            {item.tag}
-                          </span>
+                ].map((item) => {
+                  const isSelected = item.id.includes('여성')
+                    ? voiceType.includes('여성')
+                    : !voiceType.includes('여성');
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleSelectVoiceType(item.id)}
+                      className={`w-full p-2.5 rounded-2xl text-left border transition cursor-pointer flex items-center justify-between ${
+                        isSelected
+                          ? 'bg-blue-50 border-2 border-[#1b64b9] shadow-xs'
+                          : 'hover:bg-slate-50 border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-xl">{item.icon}</span>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <p
+                              className={`text-xs font-black ${
+                                isSelected ? 'text-[#1b64b9]' : 'text-slate-900'
+                              }`}
+                            >
+                              {item.label}
+                            </p>
+                            <span
+                              className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${
+                                isSelected
+                                  ? 'bg-blue-200/80 text-blue-800'
+                                  : 'bg-slate-100 text-slate-500'
+                              }`}
+                            >
+                              {item.tag}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 font-bold">{item.sub}</p>
                         </div>
-                        <p className="text-[10px] text-slate-500 font-bold">{item.sub}</p>
                       </div>
-                    </div>
-                    {voiceType === item.id && (
-                      <span className="w-5 h-5 rounded-full bg-[#1b64b9] text-white flex items-center justify-center text-xs font-black shadow-xs">
-                        ✓
-                      </span>
-                    )}
-                  </button>
-                ))}
+                      {isSelected && (
+                        <span className="w-5 h-5 rounded-full bg-[#1b64b9] text-white flex items-center justify-center text-xs font-black shadow-xs">
+                          ✓
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
