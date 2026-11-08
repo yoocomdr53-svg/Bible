@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LogOut,
   Search,
@@ -12,10 +12,17 @@ import {
   Flame,
   Volume2,
   Music,
+  RefreshCw,
   X,
 } from 'lucide-react';
 import { ActiveTab, ActiveModal, User, BibleVerse, ReadingDayPlan, UserRecording } from '../types';
-import { TODAY_VERSE, POPULAR_VERSES } from '../data/bibleData';
+import {
+  TODAY_VERSE,
+  POPULAR_VERSES,
+  DAILY_GRACE_VERSES,
+  getAutoDailyVerse,
+  getBibleAbbreviation,
+} from '../data/bibleData';
 import { BibleReaderView } from './BibleReaderView';
 import { StatsView } from './StatsView';
 import { ChallengeView } from './ChallengeView';
@@ -66,6 +73,57 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
     chapter: 1,
     verse: 1,
   });
+
+  // Today's Verse (오늘의 말씀 - 날짜별 자동 수정/갱신 및 순환 관리)
+  const [todayVerse, setTodayVerse] = useState<BibleVerse>(() => {
+    try {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const saved = localStorage.getItem('superbible_today_verse_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.date === todayStr && parsed.verse) {
+          return parsed.verse;
+        }
+      }
+    } catch (e) {}
+    return getAutoDailyVerse();
+  });
+
+  // 매일 자정 또는 날짜 변경 시 오늘의 말씀 자동 갱신
+  useEffect(() => {
+    const updateAutoDailyVerse = () => {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      try {
+        const saved = localStorage.getItem('superbible_today_verse_v1');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.date === todayStr && parsed.verse) {
+            setTodayVerse(parsed.verse);
+            return;
+          }
+        }
+      } catch (e) {}
+      setTodayVerse(getAutoDailyVerse());
+    };
+
+    updateAutoDailyVerse();
+    const interval = setInterval(updateAutoDailyVerse, 60000); // 1분마다 자정 전환 체크
+    return () => clearInterval(interval);
+  }, []);
+
+  // 다른 은혜의 말씀으로 교체 (자동 추천 목록 순환)
+  const handleCycleTodayVerse = () => {
+    const currentIndex = DAILY_GRACE_VERSES.findIndex(
+      (v) => v.book === todayVerse.book && v.chapter === todayVerse.chapter && v.verse === todayVerse.verse
+    );
+    const nextIndex = (currentIndex + 1) % DAILY_GRACE_VERSES.length;
+    const nextVerse = DAILY_GRACE_VERSES[nextIndex];
+    setTodayVerse(nextVerse);
+    try {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      localStorage.setItem('superbible_today_verse_v1', JSON.stringify({ date: todayStr, verse: nextVerse }));
+    } catch (e) {}
+  };
 
   // ChallengeView initial screen & book state
   const [challengeInitialSubScreen, setChallengeInitialSubScreen] = useState<
@@ -460,41 +518,70 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
               </div>
             </section>
 
-            {/* Daily Verse Section */}
-            <section className="bg-white rounded-2xl p-5 shadow-soft border border-slate-100">
-              <div className="flex items-center justify-between mb-3.5">
+            {/* Daily Verse Section (오늘의 말씀 - 날짜별 365일 자동 갱신 및 순환 교체) */}
+            <section className="bg-white rounded-3xl p-4 sm:p-5 shadow-soft border border-slate-100 space-y-3">
+              <div className="flex items-center justify-between">
                 <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-bold text-white bg-[#0083e3] px-1.5 py-0.2 rounded">
-                      맞춤 말씀
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-bold text-white bg-[#0083e3] px-2 py-0.5 rounded-full shadow-2xs">
+                      매일 자동 갱신
                     </span>
                     <span className="text-xs font-bold text-slate-500">
-                      {user.name} 성도님을 위한
+                      {user.name} 성도님을 위한 오늘의 은혜
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <div className="flex items-center gap-2 mt-1">
                     <h2 className="text-base font-extrabold text-slate-900 tracking-tight">
                       오늘의 말씀
                     </h2>
-                    <span className="text-sm font-semibold text-[#0083e3]">
-                      약 {TODAY_VERSE.chapter}:{TODAY_VERSE.verse}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => navigateToPortion(todayVerse.book, todayVerse.chapter, todayVerse.verse)}
+                      className="text-sm font-black text-[#0083e3] hover:underline cursor-pointer flex items-center gap-1 transition"
+                      title={`${todayVerse.book} ${todayVerse.chapter}장으로 이동`}
+                    >
+                      <span>{getBibleAbbreviation(todayVerse.book)} {todayVerse.chapter}:{todayVerse.verse}</span>
+                    </button>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => onOpenVerseCard(TODAY_VERSE)}
-                  className="text-xs font-semibold text-red-500 hover:text-red-600 flex items-center gap-1 transition-colors cursor-pointer"
-                >
-                  <span>💌 말씀카드</span>
-                  <span>&gt;</span>
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleCycleTodayVerse}
+                    className="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-[#0083e3] rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer active:scale-95 border border-sky-100"
+                    title="다른 은혜의 말씀으로 자동 교체"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">다른 말씀</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenVerseCard(todayVerse)}
+                    className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer active:scale-95 border border-red-100"
+                  >
+                    <span>💌 말씀카드</span>
+                  </button>
+                </div>
               </div>
 
-              <blockquote className="text-[15.5px] leading-[1.65] font-normal text-slate-800 tracking-normal border-l-2 border-[#0083e3] pl-3 py-0.5">
-                {TODAY_VERSE.text}
+              <blockquote className="text-[15.5px] leading-[1.65] font-normal text-slate-800 tracking-normal border-l-3 border-[#0083e3] pl-3.5 py-1 bg-slate-50/50 rounded-r-xl">
+                {todayVerse.text}
               </blockquote>
+
+              <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-100">
+                <span className="flex items-center gap-1">
+                  <span>📅</span>
+                  <span>{new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })} 말씀</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => navigateToPortion(todayVerse.book, todayVerse.chapter, todayVerse.verse)}
+                  className="text-xs text-[#0083e3] font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
+                >
+                  <span>본문 읽기 ({todayVerse.book} {todayVerse.chapter}장) &gt;</span>
+                </button>
+              </div>
             </section>
 
             {/* Sponsor Support Banner */}

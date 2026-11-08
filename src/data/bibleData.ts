@@ -1,14 +1,29 @@
 import { BibleVerse, BibleBook, ReadingDayPlan, UserRecording } from '../types';
 
-export const TODAY_VERSE: BibleVerse = {
-  book: '야고보서',
-  chapter: 1,
-  verse: 22,
-  text: '너희는 말씀을 행하는 자가 되고 듣기만 하여 자신을 속이는 자가 되지 말라',
-  translation: '개역개정',
+// Korean Bible 66 Books Standard Abbreviations (표준 한글 성경 약어 사전)
+export const BIBLE_ABBREVIATIONS: Record<string, string> = {
+  창세기: '창', 출애굽기: '출', 레위기: '레', 민수기: '민', 신명기: '신',
+  여호수아: '수', 사사기: '삿', 룻기: '룻', 사무엘상: '삼상', 사무엘하: '삼하',
+  열왕기상: '왕상', 열왕기하: '왕하', 역대상: '대상', 역대하: '대하', 에스라: '스',
+  느헤미야: '느', 에스더: '에', 욥기: '욥', 시편: '시', 잠언: '잠',
+  전도서: '전', 아가: '아', 이사야: '사', 예레미야: '렘', 예레미야애가: '애',
+  에스겔: '겔', 다니엘: '단', 호세아: '호', 요엘: '욜', 아모스: '암',
+  오바댜: '옵', 요나: '욘', 미가: '미', 나훔: '나', 하박국: '합',
+  스바냐: '습', 학개: '학', 스가랴: '슥', 말라기: '말',
+  마태복음: '마', 마가복음: '막', 누가복음: '눅', 요한복음: '요', 사도행전: '행',
+  로마서: '롬', 고린도전서: '고전', 고린도후서: '고후', 갈라디아서: '갈', 에베소서: '엡',
+  빌립보서: '빌', 골로새서: '골', 데살로니가전서: '살전', 데살로니가후서: '살후',
+  디모데전서: '딤전', 디모데후서: '딤후', 디도서: '딛', 빌레몬서: '몬', 히브리서: '히',
+  야고보서: '약', 베드로전서: '벧전', 베드로후서: '벧후', 요한일서: '요일', 요한이서: '요이',
+  요한삼서: '요삼', 유다서: '유', 요한계시록: '계',
 };
 
-export const POPULAR_VERSES: BibleVerse[] = [
+export function getBibleAbbreviation(bookName: string): string {
+  return BIBLE_ABBREVIATIONS[bookName] || bookName.slice(0, 2);
+}
+
+// 365일 매일 자동 갱신되는 엄선된 은혜의 말씀 풀 (Daily Grace Verses Pool)
+export const DAILY_GRACE_VERSES: BibleVerse[] = [
   {
     book: '야고보서',
     chapter: 1,
@@ -51,7 +66,339 @@ export const POPULAR_VERSES: BibleVerse[] = [
     text: '너는 마음을 다하여 여호와를 신뢰하고 네 명철을 의지하지 말라 너는 범사에 그를 인정하라 그리하면 네 길을 지도하시리라',
     translation: '개역개정',
   },
+  {
+    book: '이사야',
+    chapter: 41,
+    verse: 10,
+    text: '두려워하지 말라 내가 너와 함께 함이라 놀라지 말라 나는 네 하나님이 됨이라 내가 너를 굳세게 하리라 참으로 너를 도와 주리라 참으로 나의 의로운 오른손으로 너를 붙들리라',
+    translation: '개역개정',
+  },
+  {
+    book: '빌립보서',
+    chapter: 4,
+    verse: 6,
+    text: '아무 것도 염려하지 말고 다만 모든 일에 기도와 간구로, 너희 구할 것을 감사함으로 하나님께 아뢰라 그리하면 모든 지각에 뛰어난 하나님의 평강이 그리스도 예수 안에서 너희 마음과 생각을 지키시리라',
+    translation: '개역개정',
+  },
+  {
+    book: '여호수아',
+    chapter: 1,
+    verse: 9,
+    text: '내가 네게 명령한 것이 아니냐 강하고 담대하라 두려워하지 말며 놀라지 말라 네가 어디로 가든지 네 하나님 여호와가 너와 함께 하느니라 하시니라',
+    translation: '개역개정',
+  },
+  {
+    book: '요한복음',
+    chapter: 3,
+    verse: 16,
+    text: '하나님이 세상을 이처럼 사랑하사 독생자를 주셨으니 이는 그를 믿는 자마다 멸망하지 않고 영생을 얻게 하려 하심이라',
+    translation: '개역개정',
+  },
+  {
+    book: '요한복음',
+    chapter: 14,
+    verse: 27,
+    text: '평안을 너희에게 끼치노니 곧 나의 평안을 너희에게 주노라 내가 너희에게 주는 것은 세상이 주는 것과 같지 아니하니라 너희는 마음에 근심하지도 말고 두려워하지도 말라',
+    translation: '개역개정',
+  },
+  {
+    book: '요한복음',
+    chapter: 15,
+    verse: 5,
+    text: '나는 포도나무요 너희는 가지라 그가 내 안에, 내가 그 안에 거하면 사람이 열매를 많이 맺나니 나를 떠나서는 너희가 아무 것도 할 수 없음이라',
+    translation: '개역개정',
+  },
+  {
+    book: '마태복음',
+    chapter: 6,
+    verse: 33,
+    text: '그런즉 너희는 먼저 그의 나라와 그의 의를 구하라 그리하면 이 모든 것을 너희에게 더하시리라',
+    translation: '개역개정',
+  },
+  {
+    book: '마태복음',
+    chapter: 11,
+    verse: 28,
+    text: '수고하고 무거운 짐 진 자들아 다 내게로 오라 내가 너희를 쉬게 하리라',
+    translation: '개역개정',
+  },
+  {
+    book: '마태복음',
+    chapter: 28,
+    verse: 20,
+    text: '내가 너희에게 분부한 모든 것을 가르쳐 지키게 하라 볼지어다 내가 세상 끝날까지 너희와 항상 함께 있으리라 하시니라',
+    translation: '개역개정',
+  },
+  {
+    book: '예레미야',
+    chapter: 29,
+    verse: 11,
+    text: '여호와의 말씀이니라 너희를 향한 나의 생각을 내가 아나니 평안이요 재앙이 아니니라 너희에게 미래와 희망을 주는 것이니라',
+    translation: '개역개정',
+  },
+  {
+    book: '예레미야',
+    chapter: 33,
+    verse: 3,
+    text: '너는 내게 부르짖으라 내가 네게 응답하겠고 네가 알지 못하는 크고 은밀한 일을 네게 보이리라',
+    translation: '개역개정',
+  },
+  {
+    book: '시편',
+    chapter: 1,
+    verse: 2,
+    text: '오직 여호와의 율법을 즐거워하여 그의 율법을 주야로 묵상하는도다 그는 시냇가에 심은 나무가 철을 따라 열매를 맺으며 그 잎사귀가 마르지 아니함 같으니 그가 하는 모든 일이 다 형통하리로다',
+    translation: '개역개정',
+  },
+  {
+    book: '시편',
+    chapter: 46,
+    verse: 1,
+    text: '하나님은 우리의 피난처시요 힘이시니 환난 중에 만날 큰 도움이시라',
+    translation: '개역개정',
+  },
+  {
+    book: '시편',
+    chapter: 91,
+    verse: 1,
+    text: '지존자의 은밀한 곳에 거주하며 전능자의 그늘 아래에 사는 자여, 나는 여호와를 향하여 말하기를 그는 나의 피난처요 나의 요새요 내가 의뢰하는 하나님이라 하리니',
+    translation: '개역개정',
+  },
+  {
+    book: '시편',
+    chapter: 119,
+    verse: 105,
+    text: '주의 말씀은 내 발에 등이요 내 길에 빛이니이다',
+    translation: '개역개정',
+  },
+  {
+    book: '시편',
+    chapter: 121,
+    verse: 1,
+    text: '내가 산을 향하여 눈을 들리라 나의 도움이 어디서 올까 나의 도움은 천지를 지으신 여호와에게서로다',
+    translation: '개역개정',
+  },
+  {
+    book: '잠언',
+    chapter: 16,
+    verse: 3,
+    text: '너의 행사를 여호와께 맡기라 그리하면 네가 경영하는 것이 이루어지리라',
+    translation: '개역개정',
+  },
+  {
+    book: '잠언',
+    chapter: 16,
+    verse: 9,
+    text: '사람이 마음으로 자기의 길을 계획할지라도 그의 걸음을 인도하시는 이는 여호와시니라',
+    translation: '개역개정',
+  },
+  {
+    book: '갈라디아서',
+    chapter: 2,
+    verse: 20,
+    text: '내가 그리스도와 함께 십자가에 못 박혔나니 그런즉 이제는 내가 사는 것이 아니요 오직 내 안에 그리스도께서 사시는 것이라',
+    translation: '개역개정',
+  },
+  {
+    book: '갈라디아서',
+    chapter: 5,
+    verse: 22,
+    text: '오직 성령의 열매는 사랑과 희락과 화평과 오래 참음과 자비와 양선과 충성과 온유와 절제니 이같은 것을 금지할 법이 없느니라',
+    translation: '개역개정',
+  },
+  {
+    book: '에베소서',
+    chapter: 2,
+    verse: 8,
+    text: '너희는 그 은혜에 의하여 믿음으로 말미암아 구원을 받았으니 이것은 너희에게서 난 것이 아니요 하나님의 선물이라',
+    translation: '개역개정',
+  },
+  {
+    book: '에베소서',
+    chapter: 6,
+    verse: 10,
+    text: '끝으로 너희가 주 안에서와 그 힘의 능력으로 강건하여지고 마귀의 간계를 능히 대적하기 위하여 하나님의 전신 갑주를 입으라',
+    translation: '개역개정',
+  },
+  {
+    book: '데살로니가전서',
+    chapter: 5,
+    verse: 16,
+    text: '항상 기뻐하라 쉬지 말고 기도하라 범사에 감사하라 이것이 그리스도 예수 안에서 너희를 향하신 하나님의 뜻이니라',
+    translation: '개역개정',
+  },
+  {
+    book: '디모데후서',
+    chapter: 1,
+    verse: 7,
+    text: '하나님이 우리에게 주신 것은 두려워하는 마음이 아니요 오직 능력과 사랑과 절제하는 마음이니',
+    translation: '개역개정',
+  },
+  {
+    book: '디모데후서',
+    chapter: 3,
+    verse: 16,
+    text: '모든 성경은 하나님의 감동으로 된 것으로 교훈과 책망과 바르게 함과 의로 교육하기에 유익하니 이는 하나님의 사람으로 온전하게 함이라',
+    translation: '개역개정',
+  },
+  {
+    book: '히브리서',
+    chapter: 4,
+    verse: 12,
+    text: '하나님의 말씀은 살아 있고 활력이 있어 좌우에 날선 어떤 검보다도 예리하여 혼과 영과 및 관절과 골수를 찔러 쪼개기까지 하며 마음의 생각과 뜻을 판단하나니',
+    translation: '개역개정',
+  },
+  {
+    book: '히브리서',
+    chapter: 11,
+    verse: 1,
+    text: '믿음은 바라는 것들의 실상이요 보이지 않는 것들의 증거니 선진들이 이로써 증거를 얻었느니라',
+    translation: '개역개정',
+  },
+  {
+    book: '히브리서',
+    chapter: 12,
+    verse: 2,
+    text: '믿음의 주요 또 온전하게 하시는 이인 예수를 바라보자 그는 그 앞에 있는 기쁨을 위하여 십자가를 참으사 부끄러움을 개의치 아니하시더니 하나님 보좌 우편에 앉으셨느니라',
+    translation: '개역개정',
+  },
+  {
+    book: '베드로전서',
+    chapter: 5,
+    verse: 7,
+    text: '너희 염려를 다 주께 맡기라 이는 그가 너희를 돌보심이라 근신하라 깨어라 너희 대적 마귀가 우는 사자 같이 두루 다니며 삼킬 자를 찾나니',
+    translation: '개역개정',
+  },
+  {
+    book: '요한일서',
+    chapter: 4,
+    verse: 18,
+    text: '사랑 안에 두려움이 없고 온전한 사랑이 두려움을 내쫓나니 두려움에는 형벌이 있음이라 두려워하는 자는 사랑 안에서 온전히 이루지 못하였느니라',
+    translation: '개역개정',
+  },
+  {
+    book: '고린도전서',
+    chapter: 10,
+    verse: 13,
+    text: '사람이 감당할 시험 밖에는 너희가 당한 것이 없나니 오직 하나님은 미쁘사 너희가 감당하지 못할 시험 당함을 허락하지 아니하시고 시험 당할 즈음에 또한 피할 길을 내사 너희로 능히 감당하게 하시느니라',
+    translation: '개역개정',
+  },
+  {
+    book: '고린도전서',
+    chapter: 13,
+    verse: 13,
+    text: '그런즉 믿음, 소망, 사랑, 이 세 가지는 항상 있을 것인데 그 중의 제일은 사랑이라',
+    translation: '개역개정',
+  },
+  {
+    book: '고린도후서',
+    chapter: 5,
+    verse: 17,
+    text: '그런즉 누구든지 그리스도 안에 있으면 새로운 피조물이라 이전 것은 지나갔으니 보라 새 것이 되었도다',
+    translation: '개역개정',
+  },
+  {
+    book: '고린도후서',
+    chapter: 12,
+    verse: 9,
+    text: '나에게 이르시기를 내 은혜가 네게 족하도다 이는 내 능력이 약한 데서 온전하여짐이라 하신지라 그러므로 나의 여러 약한 것들에 대하여 자랑하리니 이는 그리스도의 능력이 내게 머물게 하려 함이라',
+    translation: '개역개정',
+  },
+  {
+    book: '시편',
+    chapter: 37,
+    verse: 5,
+    text: '네 길을 여호와께 맡기라 그를 의지하면 그가 이루시고 네 의를 빛 같이 나타내시며 네 공의를 정오의 빛 같이 하시리로다',
+    translation: '개역개정',
+  },
+  {
+    book: '시편',
+    chapter: 103,
+    verse: 1,
+    text: '내 영혼아 여호와를 송축하라 내 속에 있는 것들아 다 그의 거룩한 이름을 송축하라 내 영혼아 여호와를 송축하며 그의 모든 은택을 잊지 말지어다',
+    translation: '개역개정',
+  },
+  {
+    book: '스바냐',
+    chapter: 3,
+    verse: 17,
+    text: '너의 하나님 여호와가 너의 가운데에 계시니 그는 구원을 베푸실 전능자이시라 그가 너로 말미암아 기쁨을 이기지 못하시며 너를 잠잠히 사랑하시며 너로 말미암아 즐거이 부르며 기뻐하시리라',
+    translation: '개역개정',
+  },
+  {
+    book: '하박국',
+    chapter: 3,
+    verse: 17,
+    text: '비록 무화과나무가 무성하지 못하며 포도나무에 열매가 없으며 외양간에 소가 없을지라도 나는 여호와로 말미암아 즐거워하며 나의 구원의 하나님으로 말미암아 기뻐하리로다',
+    translation: '개역개정',
+  },
+  {
+    book: '요한계시록',
+    chapter: 21,
+    verse: 4,
+    text: '모든 눈물을 그 눈에서 닦아 주시니 다시는 사망이 없고 애통하는 것이나 곡하는 것이나 아픈 것이 다시 있지 아니하리니 처음 것들이 다 지나갔음이러라',
+    translation: '개역개정',
+  },
+  {
+    book: '시편',
+    chapter: 19,
+    verse: 14,
+    text: '나의 반석이시요 나의 구속자이신 여호와여 내 입의 말과 마음의 묵상이 주님 앞에 열납되기를 원하나이다',
+    translation: '개역개정',
+  },
+  {
+    book: '로마서',
+    chapter: 12,
+    verse: 2,
+    text: '너희는 이 세대를 본받지 말고 오직 마음을 새롭게 함으로 변화를 받아 하나님의 선하시고 기뻐하시고 온전하신 뜻이 무엇인지 분별하도록 하라',
+    translation: '개역개정',
+  },
+  {
+    book: '골로새서',
+    chapter: 3,
+    verse: 15,
+    text: '그리스도의 평강이 너희 마음을 주장하게 하라 너희는 평강을 위하여 한 몸으로 부르심을 받았나니 너희는 또한 감사하는 자가 되라',
+    translation: '개역개정',
+  },
+  {
+    book: '요한복음',
+    chapter: 8,
+    verse: 32,
+    text: '진리를 알지니 진리가 너희를 자유롭게 하리라',
+    translation: '개역개정',
+  },
+  {
+    book: '시편',
+    chapter: 139,
+    verse: 14,
+    text: '내가 주께 감사하옴은 나를 지으심이 심히 기묘하심이라 주께서 하시는 일이 기이함을 내 영혼이 잘 아나이다',
+    translation: '개역개정',
+  },
 ];
+
+/**
+ * Calculates Day of the Year (1 ~ 366) based on given date
+ */
+export function getDayOfYear(date: Date = new Date()): number {
+  const start = new Date(date.getFullYear(), 0, 0);
+  const diff = date.getTime() - start.getTime() + (start.getTimezoneOffset() - date.getTimezoneOffset()) * 60 * 1000;
+  const oneDay = 1000 * 60 * 60 * 24;
+  return Math.floor(diff / oneDay);
+}
+
+/**
+ * 365일 날짜별 자동 갱신 말씀 반환 (매일 자정에 새로운 말씀으로 자동 수정/교체)
+ */
+export function getAutoDailyVerse(date: Date = new Date()): BibleVerse {
+  const dayIndex = getDayOfYear(date);
+  const verseIndex = (dayIndex - 1 + DAILY_GRACE_VERSES.length) % DAILY_GRACE_VERSES.length;
+  return DAILY_GRACE_VERSES[verseIndex] || DAILY_GRACE_VERSES[0];
+}
+
+// Default Dynamic Today Verse (날짜 기반 자동 계산)
+export const TODAY_VERSE: BibleVerse = getAutoDailyVerse();
+
+export const POPULAR_VERSES: BibleVerse[] = DAILY_GRACE_VERSES.slice(0, 8);
 
 // All 66 Books of the Bible (구약 39권 + 신약 27권)
 export const BIBLE_BOOKS: BibleBook[] = [
