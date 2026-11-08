@@ -389,7 +389,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               <div className="flex items-center gap-2">
                 <Award className="w-5 h-5 text-yellow-300" />
                 <h3 className="text-base sm:text-lg font-black tracking-tight">
-                  성경 통독 배지 모음함
+                  총통독 현황 및 12목표 배지함
                 </h3>
               </div>
               <button
@@ -408,9 +408,9 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               <div className="bg-gradient-to-br from-slate-50 to-blue-50/50 rounded-2xl p-4 border border-blue-100 shadow-2xs">
                 <div className="flex items-center justify-between mb-2">
                   <div>
-                    <span className="text-xs font-bold text-slate-500">목표: 통독 12목표 달성</span>
+                    <span className="text-xs font-bold text-slate-500">목표: 총통독 12목표 달성</span>
                     <p className="text-lg font-black text-slate-900">
-                      현재 달성: <span className="text-[#1b64b9]">{completedReadingsCount}독</span>
+                      총통독 달성: <span className="text-[#1b64b9]">{completedReadingsCount}독</span>
                       <span className="text-xs text-slate-400 font-bold ml-1">/ 12독</span>
                     </p>
                   </div>
@@ -444,7 +444,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               {/* 12 Badges Grid */}
               <div>
                 <h4 className="text-xs font-bold text-slate-400 mb-2.5 uppercase tracking-wider">
-                  12독 목표 배지 리스트 (일독할 때마다 활성화)
+                  총통독 12목표 배지 (일독할 때마다 활성화)
                 </h4>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                   {READING_BADGES_12.map((badge) => {
@@ -690,19 +690,17 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               type="button"
               onClick={() => setShowBadgeModal(true)}
               className="px-2.5 py-0.5 rounded-full bg-[#eff6ff] hover:bg-blue-100 text-[#2563eb] border border-[#bfdbfe] text-xs font-black cursor-pointer transition active:scale-95 flex items-center gap-1 shadow-2xs"
-              title="통독 배지 모음함 열기"
+              title="총통독 현황 및 12목표 배지함 열기"
             >
               {completedReadingsCount >= 12 ? (
                 <>
                   <span>👑</span>
-                  <span>12독 목표 완수</span>
+                  <span>총통독 12독 완수!</span>
                 </>
               ) : (
                 <>
-                  <span>현재 {completedReadingsCount + 1}독</span>
-                  {completedReadingsCount > 0 && (
-                    <span className="text-[10px] text-blue-600 font-extrabold">({completedReadingsCount}독 배지)</span>
-                  )}
+                  <span>총통독: {completedReadingsCount}독</span>
+                  <span className="text-[10px] text-blue-500 font-bold">/ 12독</span>
                 </>
               )}
             </button>
@@ -1639,17 +1637,18 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                 <p className="text-xl sm:text-2xl font-black text-slate-900">2일</p>
               </div>
               <div
-                className="cursor-pointer group hover:bg-amber-50/50 rounded-xl py-0.5 transition"
+                className="cursor-pointer group hover:bg-blue-50/60 rounded-xl py-0.5 transition"
                 onClick={() => setShowBadgeModal(true)}
-                title="통독 배지 모음함 열기"
+                title="총통독 현황 및 12목표 배지함 열기"
               >
-                <p className="text-xs text-slate-400 group-hover:text-amber-600 font-bold mb-1 flex items-center justify-center gap-0.5 transition">
-                  <span>배지</span>
+                <p className="text-xs text-slate-400 group-hover:text-blue-600 font-bold mb-1 flex items-center justify-center gap-0.5 transition">
+                  <span className="font-extrabold text-slate-700 group-hover:text-[#1b64b9]">총통독</span>
                   <span>&gt;</span>
                 </p>
-                <p className="text-xl sm:text-2xl font-black text-amber-600 flex items-center justify-center gap-1">
+                <p className="text-xl sm:text-2xl font-black text-[#1b64b9] flex items-center justify-center gap-0.5">
                   {completedReadingsCount >= 12 && <span className="text-base">👑</span>}
-                  <span>{completedReadingsCount}개</span>
+                  <span>{completedReadingsCount}독</span>
+                  <span className="text-xs text-slate-400 font-bold ml-0.5">/ 12독</span>
                 </p>
               </div>
             </div>
@@ -2007,16 +2006,16 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
 
             <p className="text-sm font-extrabold text-[#0284c7] text-center mt-1 flex items-center justify-center gap-1.5 flex-wrap">
               <span>{planProgressPercent}% 진행 중</span>
-              {completedReadingsCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowBadgeModal(true)}
-                  className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-black cursor-pointer hover:bg-amber-100 transition active:scale-95"
-                  title="통독 배지 모음함 열기"
-                >
-                  {completedReadingsCount >= 12 ? '👑 12독 완수' : `🏅 ${completedReadingsCount}독 배지`}
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setShowBadgeModal(true)}
+                className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs font-black cursor-pointer hover:bg-blue-100 transition active:scale-95"
+                title="총통독 현황 및 12목표 배지함 열기"
+              >
+                {completedReadingsCount >= 12
+                  ? '👑 총통독: 12독 완수!'
+                  : `총통독: ${completedReadingsCount}독 / 12독`}
+              </button>
             </p>
 
             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden my-3">
