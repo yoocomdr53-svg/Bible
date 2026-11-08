@@ -135,46 +135,22 @@ export const HelpModals: React.FC<HelpModalsProps> = ({ modal, onClose }) => {
 
               {modal === 'register-sheet' && (
                 <div className="space-y-3.5">
-                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-xs">
+                  <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-950 text-xs">
                     <div className="flex items-center gap-1.5 font-bold mb-1">
-                      <Sheet className="w-4 h-4 text-emerald-700" />
-                      <span>구글 스프레드시트 교직원 & 학사명부 자동 동기화</span>
+                      <Sheet className="w-4 h-4 text-blue-700" />
+                      <span>수퍼바이블 초간단 회원가입 안내</span>
                     </div>
                     <span>
-                      학교 구글 워크스페이스 내 배포된 Google Sheets 명부에 등록되면 별도의 가입 없이 즉시 본 시스템에 접근 권한이 부여됩니다.
+                      로그인 화면 상단의 <strong>[간편 회원가입]</strong> 탭에서 <strong>아이디와 비밀번호</strong>만 입력하시면 3초 만에 가입이 완료됩니다. 상세 직분 및 소속은 관리자가 회원관리 폼에서 배정합니다.
                     </span>
-                  </div>
-
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2 text-xs">
-                    <div className="flex justify-between items-center text-slate-500 border-b border-slate-200 pb-1 font-semibold">
-                      <span>연동 시트 ID</span>
-                      <span>19xK...logos_roster_2026</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-600">등록된 교직원 수:</span>
-                      <span className="font-bold text-slate-800">48명 승인됨</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-600">등록된 학생 & 성도:</span>
-                      <span className="font-bold text-slate-800">620명 등록됨</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-600">마지막 시트 동기화:</span>
-                      <span className="text-emerald-600 font-bold">2026.09.13 04:15 실시간</span>
-                    </div>
                   </div>
 
                   <button
                     type="button"
-                    onClick={() =>
-                      setSubmittedMessage(
-                        '구글 시트 학사 명부와의 양방향 동기화 검증이 완료되었습니다. 구글 계정으로 바로 로그인하세요.'
-                      )
-                    }
-                    className="w-full h-11 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition cursor-pointer flex items-center justify-center gap-1.5"
+                    onClick={handleClose}
+                    className="w-full h-11 bg-[#1b64b9] text-white rounded-xl text-xs font-bold hover:bg-blue-600 transition cursor-pointer flex items-center justify-center gap-1.5"
                   >
-                    <span>구글 시트 연동 상태 확인</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>확인 및 로그인/회원가입으로 가기</span>
                   </button>
                 </div>
               )}

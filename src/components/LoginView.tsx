@@ -1,57 +1,150 @@
-import React, { useState } from 'react';
-import { Mail, Lock, Eye, EyeOff, Settings, Info, Loader2, Smartphone, CheckCircle2, ChevronRight, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  Settings,
+  Loader2,
+  UserPlus,
+  LogIn,
+  CheckCircle2,
+  ShieldCheck,
+  AlertCircle,
+  Sparkles,
+} from 'lucide-react';
 import { ActiveModal, User } from '../types';
+import {
+  loginUser,
+  registerUser,
+  getRememberedId,
+} from '../services/authService';
 
 interface LoginViewProps {
-  onLoginSuccess: (user: Partial<User>) => void;
-  onGoogleLogin?: () => void;
+  onLoginSuccess: (user: User) => void;
   openModal: (modal: ActiveModal) => void;
   onOpenSettings?: () => void;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({
   onLoginSuccess,
-  onGoogleLogin,
   openModal,
   onOpenSettings,
 }) => {
-  const [username, setUsername] = useState('logos_admin@school.ac.kr');
-  const [password, setPassword] = useState('••••••••');
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  // Tab mode: 'login' | 'register'
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 
-  const handleStandardSubmit = (e: React.FormEvent) => {
+  // Login form state
+  const [loginId, setLoginId] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+
+  // Register form state (아이디/이메일아이디 + 비밀번호 초간단)
+  const [regId, setRegId] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regPasswordConfirm, setRegPasswordConfirm] = useState('');
+  const [showRegPassword, setShowRegPassword] = useState(false);
+
+  // UI feedback state
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Load remembered ID on mount
+  useEffect(() => {
+    const savedId = getRememberedId();
+    if (savedId) {
+      setLoginId(savedId);
+      setLoginPassword('••••••••');
+    } else {
+      // Default initial admin ID
+      setLoginId('yoocomdr57@gmail.com');
+      setLoginPassword('admin1234');
+    }
+  }, []);
+
+  // Handle Login Submit
+  const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage(null);
+    setSuccessMessage(null);
     setIsLoading(true);
 
     setTimeout(() => {
+      const res = loginUser(loginId, loginPassword, rememberMe);
       setIsLoading(false);
-      onLoginSuccess({
-        id: 'user-admin',
-        name: username.includes('admin') ? '로고스 관리자' : '로고스 교직원',
-        email: username,
-        avatarText: '로고스',
-        role: username.includes('admin') ? 'admin' : 'faculty',
-        provider: 'standard',
-        schoolName: '로고스 고등학교 (Logos Academy High School)',
-        department: '교목실 & 학사연구부',
-        consecutiveDays: 14,
-        ntProgress: 42,
-        todayVersesRead: 4,
-        recordingsCount: 7,
-      });
-    }, 800);
+
+      if (res.success && res.user) {
+        setSuccessMessage('로그인 성공! 수퍼바이블로 이동합니다...');
+        setTimeout(() => {
+          onLoginSuccess(res.user!);
+        }, 350);
+      } else {
+        setErrorMessage(res.message || '아이디 또는 비밀번호를 확인해주세요.');
+      }
+    }, 400);
   };
 
-  const handleFillDemo = () => {
-    setUsername('teacher_demo@logos.hs.kr');
-    setPassword('Logos2026!');
+  // Handle Register Submit (아이디/이메일 + 비밀번호)
+  const handleRegisterSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const cleanId = regId.trim();
+    const cleanPw = regPassword.trim();
+    const cleanPwConfirm = regPasswordConfirm.trim();
+
+    if (!cleanId) {
+      setErrorMessage('아이디 또는 이메일을 입력해주세요.');
+      return;
+    }
+    if (!cleanPw || cleanPw.length < 4) {
+      setErrorMessage('비밀번호를 4자리 이상 입력해주세요.');
+      return;
+    }
+    if (cleanPw !== cleanPwConfirm) {
+      setErrorMessage('비밀번호 확인이 일치하지 않습니다.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    setTimeout(() => {
+      const res = registerUser(cleanId, cleanPw);
+      setIsLoading(false);
+
+      if (res.success && res.user) {
+        setSuccessMessage('🎉 회원가입이 완료되었습니다! 자동으로 로그인됩니다.');
+        setTimeout(() => {
+          onLoginSuccess(res.user!);
+        }, 700);
+      } else {
+        setErrorMessage(res.message || '회원가입 중 오류가 발생했습니다.');
+      }
+    }, 500);
+  };
+
+  // Quick fill demo credentials
+  const handleFillAdmin = () => {
+    setAuthMode('login');
+    setLoginId('yoocomdr57@gmail.com');
+    setLoginPassword('admin1234');
+    setErrorMessage(null);
+  };
+
+  const handleFillMember = () => {
+    setAuthMode('login');
+    setLoginId('yooc');
+    setLoginPassword('1234');
+    setErrorMessage(null);
   };
 
   return (
     <main
       id="loginView"
-      className="portal-bg w-full h-full flex flex-col justify-between relative overflow-y-auto no-scrollbar px-5 sm:px-6 pt-2 pb-5 z-10 select-none text-slate-100"
+      className="portal-bg w-full h-full flex flex-col justify-between relative overflow-y-auto no-scrollbar px-4 sm:px-6 pt-2 pb-5 z-10 select-none text-slate-100"
     >
       {/* Top Ambient Glow */}
       <div
@@ -59,23 +152,20 @@ export const LoginView: React.FC<LoginViewProps> = ({
         className="absolute -top-20 left-1/2 -translate-x-1/2 w-80 h-80 bg-blue-500/15 rounded-full blur-3xl pointer-events-none"
       />
 
-      {/* Top Status Bar (Matches Image: 4:22, signals, gear) */}
+      {/* Top Status Bar */}
       <header className="w-full pt-1 pb-2 flex justify-between items-center z-20">
         <div className="flex items-center text-[13px] font-medium tracking-tight text-slate-300 pl-1">
-          <span>4:22</span>
-          <span className="text-[11px] opacity-70 ml-1">▢</span>
+          <span>수퍼바이블</span>
+          <span className="text-[10px] bg-blue-500/30 text-blue-300 px-1.5 py-0.2 rounded-full ml-1.5 font-bold">
+            온라인 3.0
+          </span>
         </div>
 
         <div className="flex items-center space-x-3 text-slate-300 pr-1">
-          {/* Signal / Battery */}
+          {/* Signal / Status */}
           <div className="flex items-center space-x-1.5 text-xs opacity-80">
-            <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="8" fillOpacity="0.2" />
-              <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="2" fill="none" />
-            </svg>
-            <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
-              <path d="M16.67 4H15V2H9v2H7.33C6.6 4 6 4.6 6 5.33v15.33C6 21.4 6.6 22 7.33 22h9.33c.74 0 1.34-.6 1.34-1.33V5.33C18 4.6 17.4 4 16.67 4z" />
-            </svg>
+            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[11px] text-slate-300 font-medium">연결됨</span>
           </div>
 
           {/* Settings Cog Icon */}
@@ -91,27 +181,23 @@ export const LoginView: React.FC<LoginViewProps> = ({
         </div>
       </header>
 
-      {/* Brand Identity / Seal Crest (Faithfully Matching Screenshot) */}
-      <section className="flex flex-col items-center text-center mt-1 sm:mt-2 mb-3 z-10">
-        {/* Crest Ring */}
-        <div className="relative w-24 h-24 mb-3 flex items-center justify-center">
+      {/* Brand Identity / Seal Crest */}
+      <section className="flex flex-col items-center text-center mt-0.5 sm:mt-1 mb-2 z-10">
+        <div className="relative w-20 h-20 mb-2 flex items-center justify-center">
           {/* Outer Golden Concentric Ring */}
           <div className="absolute inset-0 rounded-full border-[2.5px] border-[#e0b852] shadow-[0_0_16px_rgba(224,184,82,0.3)] flex items-center justify-center p-1 bg-[#0b1625]">
-            {/* Inner Dotted Circle */}
-            <div className="w-full h-full rounded-full border border-dashed border-amber-300/70 flex flex-col items-center justify-between py-1.5 px-1 relative">
-              <span className="text-[7px] tracking-[0.14em] text-amber-300 font-bold uppercase font-cinzel">
-                LOGOS ACADEMY
+            <div className="w-full h-full rounded-full border border-dashed border-amber-300/70 flex flex-col items-center justify-between py-1 px-1 relative">
+              <span className="text-[6.5px] tracking-[0.12em] text-amber-300 font-bold uppercase font-cinzel">
+                SUPER BIBLE
               </span>
 
-              {/* Cross and Open Bible */}
+              {/* Cross and Bible */}
               <div className="my-auto flex flex-col items-center justify-center -space-y-0.5">
-                {/* Cross Vector */}
                 <div className="relative flex items-center justify-center">
-                  <div className="w-1.5 h-6 bg-gradient-to-b from-amber-200 via-amber-400 to-amber-500 rounded-[1px] shadow-sm" />
-                  <div className="absolute top-1.5 w-4 h-1.5 bg-gradient-to-r from-amber-300 to-amber-400 rounded-[1px] shadow-sm" />
+                  <div className="w-1.5 h-5 bg-gradient-to-b from-amber-200 via-amber-400 to-amber-500 rounded-[1px] shadow-sm" />
+                  <div className="absolute top-1 w-3.5 h-1 bg-gradient-to-r from-amber-300 to-amber-400 rounded-[1px] shadow-sm" />
                 </div>
-                {/* Open Bible Vector */}
-                <svg className="w-6 h-3 text-amber-300" fill="currentColor" viewBox="0 0 24 16">
+                <svg className="w-5 h-2.5 text-amber-300" fill="currentColor" viewBox="0 0 24 16">
                   <path
                     d="M12 4.5C9.5 2 4.5 2 1 3.5V14C4.5 12.5 9.5 12.5 12 15C14.5 12.5 19.5 12.5 23 14V3.5C19.5 2 14.5 2 12 4.5Z"
                     fillOpacity="0.85"
@@ -121,269 +207,356 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 </svg>
               </div>
 
-              <span className="text-[6.5px] tracking-wider text-amber-400 font-medium">
-                ★ HIGH SCHOOL ★
+              <span className="text-[6px] tracking-wider text-amber-400 font-medium">
+                ★ 12독 성경통독 ★
               </span>
             </div>
           </div>
         </div>
 
         {/* Main Title */}
-        <h1 className="text-[25px] sm:text-[27px] font-bold tracking-tight text-white font-sans drop-shadow-sm">
-          LOGOS ERP 2.0
+        <h1 className="text-[22px] sm:text-[24px] font-black tracking-tight text-white font-sans drop-shadow-sm">
+          수퍼바이블
         </h1>
 
         {/* Subtitle */}
-        <p className="text-[13px] sm:text-[14px] font-medium text-[#e0b852] tracking-normal mt-1">
-          School & Bible Management System
+        <p className="text-[12px] font-medium text-[#e0b852] tracking-normal mt-0.5">
+          스마트 성경통독 & 학사 성경관리 시스템
         </p>
       </section>
 
-      {/* Main Login Card */}
-      <section className="bg-white rounded-[24px] shadow-2xl px-5 sm:px-6 pt-6 pb-6 text-slate-800 relative z-20 mx-0.5 sm:mx-1">
-        <div className="text-center mb-5">
-          <h2 className="text-[18px] font-bold text-slate-900 tracking-tight">
-            교직원 통합 로그인
-          </h2>
-          <p className="text-[12px] text-slate-400 mt-1 font-normal tracking-tight">
-            스마트 학사관리 및 성경공부 제어 포털
-          </p>
+      {/* Main Authentication Card */}
+      <section className="bg-white rounded-[24px] shadow-2xl px-5 sm:px-6 pt-5 pb-5 text-slate-800 relative z-20 mx-0.5 sm:mx-1 border border-slate-100">
+        {/* Tab Switcher: 로그인 vs 간편 회원가입 */}
+        <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-2xl mb-4 text-xs font-black">
+          <button
+            type="button"
+            onClick={() => {
+              setAuthMode('login');
+              setErrorMessage(null);
+              setSuccessMessage(null);
+            }}
+            className={`py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              authMode === 'login'
+                ? 'bg-white text-slate-900 shadow-xs font-black'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            <span>로그인</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAuthMode('register');
+              setErrorMessage(null);
+              setSuccessMessage(null);
+            }}
+            className={`py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              authMode === 'register'
+                ? 'bg-[#1b64b9] text-white shadow-xs font-black'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>간편 회원가입</span>
+          </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleStandardSubmit} className="space-y-3.5">
-          {/* Field 1: ID / Email */}
-          <div className="relative">
-            <label
-              htmlFor="username"
-              className="absolute -top-2 left-3.5 bg-white px-1.5 text-[11px] font-medium text-slate-400 z-10"
-            >
-              아이디 / 이메일
-            </label>
-            <div className="relative flex items-center">
-              <div className="absolute left-3.5 text-slate-500 pointer-events-none flex items-center">
-                <Mail className="w-[18px] h-[18px] text-slate-600" />
-              </div>
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="아이디 또는 이메일을 입력하세요"
-                required
-                className="w-full h-12 pl-10 pr-3 text-[13.5px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-slate-800 focus:border-slate-800 transition shadow-xs"
-              />
-            </div>
+        {/* Feedback Alert Messages */}
+        {errorMessage && (
+          <div className="mb-3.5 p-2.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2 animate-in fade-in duration-200">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-600" />
+            <span className="font-semibold">{errorMessage}</span>
           </div>
+        )}
+        {successMessage && (
+          <div className="mb-3.5 p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center gap-2 animate-in fade-in duration-200">
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-600" />
+            <span className="font-bold">{successMessage}</span>
+          </div>
+        )}
 
-          {/* Field 2: Password */}
-          <div className="relative">
-            <label
-              htmlFor="password"
-              className="absolute -top-2 left-3.5 bg-white px-1.5 text-[11px] font-medium text-slate-400 z-10"
-            >
-              비밀번호
-            </label>
-            <div className="relative flex items-center">
-              <div className="absolute left-3.5 text-slate-500 pointer-events-none flex items-center">
-                <Lock className="w-[18px] h-[18px] text-slate-600" />
-              </div>
-              <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="비밀번호"
-                required
-                className="w-full h-12 pl-10 pr-10 text-[14.5px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl tracking-wider focus:outline-none focus:ring-1.5 focus:ring-slate-800 focus:border-slate-800 transition shadow-xs"
-              />
-              <button
-                id="togglePasswordBtn"
-                type="button"
-                aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 text-slate-400 hover:text-slate-600 focus:outline-none p-1 cursor-pointer"
+        {/* ================= MODE 1: LOGIN FORM ================= */}
+        {authMode === 'login' ? (
+          <form onSubmit={handleLoginSubmit} className="space-y-3.5">
+            <div className="text-center mb-3">
+              <h2 className="text-[16px] font-black text-slate-900 tracking-tight">
+                회원 로그인
+              </h2>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                아이디/비밀번호 입력 시 웹에서 로그인 상태가 영구 유지됩니다
+              </p>
+            </div>
+
+            {/* Field 1: ID / Email */}
+            <div className="relative">
+              <label
+                htmlFor="loginId"
+                className="absolute -top-2 left-3.5 bg-white px-1.5 text-[11px] font-bold text-slate-500 z-10"
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-
-          {/* Submit Button */}
-          <div className="pt-1">
-            <button
-              id="standardSubmitBtn"
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-12 bg-[#1b2a3a] hover:bg-[#152331] active:scale-[0.99] text-white font-medium text-[15px] rounded-xl shadow-md transition-all duration-150 flex items-center justify-center tracking-tight cursor-pointer disabled:opacity-75"
-            >
-              {isLoading ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>로그인 확인 중...</span>
-                </span>
-              ) : (
-                <span>안전하게 로그인</span>
-              )}
-            </button>
-          </div>
-
-          {/* Divider: 또는 간편 로그인 */}
-          <div className="pt-1 space-y-2.5">
-            <div className="relative flex items-center justify-center my-1">
-              <div className="border-t border-slate-200 w-full" />
-              <span className="bg-white px-2.5 text-[11px] text-slate-400 font-medium absolute">
-                스마트폰 구글 로그인 연동
-              </span>
-            </div>
-
-            {/* Smartphone Detected Google Account 1-Touch Card */}
-            <div className="p-3 bg-gradient-to-br from-blue-50/90 via-slate-50 to-indigo-50/80 rounded-2xl border-2 border-blue-400/80 shadow-xs space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Smartphone className="w-3.5 h-3.5 text-blue-600" />
-                  <span className="text-[11.5px] font-black text-slate-800">
-                    스마트폰 접속 구글 계정
-                  </span>
-                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                아이디 / 이메일
+              </label>
+              <div className="relative flex items-center">
+                <div className="absolute left-3.5 text-slate-400 pointer-events-none flex items-center">
+                  <Mail className="w-4 h-4 text-slate-500" />
                 </div>
-                <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
-                  👑 최고 관리자
-                </span>
+                <input
+                  id="loginId"
+                  type="text"
+                  value={loginId}
+                  onChange={(e) => setLoginId(e.target.value)}
+                  placeholder="아이디 또는 이메일 입력"
+                  required
+                  className="w-full h-11 pl-10 pr-3 text-[13px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-slate-800 focus:border-slate-800 transition shadow-xs"
+                />
               </div>
+            </div>
 
-              {/* Account Quick Card */}
-              <div className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-blue-100 shadow-2xs">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="relative flex-shrink-0">
-                    <div className="w-9 h-9 rounded-full bg-[#1b64b9] text-white flex items-center justify-center font-black text-xs shadow-xs">
-                      관리
-                    </div>
-                    <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-white rounded-full flex items-center justify-center border border-slate-200">
-                      <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                    </div>
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1">
-                      <p className="text-[12.5px] font-black text-slate-900 truncate">로고스 관리자</p>
-                      <CheckCircle2 className="w-3 h-3 text-blue-600 flex-shrink-0" />
-                    </div>
-                    <p className="text-[11px] text-blue-900 font-semibold truncate font-mono">
-                      yoocomdr57@gmail.com
-                    </p>
-                  </div>
+            {/* Field 2: Password */}
+            <div className="relative">
+              <label
+                htmlFor="loginPassword"
+                className="absolute -top-2 left-3.5 bg-white px-1.5 text-[11px] font-bold text-slate-500 z-10"
+              >
+                비밀번호
+              </label>
+              <div className="relative flex items-center">
+                <div className="absolute left-3.5 text-slate-400 pointer-events-none flex items-center">
+                  <Lock className="w-4 h-4 text-slate-500" />
                 </div>
-
+                <input
+                  id="loginPassword"
+                  type={showLoginPassword ? 'text' : 'password'}
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="비밀번호 입력"
+                  required
+                  className="w-full h-11 pl-10 pr-10 text-[14px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl tracking-wider focus:outline-none focus:ring-1.5 focus:ring-slate-800 focus:border-slate-800 transition shadow-xs"
+                />
                 <button
                   type="button"
-                  onClick={() => openModal('google-chooser')}
-                  className="text-[11px] text-slate-500 hover:text-blue-600 font-bold px-2 py-1 rounded-lg hover:bg-slate-50 transition cursor-pointer flex-shrink-0"
+                  aria-label={showLoginPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
+                  onClick={() => setShowLoginPassword(!showLoginPassword)}
+                  className="absolute right-3 text-slate-400 hover:text-slate-600 focus:outline-none p-1 cursor-pointer"
                 >
-                  계정변경
+                  {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+            </div>
 
-              {/* Direct 1-Touch Google Login Button for Smartphone */}
+            {/* Remember Me Checkbox */}
+            <div className="flex items-center justify-between text-xs pt-0.5">
+              <label className="flex items-center gap-1.5 cursor-pointer text-slate-600 select-none">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded text-[#1b64b9] focus:ring-blue-500 cursor-pointer"
+                />
+                <span className="font-bold text-[11.5px]">로그인 상태 유지 (자동 로그인)</span>
+              </label>
               <button
-                id="directGoogleConnectBtn"
                 type="button"
-                onClick={() => {
-                  onLoginSuccess({
-                    id: 'user-yoocomdr57',
-                    name: '로고스 관리자 (yoocomdr57)',
-                    email: 'yoocomdr57@gmail.com',
-                    avatarText: '관리',
-                    role: 'admin',
-                    provider: 'google',
-                    schoolName: '로고스 수퍼바이블 공동체',
-                    department: '교목실 & 성경통독 총괄관리부',
-                    consecutiveDays: 30,
-                    ntProgress: 100,
-                    todayVersesRead: 10,
-                    recordingsCount: 25,
-                  });
-                }}
-                className="w-full h-11 bg-[#1b64b9] hover:bg-blue-600 active:scale-[0.99] text-white font-black text-[13px] rounded-xl shadow-md transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer"
+                onClick={() => setAuthMode('register')}
+                className="text-[#1b64b9] hover:underline font-bold text-[11.5px]"
               >
-                <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center p-0.5 flex-shrink-0">
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
-                    <path
-                      d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
-                      fill="#4285F4"
-                    />
-                    <path
-                      d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.26v3.15C3.25 21.36 7.31 24 12 24z"
-                      fill="#34A853"
-                    />
-                    <path
-                      d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.26C.46 8.16 0 9.97 0 12s.46 3.84 1.26 5.42l4.02-3.15z"
-                      fill="#FBBC05"
-                    />
-                    <path
-                      d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.25 2.64 1.26 6.58l4.02 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-                      fill="#EA4335"
-                    />
-                  </svg>
-                </div>
-                <span>yoocomdr57@gmail.com 으로 바로 로그인</span>
+                간편 회원가입 →
               </button>
             </div>
 
-            {/* Standard Google Sign-in Button (Opens Account Chooser) */}
-            <button
-              id="googleSignInBtn"
-              type="button"
-              onClick={() => openModal('google-chooser')}
-              className="w-full h-11 bg-white hover:bg-slate-50 active:scale-[0.99] text-slate-700 font-bold text-[13px] rounded-xl border border-slate-200 shadow-2xs transition-all duration-150 flex items-center justify-center gap-2.5 tracking-tight focus:outline-none focus:ring-1.5 focus:ring-slate-400 cursor-pointer"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24">
-                <path
-                  d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
-                  fill="#4285F4"
-                />
-                <path
-                  d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.26v3.15C3.25 21.36 7.31 24 12 24z"
-                  fill="#34A853"
-                />
-                <path
-                  d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.26C.46 8.16 0 9.97 0 12s.46 3.84 1.26 5.42l4.02-3.15z"
-                  fill="#FBBC05"
-                />
-                <path
-                  d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.25 2.64 1.26 6.58l4.02 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-                  fill="#EA4335"
-                />
-              </svg>
-              <span>Google 다른 계정 선택 로그인</span>
-            </button>
+            {/* Submit Button */}
+            <div className="pt-1">
+              <button
+                id="standardSubmitBtn"
+                type="submit"
+                disabled={isLoading}
+                className="w-full h-11 bg-[#1b2a3a] hover:bg-[#152331] active:scale-[0.99] text-white font-bold text-[14px] rounded-xl shadow-md transition-all duration-150 flex items-center justify-center tracking-tight cursor-pointer disabled:opacity-75"
+              >
+                {isLoading ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>로그인 확인 중...</span>
+                  </span>
+                ) : (
+                  <span>안전하게 로그인</span>
+                )}
+              </button>
+            </div>
 
-            <p className="text-center text-[11px] text-slate-400 tracking-tight">
-              스마트폰 Google 계정 및 구글 시트 데이터와 실시간 연동됩니다
+            {/* Quick Demo Helper Buttons */}
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={handleFillAdmin}
+                className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 font-bold text-[11px] transition cursor-pointer"
+                title="관리자 계정(yoocomdr57@gmail.com) 자동 입력"
+              >
+                👑 관리자 자동입력
+              </button>
+              <button
+                type="button"
+                onClick={handleFillMember}
+                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold text-[11px] transition cursor-pointer"
+                title="일반 성도 계정(yooc) 자동 입력"
+              >
+                👤 성도 자동입력
+              </button>
+            </div>
+          </form>
+        ) : (
+          /* ================= MODE 2: SIMPLE SIGN-UP FORM ================= */
+          <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
+            <div className="text-center mb-2">
+              <div className="inline-flex items-center gap-1 bg-blue-50 text-[#1b64b9] px-2.5 py-0.5 rounded-full text-[11px] font-black mb-1">
+                <Sparkles className="w-3 h-3" />
+                <span>초간단 회원가입</span>
+              </div>
+              <h2 className="text-[16px] font-black text-slate-900 tracking-tight">
+                아이디와 비밀번호로 즉시 가입
+              </h2>
+            </div>
+
+            {/* Admin Management Notice Banner */}
+            <div className="p-2.5 bg-blue-50/80 rounded-xl border border-blue-200/80 text-[11px] text-blue-950 space-y-1">
+              <div className="flex items-center gap-1 font-black text-blue-800">
+                <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                <span>간편 가입 안내</span>
+              </div>
+              <p className="text-slate-600 leading-tight">
+                아이디와 비밀번호만 입력하면 3초 만에 가입됩니다. 성명, 소속, 직분 등 상세 정보는
+                <strong className="text-blue-700"> 관리자가 회원관리 폼에서 배정 및 조정</strong>합니다.
+              </p>
+            </div>
+
+            {/* Field 1: ID / Email */}
+            <div className="relative">
+              <label
+                htmlFor="regId"
+                className="absolute -top-2 left-3.5 bg-white px-1.5 text-[11px] font-bold text-slate-500 z-10"
+              >
+                아이디 또는 이메일 <span className="text-red-500">*</span>
+              </label>
+              <div className="relative flex items-center">
+                <div className="absolute left-3.5 text-slate-400 pointer-events-none flex items-center">
+                  <Mail className="w-4 h-4 text-slate-500" />
+                </div>
+                <input
+                  id="regId"
+                  type="text"
+                  value={regId}
+                  onChange={(e) => setRegId(e.target.value)}
+                  placeholder="사용할 아이디 또는 이메일 (예: paul2026)"
+                  required
+                  className="w-full h-11 pl-10 pr-3 text-[13px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-600 focus:border-blue-600 transition shadow-xs"
+                />
+              </div>
+            </div>
+
+            {/* Field 2: Password */}
+            <div className="relative">
+              <label
+                htmlFor="regPassword"
+                className="absolute -top-2 left-3.5 bg-white px-1.5 text-[11px] font-bold text-slate-500 z-10"
+              >
+                비밀번호 (4자리 이상) <span className="text-red-500">*</span>
+              </label>
+              <div className="relative flex items-center">
+                <div className="absolute left-3.5 text-slate-400 pointer-events-none flex items-center">
+                  <Lock className="w-4 h-4 text-slate-500" />
+                </div>
+                <input
+                  id="regPassword"
+                  type={showRegPassword ? 'text' : 'password'}
+                  value={regPassword}
+                  onChange={(e) => setRegPassword(e.target.value)}
+                  placeholder="비밀번호 입력 (4자리 이상)"
+                  required
+                  minLength={4}
+                  className="w-full h-11 pl-10 pr-10 text-[14px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl tracking-wider focus:outline-none focus:ring-1.5 focus:ring-blue-600 focus:border-blue-600 transition shadow-xs"
+                />
+                <button
+                  type="button"
+                  aria-label={showRegPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
+                  onClick={() => setShowRegPassword(!showRegPassword)}
+                  className="absolute right-3 text-slate-400 hover:text-slate-600 focus:outline-none p-1 cursor-pointer"
+                >
+                  {showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Field 3: Password Confirmation */}
+            <div className="relative">
+              <label
+                htmlFor="regPasswordConfirm"
+                className="absolute -top-2 left-3.5 bg-white px-1.5 text-[11px] font-bold text-slate-500 z-10"
+              >
+                비밀번호 확인 <span className="text-red-500">*</span>
+              </label>
+              <div className="relative flex items-center">
+                <div className="absolute left-3.5 text-slate-400 pointer-events-none flex items-center">
+                  <Lock className="w-4 h-4 text-slate-500" />
+                </div>
+                <input
+                  id="regPasswordConfirm"
+                  type={showRegPassword ? 'text' : 'password'}
+                  value={regPasswordConfirm}
+                  onChange={(e) => setRegPasswordConfirm(e.target.value)}
+                  placeholder="비밀번호 다시 입력"
+                  required
+                  minLength={4}
+                  className="w-full h-11 pl-10 pr-3 text-[14px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl tracking-wider focus:outline-none focus:ring-1.5 focus:ring-blue-600 focus:border-blue-600 transition shadow-xs"
+                />
+              </div>
+            </div>
+
+            {/* Auto login reminder */}
+            <p className="text-[11px] text-slate-500 text-center font-medium">
+              ✓ 가입 즉시 자동으로 로그인되며 세션이 안전하게 유지됩니다.
             </p>
-          </div>
 
-          {/* Quick Demo Credential Button */}
-          <div className="pt-1 flex items-center justify-center">
-            <button
-              id="fillDemoBtn"
-              type="button"
-              onClick={handleFillDemo}
-              className="inline-flex items-center gap-1.5 text-[12px] text-slate-700 hover:text-slate-900 transition-colors font-medium cursor-pointer focus:outline-none"
-            >
-              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-900 text-white text-[10px] font-bold">
-                i
-              </span>
-              <span>체험용 계정 정보 자동 입력 클릭</span>
-            </button>
-          </div>
-        </form>
+            {/* Submit Register Button */}
+            <div className="pt-1">
+              <button
+                id="submitRegisterBtn"
+                type="submit"
+                disabled={isLoading}
+                className="w-full h-11 bg-[#1b64b9] hover:bg-blue-600 active:scale-[0.99] text-white font-black text-[14px] rounded-xl shadow-md transition-all duration-150 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-75"
+              >
+                {isLoading ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>가입 처리 및 로그인 중...</span>
+                  </span>
+                ) : (
+                  <>
+                    <UserPlus className="w-4 h-4" />
+                    <span>회원가입 완료 및 바로 시작하기</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Switch back to Login */}
+            <div className="pt-1 text-center">
+              <button
+                type="button"
+                onClick={() => setAuthMode('login')}
+                className="text-xs text-slate-500 hover:text-slate-800 font-bold transition cursor-pointer"
+              >
+                이미 계정이 있으신가요? <span className="text-[#1b64b9] underline">로그인하기</span>
+              </button>
+            </div>
+          </form>
+        )}
       </section>
 
       {/* Footer Links (ID 찾기 | 비밀번호 재설정 | 회원가입) */}
-      <footer className="mt-auto pt-5 pb-1 text-center z-10">
+      <footer className="mt-auto pt-4 pb-1 text-center z-10">
         <nav
           aria-label="계정 관리 링크"
-          className="flex items-center justify-center space-x-2 text-[12.5px] tracking-tight font-medium"
+          className="flex items-center justify-center space-x-2 text-[12px] tracking-tight font-medium"
         >
           <button
             id="findIdLink"
@@ -406,19 +579,19 @@ export const LoginView: React.FC<LoginViewProps> = ({
           <button
             id="registerSheetLink"
             type="button"
-            onClick={() => openModal('register-sheet')}
-            className="text-[#e0b852] hover:text-[#f3d37a] font-semibold transition cursor-pointer"
+            onClick={() => setAuthMode('register')}
+            className="text-[#e0b852] hover:text-[#f3d37a] font-bold transition cursor-pointer"
           >
-            회원가입 (구글 시트 연동)
+            간편 회원가입
           </button>
         </nav>
 
-        <p className="text-[11px] text-slate-400/80 mt-4 tracking-normal">
-          © 2026 Logos Academy System. All rights reserved.
+        <p className="text-[11px] text-slate-400/80 mt-3 tracking-normal">
+          © 2026 수퍼바이블 Logos Academy System. All rights reserved.
         </p>
 
         {/* Mobile Home indicator bar */}
-        <div aria-hidden="true" className="w-32 h-1 bg-white/60 rounded-full mx-auto mt-3 mb-0.5" />
+        <div aria-hidden="true" className="w-32 h-1 bg-white/60 rounded-full mx-auto mt-2.5 mb-0.5" />
       </footer>
     </main>
   );

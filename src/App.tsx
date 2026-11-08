@@ -4,11 +4,14 @@ import { User, ActiveModal, BibleVerse, ReadingDayPlan, UserRecording } from './
 import { TODAY_VERSE, INITIAL_READING_PLANS, INITIAL_RECORDINGS } from './data/bibleData';
 import { LoginView } from './components/LoginView';
 import { BibleDashboard } from './components/BibleDashboard';
-import { GoogleChooserModal } from './components/GoogleChooserModal';
-import { AuthSyncModal } from './components/AuthSyncModal';
 import { HelpModals } from './components/HelpModals';
 import { VerseCardModal } from './components/VerseCardModal';
 import { AudioRecordingModal } from './components/AudioRecordingModal';
+import {
+  getActiveSession,
+  saveActiveSession,
+  clearActiveSession,
+} from './services/authService';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -66,16 +69,13 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 }
 
-const SESSION_USER_KEY = 'superbible_user_session_v2';
-const SESSION_VIEW_KEY = 'superbible_view_session_v2';
-
 const DEFAULT_CONNECTED_ADMIN_USER: User = {
   id: 'user-yoocomdr57',
   name: '로고스 관리자',
   email: 'yoocomdr57@gmail.com',
   avatarText: '관리',
   role: 'admin',
-  provider: 'google',
+  provider: 'standard',
   schoolName: '로고스 수퍼바이블 공동체',
   department: '교목실 & 성경통독 총괄관리부',
   consecutiveDays: 30,
@@ -85,30 +85,17 @@ const DEFAULT_CONNECTED_ADMIN_USER: User = {
 };
 
 function getSavedUser(): User {
-  try {
-    const saved = localStorage.getItem(SESSION_USER_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed && parsed.email) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.warn('Failed to restore user session:', e);
+  const sessionUser = getActiveSession();
+  if (sessionUser && sessionUser.id) {
+    return sessionUser;
   }
   return DEFAULT_CONNECTED_ADMIN_USER;
 }
 
 function getSavedView(): 'login' | 'dashboard' {
-  try {
-    const savedView = localStorage.getItem(SESSION_VIEW_KEY);
-    if (savedView === 'login' || savedView === 'dashboard') {
-      return savedView;
-    }
-    const savedUser = localStorage.getItem(SESSION_USER_KEY);
-    if (savedUser) return 'dashboard';
-  } catch (e) {
-    // ignore
+  const sessionUser = getActiveSession();
+  if (sessionUser && sessionUser.id) {
+    return 'dashboard';
   }
   return 'dashboard';
 }
@@ -118,24 +105,13 @@ export default function App() {
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
   const [deviceFrameMode, setDeviceFrameMode] = useState<boolean>(true);
 
-  // User session state (Defaults to connected Google admin account: yoocomdr57@gmail.com)
+  // User session state
   const [user, setUser] = useState<User>(getSavedUser);
 
-  const [pendingAccount, setPendingAccount] = useState<Partial<User> | null>(null);
   const [readingPlans, setReadingPlans] = useState<ReadingDayPlan[]>(INITIAL_READING_PLANS);
   const [recordings, setRecordings] = useState<UserRecording[]>(INITIAL_RECORDINGS);
   const [verseForCard, setVerseForCard] = useState<BibleVerse>(TODAY_VERSE);
   const [verseForRecorder, setVerseForRecorder] = useState<BibleVerse>(TODAY_VERSE);
-
-  // Helper to persist user & view session
-  const persistSession = (updatedUser: User, updatedView: 'login' | 'dashboard') => {
-    try {
-      localStorage.setItem(SESSION_USER_KEY, JSON.stringify(updatedUser));
-      localStorage.setItem(SESSION_VIEW_KEY, updatedView);
-    } catch (e) {
-      console.warn('Failed to persist session:', e);
-    }
-  };
 
   // Handlers
   const handleOpenModal = (modal: ActiveModal) => {
@@ -146,62 +122,16 @@ export default function App() {
     setActiveModal('none');
   };
 
-  // Google account picked in chooser modal -> show sync animation modal
-  const handleSelectGoogleAccount = (acc: Partial<User>) => {
-    setPendingAccount(acc);
-    setActiveModal('auth-sync');
-  };
-
-  // Auth sync animation finished -> switch to Bible Dashboard
-  const handleFinishSync = () => {
-    let nextUser = user;
-    if (pendingAccount) {
-      nextUser = { ...user, ...pendingAccount } as User;
-      setUser(nextUser);
-    }
-    persistSession(nextUser, 'dashboard');
-    setActiveModal('none');
-    setCurrentView('dashboard');
-  };
-
-  // Direct Google login with connected smartphone Google account (yoocomdr57@gmail.com)
-  const handleDirectGoogleLogin = () => {
-    const adminUser: User = {
-      ...user,
-      id: 'user-yoocomdr57',
-      name: '로고스 관리자 (yoocomdr57)',
-      email: 'yoocomdr57@gmail.com',
-      avatarText: '관리',
-      role: 'admin',
-      provider: 'google',
-      schoolName: '로고스 수퍼바이블 공동체',
-      department: '교목실 & 성경통독 총괄관리부',
-      consecutiveDays: 30,
-      ntProgress: 100,
-      todayVersesRead: 10,
-      recordingsCount: 25,
-    };
-    setUser(adminUser);
-    persistSession(adminUser, 'dashboard');
-    setCurrentView('dashboard');
-  };
-
-  // Direct login from standard form or quick login card
-  const handleStandardLogin = (userData: Partial<User>) => {
-    const nextUser = { ...user, ...userData } as User;
-    setUser(nextUser);
-    persistSession(nextUser, 'dashboard');
+  // Direct login from standard form or simple sign-up form
+  const handleLoginSuccess = (authenticatedUser: User) => {
+    setUser(authenticatedUser);
+    saveActiveSession(authenticatedUser);
     setCurrentView('dashboard');
   };
 
   // Logout back to ERP Login & clear session
   const handleLogout = () => {
-    try {
-      localStorage.removeItem(SESSION_USER_KEY);
-      localStorage.setItem(SESSION_VIEW_KEY, 'login');
-    } catch (e) {
-      console.warn('Failed to clear session:', e);
-    }
+    clearActiveSession();
     setCurrentView('login');
   };
 
@@ -216,7 +146,7 @@ export default function App() {
         avatarText: isAdmin ? 'yooc' : '관리',
         email: isAdmin ? 'yooc.dev@gmail.com' : 'yoocomdr57@gmail.com',
       };
-      persistSession(updated, currentView);
+      saveActiveSession(updated);
       return updated;
     });
   };
@@ -308,8 +238,7 @@ export default function App() {
       >
         {currentView === 'login' ? (
           <LoginView
-            onLoginSuccess={handleStandardLogin}
-            onGoogleLogin={handleDirectGoogleLogin}
+            onLoginSuccess={handleLoginSuccess}
             openModal={handleOpenModal}
             onOpenSettings={() => setCurrentView('dashboard')}
           />
@@ -332,18 +261,6 @@ export default function App() {
       </div>
 
       {/* Modals */}
-      <GoogleChooserModal
-        isOpen={activeModal === 'google-chooser'}
-        onClose={handleCloseModal}
-        onSelectAccount={handleSelectGoogleAccount}
-      />
-
-      <AuthSyncModal
-        isOpen={activeModal === 'auth-sync'}
-        selectedAccount={pendingAccount}
-        onFinishSync={handleFinishSync}
-      />
-
       <HelpModals modal={activeModal} onClose={handleCloseModal} />
 
       <VerseCardModal
