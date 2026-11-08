@@ -74,13 +74,13 @@ export default function App() {
   // User session state
   const [user, setUser] = useState<User>({
     id: 'user-yooc',
-    name: 'yooc',
-    email: 'yooc.dev@gmail.com',
-    avatarText: 'yooc',
-    role: 'saint',
+    name: '로고스 관리자',
+    email: 'yoocomdr57@gmail.com',
+    avatarText: '관리',
+    role: 'admin',
     provider: 'google',
     schoolName: '로고스 수퍼바이블 공동체',
-    department: '청장년 성경통독부',
+    department: '교목실 & 성경통독부',
     consecutiveDays: 14,
     ntProgress: 42,
     todayVersesRead: 4,

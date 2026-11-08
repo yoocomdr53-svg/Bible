@@ -42,6 +42,15 @@ import {
   INITIAL_MEMBER_RECORDINGS,
   INITIAL_CAMPAIGNS,
 } from '../data/adminData';
+import {
+  getGoogleSheetConfig,
+  saveGoogleSheetConfig,
+  syncBidirectionalWithGoogleSheets,
+  generateAppsScriptCode,
+  getSheetSyncLogs,
+  GoogleSheetConfig,
+  SheetSyncLog,
+} from '../services/googleSheetsSync';
 
 interface AdminBibleManagementViewProps {
   user?: User;
@@ -58,8 +67,14 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
   onBack,
   onNavigateToBible,
 }) => {
-  // Navigation Sub-tabs: 'overview' | 'members' | 'recordings' | 'campaigns' | 'reports'
-  const [adminTab, setAdminTab] = useState<'overview' | 'members' | 'recordings' | 'campaigns' | 'reports'>('overview');
+  // Navigation Sub-tabs: 'overview' | 'members' | 'recordings' | 'campaigns' | 'reports' | 'sheets'
+  const [adminTab, setAdminTab] = useState<'overview' | 'members' | 'recordings' | 'campaigns' | 'reports' | 'sheets'>('overview');
+
+  // Google Sheets Sync state (yoocomdr57@gmail.com 계정 연동)
+  const [sheetConfig, setSheetConfig] = useState<GoogleSheetConfig>(() => getGoogleSheetConfig());
+  const [syncLogs, setSyncLogs] = useState<SheetSyncLog[]>(() => getSheetSyncLogs());
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [copiedScript, setCopiedScript] = useState(false);
 
   // Members state (localStorage 연동 지속 보관)
   const [members, setMembers] = useState<MemberReadingProfile[]>(() => {
@@ -299,6 +314,81 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     }
   };
 
+  // Trigger real-time bidirectional sync
+  const handleTriggerSheetSync = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await syncBidirectionalWithGoogleSheets(members, recordings, campaigns);
+      setSheetConfig(getGoogleSheetConfig());
+      setSyncLogs(getSheetSyncLogs());
+      showToast(res.message);
+    } catch (e) {
+      showToast('구글 스프레드시트 동기화 중 오류가 발생했습니다.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Copy Google Apps Script code for yoocomdr57@gmail.com
+  const handleCopyAppsScript = () => {
+    const code = generateAppsScriptCode('yoocomdr57@gmail.com');
+    navigator.clipboard.writeText(code);
+    setCopiedScript(true);
+    setTimeout(() => setCopiedScript(false), 2500);
+    showToast('yoocomdr57 계정용 Google Apps Script 코드가 복사되었습니다! 📋');
+  };
+
+  // Download Google Sheets 4-Tab Template as CSV
+  const handleDownloadGoogleSheetTemplate = () => {
+    const lines: string[] = [];
+    lines.push('# =======================================================');
+    lines.push('# 수퍼바이블 Google Spreadsheet Template (yoocomdr57@gmail.com)');
+    lines.push('# 생성일시: ' + new Date().toLocaleString('ko-KR'));
+    lines.push('# =======================================================\n');
+
+    // Sheet 1: 회원_낭독진도
+    lines.push('### [시트 1: 회원_낭독진도] ###');
+    lines.push('회원번호,이름,소속부서,직분,전화번호,이메일,현재통독회차,현재성경,현재장,완독장수,녹음수,최근활동일시,상태,연속통독일,관리자메모');
+    members.forEach((m) => {
+      lines.push(
+        `"${m.id}","${m.name}","${m.department}","${m.role}","${m.phone}","${m.email}","${m.currentReadingRound}독","${m.currentBook}","${m.currentChapter}장","${m.totalReadChapters}","${m.recordingsCount}","${m.lastActive}","${m.status}","${m.consecutiveDays}","${(m.memo || '').replace(/"/g, '""')}"`
+      );
+    });
+
+    lines.push('\n### [시트 2: 낭독_음원검수] ###');
+    lines.push('녹음ID,회원번호,성명,소속부서,직분,낭독제목,성경구절,본문요약,재생시간,녹음일시,베스트낭독여부,심사상태,관리자피드백');
+    recordings.forEach((r) => {
+      lines.push(
+        `"${r.id}","${r.memberId}","${r.memberName}","${r.department}","${r.role}","${r.title}","${r.verseRef}","${r.passageSnippet.slice(0, 30)}...","${r.duration}","${r.date}","${r.isFeatured ? 'Y' : 'N'}","${r.status}","${(r.feedback || '').replace(/"/g, '""')}"`
+      );
+    });
+
+    lines.push('\n### [시트 3: 통독_캠페인] ###');
+    lines.push('캠페인ID,캠페인명,설명,목표범위,시작일,종료일,참여자수,평균달성률,활성여부');
+    campaigns.forEach((c) => {
+      lines.push(
+        `"${c.id}","${c.title}","${c.description}","${c.targetScope}","${c.startDate}","${c.endDate}","${c.participantsCount}","${c.avgProgress}%","${c.isActive ? 'Y' : 'N'}"`
+      );
+    });
+
+    lines.push('\n### [시트 4: 실시간_동기화로그] ###');
+    lines.push('로그ID,일시,방향,요약,영향행수');
+    syncLogs.forEach((l) => {
+      lines.push(`"${l.id}","${l.timestamp}","${l.direction}","${l.summary}","${l.rowsAffected}"`);
+    });
+
+    const csvContent = '\uFEFF' + lines.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `수퍼바이블_구글스프레드시트_yoocomdr57_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('yoocomdr57 전용 구글 스프레드시트 템플릿(CSV)이 다운로드되었습니다.');
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full bg-[#f8fafc] relative overflow-hidden select-none text-slate-800">
       {/* 1. Header Bar: Deep Blue Admin Style */}
@@ -323,12 +413,22 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                   ERP 연동
                 </span>
               </h1>
-              <p className="text-[10px] text-slate-400 font-medium mt-0.5">회원 성경낭독 및 12목표 통합 관리 시스템</p>
+              <p className="text-[10px] text-slate-400 font-medium mt-0.5">yoocomdr57 구글 시트 양방향 실시간 동기화</p>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleTriggerSheetSync}
+            disabled={isSyncing}
+            className="px-2.5 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/80 text-emerald-300 text-xs font-black rounded-xl flex items-center gap-1 shadow-2xs transition cursor-pointer active:scale-95 flex-shrink-0"
+            title="yoocomdr57@gmail.com 구글 시트 실시간 양방향 동기화"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-amber-400' : 'text-emerald-400'}`} />
+            <span className="hidden sm:inline">시트 동기화</span>
+          </button>
           <button
             type="button"
             onClick={handleResetAdminData}
@@ -349,8 +449,8 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
         </div>
       </header>
 
-      {/* 2. Admin 5-Tab Navigation Bar */}
-      <nav className="bg-white border-b border-slate-200 px-2 py-1.5 flex items-center justify-between overflow-x-auto no-scrollbar flex-shrink-0 z-20">
+      {/* 2. Admin 6-Tab Navigation Bar */}
+      <nav className="bg-white border-b border-slate-200 px-2 py-1.5 flex items-center justify-between overflow-x-auto no-scrollbar flex-shrink-0 z-20 gap-1.5">
         <button
           type="button"
           onClick={() => setAdminTab('overview')}
@@ -414,6 +514,19 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
         >
           <span>📜</span>
           <span>수료증 & 보고서</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAdminTab('sheets')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+            adminTab === 'sheets'
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200'
+          }`}
+        >
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>구글 시트 연동</span>
         </button>
       </nav>
 
@@ -1007,6 +1120,234 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                     <span>엑셀(CSV) 전체 다운로드</span>
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================
+            TAB 6: 구글 시트 실시간 양방향 연동 (Google Sheets Sync)
+           ======================================================== */}
+        {adminTab === 'sheets' && (
+          <div className="space-y-4">
+            {/* 1. Account & Sheet Connection Status Card */}
+            <div className="bg-gradient-to-r from-[#064e3b] via-[#065f46] to-[#047857] text-white rounded-3xl p-4 sm:p-5 shadow-lg border border-emerald-500/30 space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-white text-emerald-700 flex items-center justify-center font-black text-lg shadow-md flex-shrink-0">
+                    📊
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="text-base sm:text-lg font-black tracking-tight">구글 스프레드시트 양방향 연동</h3>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-400 text-slate-950">
+                        실시간 연동중
+                      </span>
+                    </div>
+                    <p className="text-xs text-emerald-200 mt-0.5">
+                      대상 관리자 계정: <strong className="text-white font-mono">{sheetConfig.adminEmail}</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleTriggerSheetSync}
+                  disabled={isSyncing}
+                  className="px-3.5 py-2 rounded-xl bg-white hover:bg-emerald-50 active:scale-95 text-emerald-800 text-xs font-black shadow-md transition cursor-pointer flex items-center gap-1.5 flex-shrink-0"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-amber-600' : 'text-emerald-700'}`} />
+                  <span>{isSyncing ? '동기화 중...' : '지금 실시간 동기화'}</span>
+                </button>
+              </div>
+
+              {/* Status Pills */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
+                <div className="bg-black/20 backdrop-blur-xs rounded-xl p-2.5 border border-white/10">
+                  <span className="text-[10px] text-emerald-300 block font-semibold">연동 시트명</span>
+                  <span className="font-bold text-white text-[11px] truncate block">수퍼바이블_회원성경낭독_yoocomdr57</span>
+                </div>
+                <div className="bg-black/20 backdrop-blur-xs rounded-xl p-2.5 border border-white/10">
+                  <span className="text-[10px] text-emerald-300 block font-semibold">동기화 대상 회원</span>
+                  <span className="font-bold text-white text-[11px] block">{members.length}명 관리 중</span>
+                </div>
+                <div className="bg-black/20 backdrop-blur-xs rounded-xl p-2.5 border border-white/10">
+                  <span className="text-[10px] text-emerald-300 block font-semibold">낭독 음원 검수</span>
+                  <span className="font-bold text-white text-[11px] block">{recordings.length}건 동기화됨</span>
+                </div>
+                <div className="bg-black/20 backdrop-blur-xs rounded-xl p-2.5 border border-white/10">
+                  <span className="text-[10px] text-emerald-300 block font-semibold">마지막 양방향 통신</span>
+                  <span className="font-bold text-white text-[11px] block truncate">{sheetConfig.lastSynced || '실시간 자동 동기화'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Google Spreadsheet 4-Tab Schema & Structure Preview */}
+            <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-black text-slate-900 flex items-center gap-1.5">
+                    <span>📑 구글 스프레드시트 4대 시트 자동 구성</span>
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    yoocomdr57@gmail.com 계정의 스프레드시트에 자동 생성·동기화되는 테이블 구조입니다.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDownloadGoogleSheetTemplate}
+                  className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#1b64b9] text-xs font-black rounded-xl border border-blue-200 shadow-2xs transition cursor-pointer flex items-center gap-1"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>스프레드시트 원본(CSV) 받기</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+                  <div className="flex items-center justify-between font-black text-slate-900">
+                    <span className="flex items-center gap-1 text-[#1b64b9]">
+                      <span>📊</span>
+                      <span>1. [회원_낭독진도] 시트</span>
+                    </span>
+                    <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded font-bold">15개 컬럼</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600">
+                    회원번호, 성명, 부서, 직분, 전화번호, 이메일, 통독회차, 현재성경, 현재장, 완독장수, 낭독수, 최근활동, 상태, 연속일수, 관리자메모
+                  </p>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+                  <div className="flex items-center justify-between font-black text-slate-900">
+                    <span className="flex items-center gap-1 text-purple-700">
+                      <span>🎙️</span>
+                      <span>2. [낭독_음원검수] 시트</span>
+                    </span>
+                    <span className="text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.2 rounded font-bold">13개 컬럼</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600">
+                    녹음ID, 회원번호, 성명, 소속부서, 낭독제목, 구절, 시간, 녹음일시, 베스트낭독여부(⭐), 심사상태, 관리자피드백
+                  </p>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+                  <div className="flex items-center justify-between font-black text-slate-900">
+                    <span className="flex items-center gap-1 text-emerald-700">
+                      <span>🎯</span>
+                      <span>3. [통독_캠페인] 시트</span>
+                    </span>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold">9개 컬럼</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600">
+                    캠페인ID, 캠페인명, 설명, 목표범위, 시작일, 종료일, 참여자수, 평균달성률, 활성여부
+                  </p>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+                  <div className="flex items-center justify-between font-black text-slate-900">
+                    <span className="flex items-center gap-1 text-slate-800">
+                      <span>⚡</span>
+                      <span>4. [실시간_동기화로그] 시트</span>
+                    </span>
+                    <span className="text-[10px] bg-slate-200 text-slate-800 px-1.5 py-0.2 rounded font-bold">5개 컬럼</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600">
+                    로그ID, 일시, 방향(양방향), 동기화 요약, 영향 받은 행 수(Rows)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Google Apps Script One-Click Integration Setup */}
+            <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-black text-slate-900 flex items-center gap-1.5">
+                    <span>⚡ 구글 앱스 스크립트(Apps Script) 자동 연동 코드</span>
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    구글 시트의 [확장 프로그램 &gt; Apps Script]에 붙여넣으면 별도 서버 없이 실시간 2-way 연동이 완성됩니다.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyAppsScript}
+                  className={`px-3 py-1.5 text-xs font-black rounded-xl transition cursor-pointer flex items-center gap-1 shadow-2xs ${
+                    copiedScript
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-900 hover:bg-slate-800 text-white'
+                  }`}
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>{copiedScript ? '✓ 복사 완료!' : '스크립트 코드 복사'}</span>
+                </button>
+              </div>
+
+              <div className="bg-slate-900 text-slate-200 rounded-xl p-3 text-[11px] font-mono overflow-x-auto max-h-36 no-scrollbar">
+                <pre>{generateAppsScriptCode('yoocomdr57@gmail.com').slice(0, 500)}... (전체 120줄 복사 가능)</pre>
+              </div>
+
+              {/* Direct Actions: Create Google Sheet or Open template */}
+              <div className="flex items-center gap-2 pt-1">
+                <a
+                  href="https://docs.google.com/spreadsheets/u/0/create"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex-1 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 transition text-center"
+                >
+                  <span>🔗 yoocomdr57 새 구글 시트 만들기</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={handleTriggerSheetSync}
+                  className="flex-1 py-2.5 bg-[#1b64b9] hover:bg-blue-600 text-white font-black rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-xs cursor-pointer text-center"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>현재 회원 진도 시트에 동기화</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 4. Real-time Live Sync Logs Table */}
+            <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-black text-slate-900">실시간 양방향 동기화 로그 기록</h4>
+                  <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
+                    최근 {syncLogs.length}건
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSyncLogs(getSheetSyncLogs());
+                    showToast('동기화 로그를 새로고침했습니다.');
+                  }}
+                  className="text-xs text-slate-500 hover:text-slate-800 font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>새로고침</span>
+                </button>
+              </div>
+
+              <div className="divide-y divide-slate-100 text-xs">
+                {syncLogs.map((log) => (
+                  <div key={log.id} className="py-2.5 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
+                          {log.direction === 'bidirectional' ? '양방향' : log.direction === 'upload' ? '업로드' : '다운로드'}
+                        </span>
+                        <span className="font-bold text-slate-800 truncate">{log.summary}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5 truncate">{log.details}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <span className="text-[10px] font-bold text-slate-400 block">{log.timestamp.split(' ')[1] || log.timestamp}</span>
+                      <span className="text-[10px] text-emerald-600 font-semibold">{log.rowsAffected}행 반영</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
