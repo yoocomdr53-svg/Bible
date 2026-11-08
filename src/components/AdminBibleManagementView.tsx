@@ -67,8 +67,8 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
   onBack,
   onNavigateToBible,
 }) => {
-  // Navigation Sub-tabs: 'overview' | 'members' | 'recordings' | 'campaigns' | 'reports' | 'sheets'
-  const [adminTab, setAdminTab] = useState<'overview' | 'members' | 'recordings' | 'campaigns' | 'reports' | 'sheets'>('overview');
+  // Navigation Sub-tabs: 'overview' | 'roster' | 'members' | 'recordings' | 'campaigns' | 'reports' | 'sheets'
+  const [adminTab, setAdminTab] = useState<'overview' | 'roster' | 'members' | 'recordings' | 'campaigns' | 'reports' | 'sheets'>('overview');
 
   // Google Sheets Sync state (yoocomdr57@gmail.com 계정 연동)
   const [sheetConfig, setSheetConfig] = useState<GoogleSheetConfig>(() => getGoogleSheetConfig());
@@ -90,6 +90,28 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
   const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>('전체');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('전체');
   const [selectedMember, setSelectedMember] = useState<MemberReadingProfile | null>(null);
+
+  // Roster (회원 관리 명부) state & filters
+  const [rosterSearch, setRosterSearch] = useState('');
+  const [rosterDeptFilter, setRosterDeptFilter] = useState<string>('전체');
+  const [rosterBaptismFilter, setRosterBaptismFilter] = useState<string>('전체');
+  const [rosterStatusFilter, setRosterStatusFilter] = useState<string>('전체');
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [newMemberForm, setNewMemberForm] = useState({
+    name: '',
+    department: '장년 1교구',
+    role: '성도',
+    phone: '010-',
+    email: '',
+    registeredDate: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
+    birthdate: '1985.01.01',
+    baptismStatus: '세례' as '유아세례' | '세례' | '입교' | '학습' | '원입',
+    smallGroup: '믿음 1구역',
+    accountRole: 'member' as 'admin' | 'pastor' | 'leader' | 'member',
+    accountStatus: '정상' as '정상' | '휴면' | '정지',
+    memo: '',
+  });
+  const [editingMember, setEditingMember] = useState<MemberReadingProfile | null>(null);
 
   // Recordings state (localStorage 연동 지속 보관)
   const [recordings, setRecordings] = useState<MemberRecordingItem[]>(() => {
@@ -157,7 +179,25 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Filtered members calculation
+  // Filtered Roster (회원 관리 명부) calculation
+  const filteredRosterMembers = members.filter((m) => {
+    const searchLow = rosterSearch.toLowerCase();
+    const matchSearch =
+      m.name.toLowerCase().includes(searchLow) ||
+      m.department.toLowerCase().includes(searchLow) ||
+      m.role.toLowerCase().includes(searchLow) ||
+      (m.smallGroup && m.smallGroup.toLowerCase().includes(searchLow)) ||
+      (m.phone && m.phone.includes(searchLow)) ||
+      (m.email && m.email.toLowerCase().includes(searchLow));
+
+    const matchDept = rosterDeptFilter === '전체' || m.department === rosterDeptFilter;
+    const matchBaptism = rosterBaptismFilter === '전체' || m.baptismStatus === rosterBaptismFilter;
+    const matchStatus = rosterStatusFilter === '전체' || (m.accountStatus || '정상') === rosterStatusFilter;
+
+    return matchSearch && matchDept && matchBaptism && matchStatus;
+  });
+
+  // Filtered members calculation for Reading Progress
   const filteredMembers = members.filter((m) => {
     const matchSearch =
       m.name.includes(memberSearch) ||
@@ -175,6 +215,77 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
 
     return matchSearch && matchDept && matchStatus;
   });
+
+  // Register New Member Handler
+  const handleCreateMember = () => {
+    if (!newMemberForm.name.trim()) {
+      alert('회원 성명을 입력해주세요.');
+      return;
+    }
+    const newId = `M-${String(members.length + 1).padStart(2, '0')}`;
+    const newMember: MemberReadingProfile = {
+      id: newId,
+      name: newMemberForm.name.trim(),
+      department: newMemberForm.department,
+      role: newMemberForm.role,
+      phone: newMemberForm.phone.trim(),
+      email: newMemberForm.email.trim() || `${newId.toLowerCase()}@church.net`,
+      currentReadingRound: 1,
+      currentBook: '창세기',
+      currentChapter: 1,
+      totalReadChapters: 0,
+      recordingsCount: 0,
+      lastActive: '방금 전 (신규 등록)',
+      status: 'active',
+      consecutiveDays: 0,
+      registeredDate: newMemberForm.registeredDate,
+      birthdate: newMemberForm.birthdate,
+      baptismStatus: newMemberForm.baptismStatus,
+      smallGroup: newMemberForm.smallGroup,
+      accountRole: newMemberForm.accountRole,
+      accountStatus: newMemberForm.accountStatus,
+      memo: newMemberForm.memo,
+    };
+    setMembers((prev) => [newMember, ...prev]);
+    showToast(`신규 회원 '${newMember.name}'(${newMember.role})님이 명부에 등록되었습니다! 🎉`);
+    setShowAddMemberModal(false);
+    setNewMemberForm({
+      name: '',
+      department: '장년 1교구',
+      role: '성도',
+      phone: '010-',
+      email: '',
+      registeredDate: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
+      birthdate: '1985.01.01',
+      baptismStatus: '세례',
+      smallGroup: '믿음 1구역',
+      accountRole: 'member',
+      accountStatus: '정상',
+      memo: '',
+    });
+  };
+
+  // Update Member Handler
+  const handleUpdateMember = () => {
+    if (!editingMember) return;
+    if (!editingMember.name.trim()) {
+      alert('회원 성명을 입력해주세요.');
+      return;
+    }
+    setMembers((prev) =>
+      prev.map((m) => (m.id === editingMember.id ? editingMember : m))
+    );
+    showToast(`'${editingMember.name}' 회원 정보가 성공적으로 수정되었습니다.`);
+    setEditingMember(null);
+  };
+
+  // Delete Member Handler
+  const handleDeleteMember = (memberId: string, memberName: string) => {
+    if (confirm(`'${memberName}' 회원을 회원 명부에서 삭제하시겠습니까?`)) {
+      setMembers((prev) => prev.filter((m) => m.id !== memberId));
+      showToast(`'${memberName}' 회원이 삭제되었습니다.`);
+    }
+  };
 
   // KPI aggregates
   const totalMembersCount = members.length;
@@ -338,16 +449,25 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     showToast('yoocomdr57 계정용 Google Apps Script 코드가 복사되었습니다! 📋');
   };
 
-  // Download Google Sheets 4-Tab Template as CSV
+  // Download Google Sheets 5-Tab Template as CSV (회원관리 포함)
   const handleDownloadGoogleSheetTemplate = () => {
     const lines: string[] = [];
     lines.push('# =======================================================');
-    lines.push('# 수퍼바이블 Google Spreadsheet Template (yoocomdr57@gmail.com)');
+    lines.push('# 수퍼바이블 Google Spreadsheet 5-Sheet Template (yoocomdr57@gmail.com)');
     lines.push('# 생성일시: ' + new Date().toLocaleString('ko-KR'));
     lines.push('# =======================================================\n');
 
-    // Sheet 1: 회원_낭독진도
-    lines.push('### [시트 1: 회원_낭독진도] ###');
+    // Sheet 1: 회원관리 (마스터 명부)
+    lines.push('### [시트 1: 회원관리] ###');
+    lines.push('회원번호,성명,소속부서,직분,전화번호,이메일,등록일자,생년월일,세례구분,구역/목장,계정권한,회원상태,관리자메모');
+    members.forEach((m) => {
+      lines.push(
+        `"${m.id}","${m.name}","${m.department}","${m.role}","${m.phone}","${m.email}","${m.registeredDate || ''}","${m.birthdate || ''}","${m.baptismStatus || '세례'}","${m.smallGroup || ''}","${m.accountRole || 'member'}","${m.accountStatus || '정상'}","${(m.memo || '').replace(/"/g, '""')}"`
+      );
+    });
+
+    // Sheet 2: 회원_낭독진도
+    lines.push('\n### [시트 2: 회원_낭독진도] ###');
     lines.push('회원번호,이름,소속부서,직분,전화번호,이메일,현재통독회차,현재성경,현재장,완독장수,녹음수,최근활동일시,상태,연속통독일,관리자메모');
     members.forEach((m) => {
       lines.push(
@@ -355,7 +475,8 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
       );
     });
 
-    lines.push('\n### [시트 2: 낭독_음원검수] ###');
+    // Sheet 3: 낭독_음원검수
+    lines.push('\n### [시트 3: 낭독_음원검수] ###');
     lines.push('녹음ID,회원번호,성명,소속부서,직분,낭독제목,성경구절,본문요약,재생시간,녹음일시,베스트낭독여부,심사상태,관리자피드백');
     recordings.forEach((r) => {
       lines.push(
@@ -363,7 +484,8 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
       );
     });
 
-    lines.push('\n### [시트 3: 통독_캠페인] ###');
+    // Sheet 4: 통독_캠페인
+    lines.push('\n### [시트 4: 통독_캠페인] ###');
     lines.push('캠페인ID,캠페인명,설명,목표범위,시작일,종료일,참여자수,평균달성률,활성여부');
     campaigns.forEach((c) => {
       lines.push(
@@ -371,7 +493,8 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
       );
     });
 
-    lines.push('\n### [시트 4: 실시간_동기화로그] ###');
+    // Sheet 5: 실시간_동기화로그
+    lines.push('\n### [시트 5: 실시간_동기화로그] ###');
     lines.push('로그ID,일시,방향,요약,영향행수');
     syncLogs.forEach((l) => {
       lines.push(`"${l.id}","${l.timestamp}","${l.direction}","${l.summary}","${l.rowsAffected}"`);
@@ -382,11 +505,11 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `수퍼바이블_구글스프레드시트_yoocomdr57_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `수퍼바이블_구글스프레드시트_5개시트_yoocomdr57_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('yoocomdr57 전용 구글 스프레드시트 템플릿(CSV)이 다운로드되었습니다.');
+    showToast('yoocomdr57 전용 5개 시트 템플릿(회원관리 포함 CSV)이 다운로드되었습니다.');
   };
 
   return (
@@ -449,8 +572,8 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
         </div>
       </header>
 
-      {/* 2. Admin 6-Tab Navigation Bar */}
-      <nav className="bg-white border-b border-slate-200 px-2 py-1.5 flex items-center justify-between overflow-x-auto no-scrollbar flex-shrink-0 z-20 gap-1.5">
+      {/* 2. Admin 7-Tab Navigation Bar */}
+      <nav className="bg-white border-b border-slate-200 px-2 py-1.5 flex items-center justify-start overflow-x-auto no-scrollbar flex-shrink-0 z-20 gap-1.5">
         <button
           type="button"
           onClick={() => setAdminTab('overview')}
@@ -466,6 +589,19 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
 
         <button
           type="button"
+          onClick={() => setAdminTab('roster')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+            adminTab === 'roster'
+              ? 'bg-[#0284c7] text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <span>📇</span>
+          <span>회원 관리 명부 ({members.length})</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setAdminTab('members')}
           className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
             adminTab === 'members'
@@ -473,8 +609,8 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
-          <span>👥</span>
-          <span>회원 낭독 관리 ({members.length})</span>
+          <span>📖</span>
+          <span>낭독 진도 관리</span>
         </button>
 
         <button
@@ -679,7 +815,316 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
         )}
 
         {/* ========================================================
-            TAB 2: 회원 낭독 관리 (Members Table & Detail)
+            TAB 2: 회원 관리 명부 (교인 마스터 명부 - Master Member Directory)
+           ======================================================== */}
+        {adminTab === 'roster' && (
+          <div className="space-y-4">
+            {/* 1. Header Banner & Action Button */}
+            <div className="bg-gradient-to-r from-sky-700 via-blue-700 to-indigo-800 text-white rounded-3xl p-4 sm:p-5 shadow-lg border border-sky-500/30 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-white text-sky-700 flex items-center justify-center font-black text-xl shadow-md flex-shrink-0">
+                    📇
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h3 className="text-base sm:text-lg font-black tracking-tight">회원 관리 마스터 명부</h3>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-sky-300 text-sky-950">
+                        구글시트 1번 시트 연동
+                      </span>
+                    </div>
+                    <p className="text-xs text-sky-100 mt-0.5">
+                      교인 인적사항, 소속 부서, 직분, 세례, 구역/목장 및 계정 권한 체계적 관리
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddMemberModal(true)}
+                    className="px-3.5 py-2 bg-white hover:bg-sky-50 active:scale-95 text-sky-900 text-xs font-black rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Plus className="w-4 h-4 stroke-[2.5] text-sky-600" />
+                    <span>신규 회원 등록</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleTriggerSheetSync}
+                    disabled={isSyncing}
+                    className="px-3 py-2 bg-sky-900/80 hover:bg-sky-900 text-sky-100 text-xs font-bold rounded-xl border border-sky-400/40 transition cursor-pointer flex items-center gap-1"
+                    title="구글 시트 즉시 동기화"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                    <span className="hidden sm:inline">동기화</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Roster Stats Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
+                <div className="bg-black/20 backdrop-blur-xs rounded-xl p-2.5 border border-white/10">
+                  <span className="text-[10px] text-sky-200 block font-semibold">총 등록 회원</span>
+                  <span className="font-black text-white text-base">{members.length}명</span>
+                </div>
+                <div className="bg-black/20 backdrop-blur-xs rounded-xl p-2.5 border border-white/10">
+                  <span className="text-[10px] text-sky-200 block font-semibold">세례/입교 교인</span>
+                  <span className="font-black text-white text-base">
+                    {members.filter((m) => m.baptismStatus === '세례' || m.baptismStatus === '입교').length}명
+                  </span>
+                </div>
+                <div className="bg-black/20 backdrop-blur-xs rounded-xl p-2.5 border border-white/10">
+                  <span className="text-[10px] text-sky-200 block font-semibold">정상 활동 회원</span>
+                  <span className="font-black text-white text-base">
+                    {members.filter((m) => (m.accountStatus || '정상') === '정상').length}명
+                  </span>
+                </div>
+                <div className="bg-black/20 backdrop-blur-xs rounded-xl p-2.5 border border-white/10">
+                  <span className="text-[10px] text-sky-200 block font-semibold">소속 공동체</span>
+                  <span className="font-black text-white text-base">5개 부서</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Search & Multi Filters */}
+            <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200/90 shadow-2xs space-y-3">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={rosterSearch}
+                    onChange={(e) => setRosterSearch(e.target.value)}
+                    placeholder="성명, 부서, 직분, 전화번호, 구역/목장 검색"
+                    className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium"
+                  />
+                  {rosterSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setRosterSearch('')}
+                      className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
+                  {/* Department select */}
+                  <select
+                    value={rosterDeptFilter}
+                    onChange={(e) => setRosterDeptFilter(e.target.value)}
+                    className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 font-bold text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  >
+                    <option value="전체">부서 전체</option>
+                    <option value="청장년 성경통독부">청장년 성경통독부</option>
+                    <option value="대학청년부">대학청년부</option>
+                    <option value="교직원선교회">교직원선교회</option>
+                    <option value="주일학교 교사부">주일학교 교사부</option>
+                    <option value="장년 1교구">장년 1교구</option>
+                  </select>
+
+                  {/* Baptism filter */}
+                  <select
+                    value={rosterBaptismFilter}
+                    onChange={(e) => setRosterBaptismFilter(e.target.value)}
+                    className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 font-bold text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  >
+                    <option value="전체">세례구분 전체</option>
+                    <option value="세례">세례</option>
+                    <option value="유아세례">유아세례</option>
+                    <option value="입교">입교</option>
+                    <option value="학습">학습</option>
+                    <option value="원입">원입</option>
+                  </select>
+
+                  {/* Account status filter */}
+                  <select
+                    value={rosterStatusFilter}
+                    onChange={(e) => setRosterStatusFilter(e.target.value)}
+                    className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 font-bold text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  >
+                    <option value="전체">상태 전체</option>
+                    <option value="정상">정상</option>
+                    <option value="휴면">휴면</option>
+                    <option value="정지">정지</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
+                <span className="font-bold">
+                  총 <strong className="text-slate-900">{filteredRosterMembers.length}</strong>명 검색됨
+                </span>
+                <span className="text-[11px] text-slate-400">회원 정보를 직접 수정하거나 성경 낭독 진도를 확인할 수 있습니다.</span>
+              </div>
+            </div>
+
+            {/* 3. Member Directory Cards */}
+            <div className="space-y-3">
+              {filteredRosterMembers.length === 0 ? (
+                <div className="bg-white rounded-2xl p-8 text-center border border-slate-200/90 shadow-2xs space-y-2">
+                  <p className="text-3xl">🔍</p>
+                  <p className="text-sm font-black text-slate-700">검색 조건과 일치하는 회원이 없습니다</p>
+                  <p className="text-xs text-slate-400">검색어를 지우거나 필터를 [전체]로 변경해보세요.</p>
+                </div>
+              ) : (
+                filteredRosterMembers.map((m) => {
+                  const roleBadgeColor =
+                    m.role === '장로'
+                      ? 'bg-amber-100 text-amber-800 border-amber-200'
+                      : m.role === '권사'
+                      ? 'bg-rose-100 text-rose-800 border-rose-200'
+                      : m.role === '집사' || m.role === '안수집사'
+                      ? 'bg-blue-100 text-blue-800 border-blue-200'
+                      : 'bg-emerald-100 text-emerald-800 border-emerald-200';
+
+                  const accountBadgeColor =
+                    m.accountRole === 'admin'
+                      ? 'bg-purple-100 text-purple-800'
+                      : m.accountRole === 'pastor'
+                      ? 'bg-indigo-100 text-indigo-800'
+                      : m.accountRole === 'leader'
+                      ? 'bg-sky-100 text-sky-800'
+                      : 'bg-slate-100 text-slate-700';
+
+                  const statusColor =
+                    (m.accountStatus || '정상') === '정상'
+                      ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
+                      : (m.accountStatus || '정상') === '휴면'
+                      ? 'text-amber-600 bg-amber-50 border-amber-200'
+                      : 'text-rose-600 bg-rose-50 border-rose-200';
+
+                  return (
+                    <div
+                      key={m.id}
+                      className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs hover:shadow-xs transition space-y-3"
+                    >
+                      {/* Top: Member header */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 text-white flex items-center justify-center font-black text-sm shadow-xs flex-shrink-0">
+                            {m.name.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-mono font-bold text-slate-400">{m.id}</span>
+                              <h4 className="text-sm font-black text-slate-900">{m.name}</h4>
+                              <span className={`text-[10px] font-black px-1.5 py-0.2 rounded border ${roleBadgeColor}`}>
+                                {m.role}
+                              </span>
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700">
+                                {m.department}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                              {m.smallGroup || '구역 미정'} · 세례: <strong>{m.baptismStatus || '세례'}</strong>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${statusColor}`}>
+                            {m.accountStatus || '정상'}
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${accountBadgeColor}`}>
+                            {m.accountRole === 'admin'
+                              ? '👑 관리자'
+                              : m.accountRole === 'pastor'
+                              ? '⛪ 목회자'
+                              : m.accountRole === 'leader'
+                              ? '🛡️ 리더'
+                              : '👤 성도'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Detail Info Grid */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                        <div>
+                          <span className="text-slate-400 block text-[10px] font-semibold">연락처</span>
+                          <a
+                            href={`tel:${m.phone}`}
+                            className="font-bold text-slate-800 hover:text-sky-600 flex items-center gap-1"
+                          >
+                            <Phone className="w-3 h-3 text-slate-400" />
+                            <span>{m.phone}</span>
+                          </a>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px] font-semibold">이메일</span>
+                          <a
+                            href={`mailto:${m.email}`}
+                            className="font-bold text-slate-800 hover:text-sky-600 flex items-center gap-1 truncate"
+                          >
+                            <Mail className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                            <span className="truncate">{m.email}</span>
+                          </a>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px] font-semibold">생년월일 / 등록일</span>
+                          <span className="font-bold text-slate-800">
+                            {m.birthdate || '-'} ({m.registeredDate ? `${m.registeredDate} 등록` : '-'})
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px] font-semibold">성경 통독 현황</span>
+                          <span className="font-black text-[#1b64b9]">
+                            {m.currentReadingRound}독 진행 ({m.currentBook} {m.currentChapter}장)
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Memo note if exists */}
+                      {m.memo && (
+                        <div className="text-[11px] text-slate-600 bg-amber-50/60 border border-amber-100 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
+                          <span className="text-amber-600 font-bold">📝 관리자 메모:</span>
+                          <span className="truncate">{m.memo}</span>
+                        </div>
+                      )}
+
+                      {/* Action buttons */}
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedMember(m);
+                            setAdminTab('members');
+                          }}
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition cursor-pointer flex items-center gap-1"
+                        >
+                          <BookOpen className="w-3.5 h-3.5 text-[#1b64b9]" />
+                          <span>낭독 진도 보기</span>
+                        </button>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setEditingMember(m)}
+                            className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold rounded-lg border border-sky-200 transition cursor-pointer flex items-center gap-1"
+                          >
+                            <span>✏️ 정보 수정</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMember(m.id, m.name)}
+                            className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-lg border border-rose-200 transition cursor-pointer"
+                            title="회원 삭제"
+                          >
+                            <span>🗑️</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================
+            TAB 3: 회원 낭독 관리 (Members Table & Detail)
            ======================================================== */}
         {adminTab === 'members' && (
           <div className="space-y-3">
@@ -1182,15 +1627,15 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
               </div>
             </div>
 
-            {/* 2. Google Spreadsheet 4-Tab Schema & Structure Preview */}
+            {/* 2. Google Spreadsheet 5-Sheet Schema & Structure Preview */}
             <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3">
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="text-sm font-black text-slate-900 flex items-center gap-1.5">
-                    <span>📑 구글 스프레드시트 4대 시트 자동 구성</span>
+                    <span>📑 구글 스프레드시트 5대 시트 자동 구성 (회원관리 포함)</span>
                   </h4>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    yoocomdr57@gmail.com 계정의 스프레드시트에 자동 생성·동기화되는 테이블 구조입니다.
+                    yoocomdr57@gmail.com 계정의 스프레드시트에 자동 생성·동기화되는 마스터 테이블 구조입니다.
                   </p>
                 </div>
                 <button
@@ -1203,12 +1648,27 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs">
+                {/* Sheet 1: 회원관리 */}
+                <div className="p-3 bg-sky-50/80 rounded-xl border border-sky-200 space-y-1">
+                  <div className="flex items-center justify-between font-black text-sky-950">
+                    <span className="flex items-center gap-1 text-sky-700">
+                      <span>📇</span>
+                      <span>1. [회원관리] 마스터 시트</span>
+                    </span>
+                    <span className="text-[10px] bg-sky-200 text-sky-900 px-1.5 py-0.2 rounded font-bold">13개 컬럼</span>
+                  </div>
+                  <p className="text-[11px] text-sky-800">
+                    회원번호, 성명, 소속부서, 직분, 전화번호, 이메일, 등록일자, 생년월일, 세례구분, 구역/목장, 계정권한, 회원상태, 관리자메모
+                  </p>
+                </div>
+
+                {/* Sheet 2: 회원_낭독진도 */}
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
                   <div className="flex items-center justify-between font-black text-slate-900">
                     <span className="flex items-center gap-1 text-[#1b64b9]">
                       <span>📊</span>
-                      <span>1. [회원_낭독진도] 시트</span>
+                      <span>2. [회원_낭독진도] 시트</span>
                     </span>
                     <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded font-bold">15개 컬럼</span>
                   </div>
@@ -1217,11 +1677,12 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                   </p>
                 </div>
 
+                {/* Sheet 3: 낭독_음원검수 */}
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
                   <div className="flex items-center justify-between font-black text-slate-900">
                     <span className="flex items-center gap-1 text-purple-700">
                       <span>🎙️</span>
-                      <span>2. [낭독_음원검수] 시트</span>
+                      <span>3. [낭독_음원검수] 시트</span>
                     </span>
                     <span className="text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.2 rounded font-bold">13개 컬럼</span>
                   </div>
@@ -1230,11 +1691,12 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                   </p>
                 </div>
 
+                {/* Sheet 4: 통독_캠페인 */}
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
                   <div className="flex items-center justify-between font-black text-slate-900">
                     <span className="flex items-center gap-1 text-emerald-700">
                       <span>🎯</span>
-                      <span>3. [통독_캠페인] 시트</span>
+                      <span>4. [통독_캠페인] 시트</span>
                     </span>
                     <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold">9개 컬럼</span>
                   </div>
@@ -1243,11 +1705,12 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                   </p>
                 </div>
 
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+                {/* Sheet 5: 실시간_동기화로그 */}
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1 sm:col-span-2 lg:col-span-1">
                   <div className="flex items-center justify-between font-black text-slate-900">
                     <span className="flex items-center gap-1 text-slate-800">
                       <span>⚡</span>
-                      <span>4. [실시간_동기화로그] 시트</span>
+                      <span>5. [실시간_동기화로그] 시트</span>
                     </span>
                     <span className="text-[10px] bg-slate-200 text-slate-800 px-1.5 py-0.2 rounded font-bold">5개 컬럼</span>
                   </div>
@@ -1785,6 +2248,410 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                 className="flex-1 py-2.5 bg-[#1b64b9] hover:bg-blue-600 text-white text-xs font-black rounded-xl cursor-pointer shadow-xs"
               >
                 캠페인 개설
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          MODAL 7: 신규 회원 등록 모달 (Add Member Modal)
+         ======================================================== */}
+      {showAddMemberModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowAddMemberModal(false);
+          }}
+        >
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto no-scrollbar bg-white rounded-3xl shadow-2xl p-5 border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">📇</span>
+                <h3 className="text-sm font-black text-slate-900">신규 회원(교인) 등록</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddMemberModal(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">성명 <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    value={newMemberForm.name}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, name: e.target.value })}
+                    placeholder="예: 홍길동"
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">직분</label>
+                  <select
+                    value={newMemberForm.role}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, role: e.target.value })}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                  >
+                    <option value="성도">성도</option>
+                    <option value="청년">청년</option>
+                    <option value="서리집사">서리집사</option>
+                    <option value="안수집사">안수집사</option>
+                    <option value="권사">권사</option>
+                    <option value="장로">장로</option>
+                    <option value="교역자">교역자</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">소속 부서</label>
+                  <select
+                    value={newMemberForm.department}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, department: e.target.value })}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                  >
+                    <option value="청장년 성경통독부">청장년 성경통독부</option>
+                    <option value="대학청년부">대학청년부</option>
+                    <option value="교직원선교회">교직원선교회</option>
+                    <option value="주일학교 교사부">주일학교 교사부</option>
+                    <option value="장년 1교구">장년 1교구</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">구역/목장</label>
+                  <input
+                    type="text"
+                    value={newMemberForm.smallGroup}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, smallGroup: e.target.value })}
+                    placeholder="예: 믿음 1구역"
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">전화번호</label>
+                  <input
+                    type="text"
+                    value={newMemberForm.phone}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, phone: e.target.value })}
+                    placeholder="010-1234-5678"
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">이메일</label>
+                  <input
+                    type="email"
+                    value={newMemberForm.email}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, email: e.target.value })}
+                    placeholder="email@example.com"
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">생년월일</label>
+                  <input
+                    type="text"
+                    value={newMemberForm.birthdate}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, birthdate: e.target.value })}
+                    placeholder="YYYY.MM.DD"
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">등록일자</label>
+                  <input
+                    type="text"
+                    value={newMemberForm.registeredDate}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, registeredDate: e.target.value })}
+                    placeholder="YYYY.MM.DD"
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">세례 구분</label>
+                  <select
+                    value={newMemberForm.baptismStatus}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, baptismStatus: e.target.value as any })}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                  >
+                    <option value="세례">세례</option>
+                    <option value="유아세례">유아세례</option>
+                    <option value="입교">입교</option>
+                    <option value="학습">학습</option>
+                    <option value="원입">원입</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">계정 권한</label>
+                  <select
+                    value={newMemberForm.accountRole}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, accountRole: e.target.value as any })}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                  >
+                    <option value="member">👤 성도</option>
+                    <option value="leader">🛡️ 리더</option>
+                    <option value="pastor">⛪ 목회자</option>
+                    <option value="admin">👑 관리자</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">회원 상태</label>
+                  <select
+                    value={newMemberForm.accountStatus}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, accountStatus: e.target.value as any })}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                  >
+                    <option value="정상">🟢 정상</option>
+                    <option value="휴면">🟡 휴면</option>
+                    <option value="정지">🔴 정지</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 block mb-1">관리자 메모</label>
+                <textarea
+                  value={newMemberForm.memo}
+                  onChange={(e) => setNewMemberForm({ ...newMemberForm, memo: e.target.value })}
+                  placeholder="특이사항, 심방 필요 사항, 성경통독 목표 등"
+                  rows={2}
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowAddMemberModal(false)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateMember}
+                className="flex-1 py-2.5 bg-[#0284c7] hover:bg-sky-600 text-white text-xs font-black rounded-xl cursor-pointer shadow-xs"
+              >
+                회원 등록 완료
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          MODAL 8: 회원 정보 수정 모달 (Edit Member Modal)
+         ======================================================== */}
+      {editingMember && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setEditingMember(null);
+          }}
+        >
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto no-scrollbar bg-white rounded-3xl shadow-2xl p-5 border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">✏️</span>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">{editingMember.name} 회원 정보 수정</h3>
+                  <span className="text-[10px] text-slate-400 font-mono">ID: {editingMember.id}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingMember(null)}
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">성명 <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    value={editingMember.name}
+                    onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">직분</label>
+                  <select
+                    value={editingMember.role}
+                    onChange={(e) => setEditingMember({ ...editingMember, role: e.target.value })}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                  >
+                    <option value="성도">성도</option>
+                    <option value="청년">청년</option>
+                    <option value="서리집사">서리집사</option>
+                    <option value="안수집사">안수집사</option>
+                    <option value="권사">권사</option>
+                    <option value="장로">장로</option>
+                    <option value="교역자">교역자</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">소속 부서</label>
+                  <select
+                    value={editingMember.department}
+                    onChange={(e) => setEditingMember({ ...editingMember, department: e.target.value })}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                  >
+                    <option value="청장년 성경통독부">청장년 성경통독부</option>
+                    <option value="대학청년부">대학청년부</option>
+                    <option value="교직원선교회">교직원선교회</option>
+                    <option value="주일학교 교사부">주일학교 교사부</option>
+                    <option value="장년 1교구">장년 1교구</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">구역/목장</label>
+                  <input
+                    type="text"
+                    value={editingMember.smallGroup || ''}
+                    onChange={(e) => setEditingMember({ ...editingMember, smallGroup: e.target.value })}
+                    placeholder="예: 믿음 1구역"
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">전화번호</label>
+                  <input
+                    type="text"
+                    value={editingMember.phone}
+                    onChange={(e) => setEditingMember({ ...editingMember, phone: e.target.value })}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">이메일</label>
+                  <input
+                    type="email"
+                    value={editingMember.email}
+                    onChange={(e) => setEditingMember({ ...editingMember, email: e.target.value })}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">생년월일</label>
+                  <input
+                    type="text"
+                    value={editingMember.birthdate || ''}
+                    onChange={(e) => setEditingMember({ ...editingMember, birthdate: e.target.value })}
+                    placeholder="YYYY.MM.DD"
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">등록일자</label>
+                  <input
+                    type="text"
+                    value={editingMember.registeredDate || ''}
+                    onChange={(e) => setEditingMember({ ...editingMember, registeredDate: e.target.value })}
+                    placeholder="YYYY.MM.DD"
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">세례 구분</label>
+                  <select
+                    value={editingMember.baptismStatus || '세례'}
+                    onChange={(e) => setEditingMember({ ...editingMember, baptismStatus: e.target.value as any })}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                  >
+                    <option value="세례">세례</option>
+                    <option value="유아세례">유아세례</option>
+                    <option value="입교">입교</option>
+                    <option value="학습">학습</option>
+                    <option value="원입">원입</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">계정 권한</label>
+                  <select
+                    value={editingMember.accountRole || 'member'}
+                    onChange={(e) => setEditingMember({ ...editingMember, accountRole: e.target.value as any })}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                  >
+                    <option value="member">👤 성도</option>
+                    <option value="leader">🛡️ 리더</option>
+                    <option value="pastor">⛪ 목회자</option>
+                    <option value="admin">👑 관리자</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">회원 상태</label>
+                  <select
+                    value={editingMember.accountStatus || '정상'}
+                    onChange={(e) => setEditingMember({ ...editingMember, accountStatus: e.target.value as any })}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                  >
+                    <option value="정상">🟢 정상</option>
+                    <option value="휴면">🟡 휴면</option>
+                    <option value="정지">🔴 정지</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 block mb-1">관리자 메모</label>
+                <textarea
+                  value={editingMember.memo || ''}
+                  onChange={(e) => setEditingMember({ ...editingMember, memo: e.target.value })}
+                  placeholder="특이사항, 심방 필요 사항 등"
+                  rows={2}
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setEditingMember(null)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleUpdateMember}
+                className="flex-1 py-2.5 bg-[#0284c7] hover:bg-sky-600 text-white text-xs font-black rounded-xl cursor-pointer shadow-xs"
+              >
+                수정사항 저장
               </button>
             </div>
           </div>

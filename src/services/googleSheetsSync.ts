@@ -203,21 +203,39 @@ export async function syncBidirectionalWithGoogleSheets(
 export function generateAppsScriptCode(adminEmail = 'yoocomdr57@gmail.com'): string {
   return `/**
  * [수퍼바이블] 구글 스프레드시트 실시간 양방향 동기화 Web App
- * 대상 계정: ${adminEmail}
+ * 대상 관리자 계정: ${adminEmail}
  * 
- * 1. 구글 스프레드시트 열기 > 확장 프로그램 > Apps Script
- * 2. 이 코드를 복사하여 Code.gs에 붙여넣기
- * 3. [초기 시트 생성] 함수(setupSuperBibleSheets) 1회 실행
- * 4. [배포] > [새 배포] > 웹 앱(Web App) 선택:
- *    - 다음 사용자 권한으로 실행: 나(내 계정)
+ * 5개 마스터 시트 구성:
+ * 1. [회원관리] - 회원/교인 마스터 명부 (인적사항, 세례, 구역, 등록일)
+ * 2. [회원_낭독진도] - 성경 낭독 통독 진도 (통독회차, 현재성경, 장수, 완독수)
+ * 3. [낭독_음원검수] - 성도 음원 녹음 검수 및 베스트 선정
+ * 4. [통독_캠페인] - 교회 공동체 통독 캠페인 현황
+ * 5. [실시간_동기화로그] - 앱-스프레드시트 양방향 통신 이력
+ * 
+ * [연동 가이드]:
+ * 1. 구글 스프레드시트(${adminEmail}) 열기 > 확장 프로그램 > Apps Script
+ * 2. 이 코드를 복사하여 Code.gs에 붙여넣고 저장(Ctrl+S)
+ * 3. 함수 목록에서 [setupSuperBibleSheets] 선택 후 [실행] (5개 시트 자동 생성)
+ * 4. [배포] > [새 배포] > 유형: [웹 앱(Web App)] 선택:
+ *    - 설명: 수퍼바이블 실시간 동기화
+ *    - 다음 사용자 권한으로 실행: 나(${adminEmail})
  *    - 액세스 권한: 모든 사용자(Anyone)
- * 5. 생성된 웹 앱 URL을 수퍼바이블 관리자 화면에 입력하면 실시간 양방향 동기화가 동작합니다.
+ * 5. 발급된 웹 앱 URL을 수퍼바이블 관리자 [구글 시트 연동] 메뉴에 등록!
  */
 
 function setupSuperBibleSheets() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   
-  // 시트 1: 회원낭독진도
+  // 시트 1: 회원관리 (마스터 교인 명부)
+  var rosterSheet = ss.getSheetByName("회원관리") || ss.insertSheet("회원관리");
+  rosterSheet.clear();
+  rosterSheet.appendRow([
+    "회원번호", "성명", "소속부서", "직분", "전화번호", "이메일",
+    "등록일자", "생년월일", "세례구분", "구역/목장", "계정권한", "회원상태", "관리자메모"
+  ]);
+  rosterSheet.getRange(1, 1, 1, 13).setBackground("#0284c7").setFontColor("#ffffff").setFontWeight("bold");
+
+  // 시트 2: 회원_낭독진도
   var memberSheet = ss.getSheetByName("회원_낭독진도") || ss.insertSheet("회원_낭독진도");
   memberSheet.clear();
   memberSheet.appendRow([
@@ -227,7 +245,7 @@ function setupSuperBibleSheets() {
   ]);
   memberSheet.getRange(1, 1, 1, 15).setBackground("#1b64b9").setFontColor("#ffffff").setFontWeight("bold");
 
-  // 시트 2: 낭독_음원검수
+  // 시트 3: 낭독_음원검수
   var recSheet = ss.getSheetByName("낭독_음원검수") || ss.insertSheet("낭독_음원검수");
   recSheet.clear();
   recSheet.appendRow([
@@ -236,7 +254,7 @@ function setupSuperBibleSheets() {
   ]);
   recSheet.getRange(1, 1, 1, 13).setBackground("#7c3aed").setFontColor("#ffffff").setFontWeight("bold");
 
-  // 시트 3: 통독_캠페인
+  // 시트 4: 통독_캠페인
   var campSheet = ss.getSheetByName("통독_캠페인") || ss.insertSheet("통독_캠페인");
   campSheet.clear();
   campSheet.appendRow([
@@ -244,10 +262,10 @@ function setupSuperBibleSheets() {
   ]);
   campSheet.getRange(1, 1, 1, 9).setBackground("#059669").setFontColor("#ffffff").setFontWeight("bold");
 
-  // 시트 4: 실시간_동기화로그
+  // 시트 5: 실시간_동기화로그
   var logSheet = ss.getSheetByName("실시간_동기화로그") || ss.insertSheet("실시간_동기화로그");
   logSheet.clear();
-  logSheet.appendRow(["로그ID", "일시", "유형", "요약", "영향행수"]);
+  logSheet.appendRow(["로그ID", "일시", "방향", "요약", "영향행수"]);
   logSheet.getRange(1, 1, 1, 5).setBackground("#0f172a").setFontColor("#ffffff").setFontWeight("bold");
 }
 
@@ -257,24 +275,60 @@ function doPost(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
     if (data.action === "sync") {
-      var memberSheet = ss.getSheetByName("회원_낭독진도");
-      if (memberSheet && data.data && data.data.members) {
-        // 기존 데이터 유지 또는 갱신
-        var members = data.data.members;
+      var members = (data.data && data.data.members) ? data.data.members : [];
+
+      // 1. [회원관리] 시트 갱신
+      var rosterSheet = ss.getSheetByName("회원관리");
+      if (rosterSheet && members.length > 0) {
+        // 기존 헤더 제외 데이터 초기화 후 재작성
+        var lastRosterRow = rosterSheet.getLastRow();
+        if (lastRosterRow > 1) {
+          rosterSheet.getRange(2, 1, lastRosterRow - 1, 13).clearContent();
+        }
         for (var i = 0; i < members.length; i++) {
           var m = members[i];
-          memberSheet.appendRow([
+          rosterSheet.appendRow([
             m.id, m.name, m.department, m.role, m.phone, m.email,
-            m.currentReadingRound, m.currentBook, m.currentChapter,
-            m.totalReadChapters, m.recordingsCount, m.lastActive,
-            m.status, m.consecutiveDays, m.memo || ""
+            m.registeredDate || "", m.birthdate || "", m.baptismStatus || "세례",
+            m.smallGroup || "", m.accountRole || "member", m.accountStatus || "정상",
+            m.memo || ""
           ]);
         }
       }
 
+      // 2. [회원_낭독진도] 시트 갱신
+      var memberSheet = ss.getSheetByName("회원_낭독진도");
+      if (memberSheet && members.length > 0) {
+        var lastMemberRow = memberSheet.getLastRow();
+        if (lastMemberRow > 1) {
+          memberSheet.getRange(2, 1, lastMemberRow - 1, 15).clearContent();
+        }
+        for (var j = 0; j < members.length; j++) {
+          var mem = members[j];
+          memberSheet.appendRow([
+            mem.id, mem.name, mem.department, mem.role, mem.phone, mem.email,
+            mem.currentReadingRound, mem.currentBook, mem.currentChapter,
+            mem.totalReadChapters, mem.recordingsCount, mem.lastActive,
+            mem.status, mem.consecutiveDays, mem.memo || ""
+          ]);
+        }
+      }
+
+      // 3. [실시간_동기화로그] 시트 추가
+      var logSheet = ss.getSheetByName("실시간_동기화로그");
+      if (logSheet) {
+        logSheet.appendRow([
+          "LOG-" + new Date().getTime(),
+          new Date().toLocaleString("ko-KR"),
+          "양방향 동기화",
+          "회원 " + members.length + "명 정보 및 진도 동기화 완료",
+          members.length
+        ]);
+      }
+
       return ContentService.createTextOutput(JSON.stringify({
         status: "success",
-        message: "성공적으로 구글 시트에 실시간 반영되었습니다.",
+        message: "수퍼바이블 [회원관리] 및 [회원_낭독진도] 시트에 실시간 반영되었습니다.",
         timestamp: new Date().toISOString()
       })).setMimeType(ContentService.MimeType.JSON);
     }
@@ -288,12 +342,16 @@ function doPost(e) {
 
 function doGet(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var rosterSheet = ss.getSheetByName("회원관리");
   var memberSheet = ss.getSheetByName("회원_낭독진도");
-  var rows = memberSheet ? memberSheet.getDataRange().getValues() : [];
+  var rosterRows = rosterSheet ? rosterSheet.getDataRange().getValues() : [];
+  var memberRows = memberSheet ? memberSheet.getDataRange().getValues() : [];
   
   return ContentService.createTextOutput(JSON.stringify({
     status: "success",
-    count: rows.length > 0 ? rows.length - 1 : 0,
+    rosterCount: rosterRows.length > 0 ? rosterRows.length - 1 : 0,
+    memberProgressCount: memberRows.length > 0 ? memberRows.length - 1 : 0,
+    adminEmail: "${adminEmail}",
     timestamp: new Date().toISOString()
   })).setMimeType(ContentService.MimeType.JSON);
 }
