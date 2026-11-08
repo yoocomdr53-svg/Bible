@@ -371,8 +371,8 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     const v = verses[index];
     setCurrentSpeakingVerse(v.verse);
 
-    // 구절 낭독 시 쉼표(,)를 사용하여 자연스러운 호흡과 억양 부여 (마침표의 급격한 끊김 및 기계음 방지)
-    const textToRead = `${v.verse}절, ${v.text}`;
+    // 몇절 몇절(절 번호)을 제외하고 오직 절 본문 말씀만 자연스럽게 낭독
+    const textToRead = v.text;
     const utterance = new SpeechSynthesisUtterance(textToRead);
     utterance.lang = 'ko-KR';
 
@@ -448,7 +448,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     window.speechSynthesis.cancel();
     setIsPreviewPlaying(true);
 
-    const sample = '창세기 1장 1절, 태초에 하나님이 천지를 창조하시니라.';
+    const sample = '태초에 하나님이 천지를 창조하시니라.';
     const utterance = new SpeechSynthesisUtterance(sample);
     utterance.lang = 'ko-KR';
 
@@ -1314,49 +1314,30 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                     : 'hover:bg-slate-50'
                 }`}
               >
-                {/* 읽기 완료 체크 버튼 */}
-                <div className="pt-0.5 flex-shrink-0">
+                {/* Verse Number & Speaking Pulsing Indicator (절 앞 원 제거) */}
+                <div className="flex items-center gap-1.5 min-w-[24px] pt-0.5 flex-shrink-0">
+                  {isSpeaking && (
+                    <span className="w-2 h-2 rounded-full bg-[#1b64b9] animate-ping flex-shrink-0" title="현재 낭독 중" />
+                  )}
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleToggleVerseRead(v.verse);
                     }}
-                    title={isRead ? '읽기 완료 취소' : '읽기 완료로 표시'}
-                    className={`w-5 h-5 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                      isRead
-                        ? 'bg-emerald-500 text-white shadow-xs'
-                        : isInverted
-                        ? 'border border-slate-600 hover:border-emerald-400 bg-slate-800'
-                        : 'border border-slate-300 hover:border-emerald-500 bg-white'
-                    }`}
-                  >
-                    {isRead ? (
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
-                    ) : (
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-200" />
-                    )}
-                  </button>
-                </div>
-
-                {/* Verse Number & Speaking Pulsing Indicator */}
-                <div className="flex items-center gap-1 min-w-[24px] pt-0.5">
-                  {isSpeaking && (
-                    <span className="w-2 h-2 rounded-full bg-[#1b64b9] animate-ping flex-shrink-0" title="현재 낭독 중" />
-                  )}
-                  <span
-                    className={`text-base sm:text-lg font-black select-none ${
+                    title={isRead ? '읽기 완료됨 (클릭 시 취소)' : '클릭 시 읽기 완료 체크'}
+                    className={`text-base sm:text-lg font-black select-none cursor-pointer transition active:scale-90 ${
                       isSpeaking
                         ? 'text-[#1b64b9]'
                         : isRead
                         ? 'text-emerald-600'
                         : isInverted
-                        ? 'text-amber-400'
-                        : 'text-slate-900'
+                        ? 'text-amber-400 hover:text-amber-300'
+                        : 'text-slate-900 hover:text-emerald-600'
                     }`}
                   >
                     {v.verse}
-                  </span>
+                  </button>
                 </div>
 
                 {/* Verse Text with dynamic font size, weight, and family */}
