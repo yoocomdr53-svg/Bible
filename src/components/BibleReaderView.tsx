@@ -67,6 +67,228 @@ const FALLBACK_SCRIPTURES = [
   '풀은 마르고 꽃은 시드나 우리 하나님의 말씀은 영원히 서리라 하라.',
 ];
 
+// Web Audio API ambient pad for Drama Bible reading (거룩하고 따뜻한 성전 오르간/패드 입체 배경음)
+class DramaAmbiencePlayer {
+  private ctx: AudioContext | null = null;
+  private masterGain: GainNode | null = null;
+  private oscillators: OscillatorNode[] = [];
+  public isRunning = false;
+
+  start() {
+    if (this.isRunning) return;
+    try {
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+
+      this.ctx = new AudioCtx();
+      if (this.ctx.state === 'suspended') {
+        this.ctx.resume();
+      }
+
+      this.masterGain = this.ctx.createGain();
+
+      // Soft warm lowpass filter (380Hz) creating a heavenly church organ ambient pad
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(380, this.ctx.currentTime);
+
+      this.masterGain.connect(filter);
+      filter.connect(this.ctx.destination);
+
+      // Smooth fade-in: start at 0.001 and rise softly to 0.038 (3.8% volume - gentle, solemn non-intrusive pad)
+      this.masterGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
+      this.masterGain.gain.exponentialRampToValueAtTime(0.038, this.ctx.currentTime + 1.2);
+
+      // Sacred warm harmonic chord: F2 (87.31Hz), C3 (130.81Hz), A3 (220.00Hz), C4 (261.63Hz)
+      const freqs = [87.31, 130.81, 220.0, 261.63];
+      this.oscillators = freqs.map((f, i) => {
+        const osc = this.ctx!.createOscillator();
+        osc.type = i % 2 === 0 ? 'sine' : 'triangle';
+        osc.frequency.setValueAtTime(f, this.ctx!.currentTime);
+        osc.detune.setValueAtTime((i - 1.5) * 5, this.ctx!.currentTime);
+        osc.connect(this.masterGain!);
+        osc.start();
+        return osc;
+      });
+
+      this.isRunning = true;
+    } catch (e) {
+      console.warn('Web Audio ambience failed', e);
+    }
+  }
+
+  stop() {
+    if (!this.isRunning) return;
+    this.isRunning = false;
+    if (!this.ctx || !this.masterGain) return;
+
+    try {
+      const now = this.ctx.currentTime;
+      this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
+      this.masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+      setTimeout(() => {
+        this.oscillators.forEach((osc) => {
+          try {
+            osc.stop();
+            osc.disconnect();
+          } catch (e) {}
+        });
+        this.oscillators = [];
+        if (this.ctx && this.ctx.state !== 'closed') {
+          this.ctx.close();
+        }
+        this.ctx = null;
+        this.masterGain = null;
+      }, 700);
+    } catch (e) {
+      this.isRunning = false;
+    }
+  }
+}
+
+export interface VoiceProfile {
+  voice: SpeechSynthesisVoice | null;
+  pitch: number;
+  rate: number;
+  pauseMs: number;
+  isDrama: boolean;
+  engineName: string;
+  summary: string;
+}
+
+export const getVoiceProfile = (
+  type: string,
+  voices: SpeechSynthesisVoice[],
+  baseRate: number = 1.1,
+  userPitch: number = 0.96
+): VoiceProfile => {
+  const koVoices = (voices || []).filter(
+    (v) => v.lang.toLowerCase().includes('ko') || v.lang.toLowerCase().includes('kr')
+  );
+
+  const isFemale = (v: SpeechSynthesisVoice) => {
+    const n = v.name.toLowerCase();
+    return (
+      n.includes('sunhi') ||
+      n.includes('선희') ||
+      n.includes('heami') ||
+      n.includes('혜미') ||
+      n.includes('yuna') ||
+      n.includes('유나') ||
+      n.includes('sora') ||
+      n.includes('소라') ||
+      n.includes('seoyeon') ||
+      n.includes('서연') ||
+      n.includes('female') ||
+      n.includes('woman') ||
+      n.includes('여성') ||
+      n.includes('girl') ||
+      n.includes('google')
+    );
+  };
+
+  const isMale = (v: SpeechSynthesisVoice) => {
+    const n = v.name.toLowerCase();
+    return (
+      n.includes('injoon') ||
+      n.includes('in-joon') ||
+      n.includes('인준') ||
+      n.includes('sinji') ||
+      n.includes('신지') ||
+      n.includes('bongjin') ||
+      n.includes('봉진') ||
+      n.includes('male') ||
+      n.includes('man') ||
+      n.includes('남성') ||
+      n.includes('boy')
+    );
+  };
+
+  const isNatural = (v: SpeechSynthesisVoice) => {
+    const n = v.name.toLowerCase();
+    return n.includes('natural') || n.includes('online') || n.includes('neural');
+  };
+
+  const naturalFemale = koVoices.find((v) => isFemale(v) && isNatural(v));
+  const anyFemale = naturalFemale || koVoices.find((v) => isFemale(v));
+
+  const naturalMale = koVoices.find((v) => isMale(v) && isNatural(v));
+  const anyMale = naturalMale || koVoices.find((v) => isMale(v));
+
+  // 1. 여성 (맑은 음성)
+  if (type.includes('여성') || type.includes('맑은음')) {
+    const voice = anyFemale || koVoices.find((v) => !isMale(v)) || koVoices[0] || null;
+    const isActuallyMale = voice ? isMale(voice) && !isFemale(voice) : false;
+    // 여성 보이스 기본 피치 1.18, 남성 보이스 폴백 시 1.28로 조정하여 여성 음역대 완벽 구현
+    const pitch = isActuallyMale ? 1.28 : 1.18;
+    const rate = Math.round(baseRate * 1.02 * 100) / 100;
+    return {
+      voice,
+      pitch,
+      rate,
+      pauseMs: 60,
+      isDrama: false,
+      engineName: voice ? voice.name : '한국어 고음질 여성 엔진',
+      summary: '선명하고 맑은 고음질 여성 음성(Pitch 1.18)으로 은혜롭게 낭독합니다.',
+    };
+  }
+
+  // 2. AI 청년 목소리
+  if (type.includes('청년')) {
+    const voice =
+      koVoices.find((v) => v.name.toLowerCase().includes('google')) ||
+      koVoices.find((v) => isNatural(v) && v !== anyMale) ||
+      anyFemale ||
+      anyMale ||
+      koVoices[0] ||
+      null;
+    const pitch = 1.12; // 생동감 넘치고 자신감 있는 2030 청년 톤
+    const rate = Math.round(baseRate * 1.08 * 100) / 100; // 현대어에 맞춘 활기차고 경쾌한 낭독
+    return {
+      voice,
+      pitch,
+      rate,
+      pauseMs: 50,
+      isDrama: false,
+      engineName: voice ? voice.name : 'AI 고음질 청년 보이스',
+      summary: '또렷하고 생동감 있는 2030 청년 현대어 톤(Pitch 1.12, 속도 +8%)으로 낭독합니다.',
+    };
+  }
+
+  // 3. 드라마 입체 낭독
+  if (type.includes('드라마')) {
+    const voice = naturalMale || anyMale || koVoices.find((v) => isNatural(v)) || koVoices[0] || null;
+    const pitch = 0.85; // 장엄하고 거룩한 저음 울림
+    const rate = Math.round(Math.max(0.92, baseRate * 0.93) * 100) / 100; // 성경의 장엄한 현장감을 살리는 엄숙한 템포
+    return {
+      voice,
+      pitch,
+      rate,
+      pauseMs: 180, // 장엄한 장면 전환과 묵상을 위한 입체 호흡 간격
+      isDrama: true,
+      engineName: voice ? `${voice.name} + 성전 배경음` : '드라마 입체 사운드 엔진',
+      summary: '웅장한 대하 드라마풍 중저음(Pitch 0.85)과 성전 오르간 배경음이 함께 재생됩니다.',
+    };
+  }
+
+  // 4. 남성 (자연스러운 중저음) - 기본값
+  const voice = anyMale || koVoices.find((v) => !isFemale(v)) || koVoices[0] || null;
+  const isActuallyFemale = voice ? isFemale(voice) && !isMale(voice) : false;
+  const pitch = isActuallyFemale ? 0.78 : (userPitch <= 0.98 ? userPitch : 0.92);
+  const rate = baseRate;
+  return {
+    voice,
+    pitch,
+    rate,
+    pauseMs: 60,
+    isDrama: false,
+    engineName: voice ? voice.name : '한국어 고음질 남성 엔진',
+    summary: '깊고 따뜻한 울림의 편안한 남성 중저음(Pitch 0.92)으로 낭독합니다.',
+  };
+};
+
 export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   onOpenVerseCard,
   onOpenRecorder,
@@ -132,6 +354,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   const speechRateRef = useRef(speechRate);
   const speechPitchRef = useRef(speechPitch);
   const voiceTypeRef = useRef(voiceType);
+  const dramaAmbienceRef = useRef<DramaAmbiencePlayer>(new DramaAmbiencePlayer());
 
   useEffect(() => {
     speechRateRef.current = speechRate;
@@ -160,6 +383,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     window.speechSynthesis.onvoiceschanged = loadVoices;
 
     return () => {
+      dramaAmbienceRef.current.stop();
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
@@ -170,6 +394,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   useEffect(() => {
     return () => {
       isPlayingRef.current = false;
+      dramaAmbienceRef.current.stop();
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
@@ -315,85 +540,11 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     return () => clearInterval(interval);
   }, [isRecordingNow]);
 
-  // Select highest quality natural Korean voice from browser synthesis
-  const getBestKoreanVoice = (type: string, voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null => {
-    if (!voices || voices.length === 0) return null;
-
-    const koVoices = voices.filter(
-      (v) => v.lang.toLowerCase().includes('ko') || v.lang.toLowerCase().includes('kr')
-    );
-
-    if (koVoices.length === 0) return null;
-
-    // 1. 남성(중저음): Natural / Neural 남성 목소리 최우선 (InJoon, Google 한국어, 남성 음성)
-    if (type.includes('남성') || type.includes('중저음')) {
-      const naturalMale = koVoices.find((v) => {
-        const n = v.name.toLowerCase();
-        return (
-          (n.includes('injoon') || n.includes('in-joon') || n.includes('인준') || n.includes('male') || n.includes('남성')) &&
-          (n.includes('natural') || n.includes('online') || n.includes('neural'))
-        );
-      });
-      if (naturalMale) return naturalMale;
-
-      const anyMale = koVoices.find((v) => {
-        const n = v.name.toLowerCase();
-        return n.includes('injoon') || n.includes('in-joon') || n.includes('인준') || n.includes('male') || n.includes('남성');
-      });
-      if (anyMale) return anyMale;
-
-      const google = koVoices.find((v) => v.name.toLowerCase().includes('google'));
-      if (google) return google;
-
-      const anyNatural = koVoices.find((v) => {
-        const n = v.name.toLowerCase();
-        return n.includes('natural') || n.includes('online') || n.includes('neural');
-      });
-      if (anyNatural) return anyNatural;
-
-      return koVoices[0];
-    }
-
-    // 2. 여성(맑은음): Natural / Neural 여성 목소리 (SunHi, 선희, Sora, Yuna)
-    if (type.includes('여성') || type.includes('맑은음')) {
-      const naturalFemale = koVoices.find((v) => {
-        const n = v.name.toLowerCase();
-        return (
-          (n.includes('sunhi') || n.includes('선희') || n.includes('female') || n.includes('여성') || n.includes('yuna') || n.includes('sora')) &&
-          (n.includes('natural') || n.includes('online') || n.includes('neural'))
-        );
-      });
-      if (naturalFemale) return naturalFemale;
-
-      const anyFemale = koVoices.find((v) => {
-        const n = v.name.toLowerCase();
-        return n.includes('sunhi') || n.includes('선희') || n.includes('female') || n.includes('yuna') || n.includes('sora');
-      });
-      if (anyFemale) return anyFemale;
-
-      const google = koVoices.find((v) => v.name.toLowerCase().includes('google'));
-      if (google) return google;
-
-      return koVoices[0];
-    }
-
-    // 3. AI 청년 / 드라마 입체 낭독
-    const google = koVoices.find((v) => v.name.toLowerCase().includes('google'));
-    if (google) return google;
-
-    const anyNatural = koVoices.find((v) => {
-      const n = v.name.toLowerCase();
-      return n.includes('natural') || n.includes('online') || n.includes('neural');
-    });
-    if (anyNatural) return anyNatural;
-
-    return koVoices[0];
-  };
-
   const stopPlayback = () => {
     isPlayingRef.current = false;
     setIsPlaying(false);
     setCurrentSpeakingVerse(null);
+    dramaAmbienceRef.current.stop();
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
@@ -409,6 +560,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     if (isPreviewPlaying && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       setIsPreviewPlaying(false);
+      dramaAmbienceRef.current.stop();
     }
 
     // 재생 중이면 설정 변경 즉시 현재 절부터 새로운 속도로 실시간 전환
@@ -428,6 +580,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     if (isPreviewPlaying && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       setIsPreviewPlaying(false);
+      dramaAmbienceRef.current.stop();
     }
 
     if (isPlayingRef.current && 'speechSynthesis' in window) {
@@ -446,6 +599,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     if (isPreviewPlaying && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       setIsPreviewPlaying(false);
+      dramaAmbienceRef.current.stop();
     }
 
     if (isPlayingRef.current && 'speechSynthesis' in window) {
@@ -470,43 +624,32 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     const utterance = new SpeechSynthesisUtterance(textToRead);
     utterance.lang = 'ko-KR';
 
-    const currentVoice = voiceTypeRef.current || voiceType;
-    const bestVoice = getBestKoreanVoice(currentVoice, availableVoices);
-    if (bestVoice) {
-      utterance.voice = bestVoice;
-    }
-
+    const currentVoiceType = voiceTypeRef.current || voiceType;
     const currentRate = speechRateRef.current || speechRate || 1.1;
     const currentPitch = speechPitchRef.current || speechPitch || 0.96;
 
-    // 자연스러운 사람 목소리 톤과 활성화된 낭독 속도(기본 1.1x 빠른 낭독) 적용
-    if (currentVoice.includes('중저음')) {
-      const isNaturalOnline =
-        bestVoice?.name.toLowerCase().includes('natural') ||
-        bestVoice?.name.toLowerCase().includes('online') ||
-        bestVoice?.name.toLowerCase().includes('injoon');
-      utterance.pitch = isNaturalOnline ? 0.98 : currentPitch;
-      utterance.rate = currentRate;
-    } else if (currentVoice.includes('여성')) {
-      utterance.pitch = 1.02;
-      utterance.rate = currentRate;
-    } else if (currentVoice.includes('청년')) {
-      utterance.pitch = 1.0;
-      utterance.rate = currentRate;
+    const profile = getVoiceProfile(currentVoiceType, availableVoices, currentRate, currentPitch);
+
+    if (profile.voice) {
+      utterance.voice = profile.voice;
+    }
+    utterance.pitch = profile.pitch;
+    utterance.rate = profile.rate;
+
+    // 드라마 입체 낭독 선택 시 거룩한 성전 오르간 배경음 자동 재생
+    if (profile.isDrama) {
+      dramaAmbienceRef.current.start();
     } else {
-      // 드라마 입체 낭독
-      utterance.pitch = 0.95;
-      utterance.rate = currentRate;
+      dramaAmbienceRef.current.stop();
     }
 
     utterance.onend = () => {
       if (isPlayingRef.current) {
-        // 절마다 넘어가는 속도 대폭 개선: 지체 없이 60ms 초고속 부드러운 전환
         setTimeout(() => {
           if (isPlayingRef.current) {
             playVerseAtIndex(index + 1);
           }
-        }, 60);
+        }, profile.pauseMs);
       }
     };
 
@@ -517,7 +660,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           if (isPlayingRef.current) {
             playVerseAtIndex(index + 1);
           }
-        }, 60);
+        }, profile.pauseMs);
       }
     };
 
@@ -553,28 +696,28 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     const utterance = new SpeechSynthesisUtterance(sample);
     utterance.lang = 'ko-KR';
 
-    const voice = getBestKoreanVoice(type, availableVoices);
-    if (voice) {
-      utterance.voice = voice;
+    const profile = getVoiceProfile(type, availableVoices, rate, pitch);
+    if (profile.voice) {
+      utterance.voice = profile.voice;
     }
+    utterance.pitch = profile.pitch;
+    utterance.rate = profile.rate;
 
-    if (type.includes('중저음')) {
-      const isNaturalOnline =
-        voice?.name.toLowerCase().includes('natural') ||
-        voice?.name.toLowerCase().includes('online') ||
-        voice?.name.toLowerCase().includes('injoon');
-      utterance.pitch = isNaturalOnline ? 0.98 : pitch;
-      utterance.rate = rate;
-    } else if (type.includes('여성')) {
-      utterance.pitch = 1.02;
-      utterance.rate = rate;
+    if (profile.isDrama) {
+      dramaAmbienceRef.current.start();
     } else {
-      utterance.pitch = pitch;
-      utterance.rate = rate;
+      dramaAmbienceRef.current.stop();
     }
 
-    utterance.onend = () => setIsPreviewPlaying(false);
-    utterance.onerror = () => setIsPreviewPlaying(false);
+    utterance.onend = () => {
+      setIsPreviewPlaying(false);
+      dramaAmbienceRef.current.stop();
+    };
+    utterance.onerror = () => {
+      setIsPreviewPlaying(false);
+      dramaAmbienceRef.current.stop();
+    };
+
     window.speechSynthesis.speak(utterance);
   };
 
@@ -1263,7 +1406,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
             <span>선교 헌금 &gt;</span>
           </button>
 
-          {/* 남성(중저음) Voice & Speed Badge */}
+          {/* 낭독 음원 및 속도 설정 배지 */}
           <button
             type="button"
             onClick={() => setShowVoiceModal(true)}
@@ -1272,7 +1415,15 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
               isInverted ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-100 border-slate-200 text-slate-800'
             }`}
           >
-            <span>👦</span>
+            <span>
+              {voiceType.includes('여성')
+                ? '🌸'
+                : voiceType.includes('청년')
+                ? '✨'
+                : voiceType.includes('드라마')
+                ? '🎭'
+                : '🎙️'}
+            </span>
             <span>{voiceType}</span>
             <span className="text-[10px] text-[#1b64b9] font-black">{speechRate}x</span>
           </button>
@@ -1563,10 +1714,19 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
               title="클릭 시 낭독 음원 및 속도 설정 열기"
               className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border shadow-2xs flex items-center gap-1.5 transition cursor-pointer hover:opacity-90 active:scale-95 ${
                 isInverted
-                  ? 'bg-slate-800 text-blue-300 border-slate-700 hover:bg-slate-700'
+                  ? 'bg-slate-800 text-blue-300 border-slate-700 hover:bg-slate-750'
                   : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100/70'
               }`}
             >
+              <span>
+                {voiceType.includes('여성')
+                  ? '🌸'
+                  : voiceType.includes('청년')
+                  ? '✨'
+                  : voiceType.includes('드라마')
+                  ? '🎭'
+                  : '🎙️'}
+              </span>
               <span>낭독: {voiceType}</span>
               <span className="px-1.5 py-0.2 bg-[#1b64b9] text-white rounded-full text-[10px] font-black">
                 {speechRate}x
@@ -1963,25 +2123,29 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                   {
                     id: '남성(중저음)',
                     label: '남성 (자연스러운 중저음)',
-                    sub: '깊고 따뜻한 울림, 기계음 왜곡 제거 (권장)',
+                    sub: '깊고 따뜻한 바리톤 울림, 안정감 있는 낭독 (권장)',
+                    tag: '중저음 바리톤',
                     icon: '🎙️',
                   },
                   {
                     id: '여성(맑은음)',
                     label: '여성 (맑은 음성)',
-                    sub: '선명하고 차분한 여성 낭독',
+                    sub: '선명하고 맑은 고음질 여성 음성, 은혜로운 낭독',
+                    tag: '맑은 여성 톤',
                     icon: '🌸',
                   },
                   {
                     id: 'AI 청년 목소리',
                     label: 'AI 청년 목소리',
-                    sub: '또렷하고 자연스러운 현대어 낭독',
+                    sub: '또렷하고 생동감 넘치는 2030 청년 현대어 낭독',
+                    tag: '생동감 청년 톤',
                     icon: '✨',
                   },
                   {
                     id: '드라마 입체 낭독',
                     label: '드라마 입체 낭독',
-                    sub: '경건한 호흡과 엄숙한 분위기',
+                    sub: '장엄하고 거룩한 저음 낭독 + 성전 오르간 배경음',
+                    tag: '입체음향 · 배경 패드',
                     icon: '🎭',
                   },
                 ].map((item) => (
@@ -1998,18 +2162,29 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                     <div className="flex items-center gap-2.5">
                       <span className="text-xl">{item.icon}</span>
                       <div>
-                        <p
-                          className={`text-xs font-black ${
-                            voiceType === item.id ? 'text-[#1b64b9]' : 'text-slate-900'
-                          }`}
-                        >
-                          {item.label}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <p
+                            className={`text-xs font-black ${
+                              voiceType === item.id ? 'text-[#1b64b9]' : 'text-slate-900'
+                            }`}
+                          >
+                            {item.label}
+                          </p>
+                          <span
+                            className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${
+                              voiceType === item.id
+                                ? 'bg-blue-200/80 text-blue-800'
+                                : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {item.tag}
+                          </span>
+                        </div>
                         <p className="text-[10px] text-slate-500 font-bold">{item.sub}</p>
                       </div>
                     </div>
                     {voiceType === item.id && (
-                      <span className="w-5 h-5 rounded-full bg-[#1b64b9] text-white flex items-center justify-center text-xs font-black">
+                      <span className="w-5 h-5 rounded-full bg-[#1b64b9] text-white flex items-center justify-center text-xs font-black shadow-xs">
                         ✓
                       </span>
                     )}
@@ -2094,16 +2269,19 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
             </div>
 
             {/* Active Voice Info Box */}
-            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-[11px] space-y-1">
-              <div className="flex items-center gap-1.5 text-slate-700 font-extrabold">
-                <span className="text-emerald-600">●</span>
-                <span>감지된 고품질 엔진:</span>
-                <span className="text-[#1b64b9] truncate max-w-[150px]">
-                  {getBestKoreanVoice(voiceType, availableVoices)?.name || '한국어 고음질 자연어 엔진'}
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-[11px] space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-slate-700 font-extrabold">
+                  <span className="text-emerald-600">●</span>
+                  <span>현재 활성 음원:</span>
+                  <span className="text-[#1b64b9] font-black">{voiceType}</span>
+                </div>
+                <span className="text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200 truncate max-w-[140px]">
+                  {getVoiceProfile(voiceType, availableVoices, speechRate, speechPitch).engineName}
                 </span>
               </div>
-              <p className="text-[10px] text-slate-500 font-bold leading-relaxed">
-                ✓ 자연스러운 고음질 억양과 지연 없이 빠른 절간 전환 속도(60ms)를 적용했습니다.
+              <p className="text-[10px] text-slate-600 font-bold leading-relaxed">
+                ✓ {getVoiceProfile(voiceType, availableVoices, speechRate, speechPitch).summary}
               </p>
             </div>
 
@@ -2117,6 +2295,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                       window.speechSynthesis.cancel();
                     }
                     setIsPreviewPlaying(false);
+                    dramaAmbienceRef.current.stop();
                   } else {
                     previewVoice(voiceType, speechRate, speechPitch);
                   }
@@ -2137,6 +2316,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                     window.speechSynthesis.cancel();
                     setIsPreviewPlaying(false);
                   }
+                  dramaAmbienceRef.current.stop();
                   setShowVoiceModal(false);
                 }}
                 className="w-full py-2.5 rounded-xl bg-[#1b64b9] hover:bg-blue-700 text-white font-black text-xs shadow-md transition cursor-pointer active:scale-95"
