@@ -21,6 +21,7 @@ import { StatsView } from './StatsView';
 import { ChallengeView } from './ChallengeView';
 import { SettingsView } from './SettingsView';
 import { BibleSelectorView } from './BibleSelectorView';
+import { AdminBibleManagementView } from './AdminBibleManagementView';
 
 interface BibleDashboardProps {
   user: User;
@@ -156,7 +157,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
       className="w-full h-full bg-white flex flex-col relative overflow-hidden select-none z-20 text-slate-800"
     >
       {/* Top App Header (Brand Logo, Search, User Avatar) */}
-      {activeTab !== 'bible' && (
+      {activeTab !== 'bible' && activeTab !== 'admin' && (
         <header className="flex-shrink-0 bg-white border-b border-slate-100 z-30 px-4 pt-2.5 pb-2 flex items-center justify-between">
           {/* Brand: 수퍼바이블 */}
           <button
@@ -288,6 +289,33 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
 
           {/* Cards & Content Area */}
           <div className="px-4 py-3 space-y-3.5">
+            {/* Admin Management Quick Banner: 👑 관리자 성경관리 */}
+            <section
+              onClick={() => {
+                pushHistory({ tab: activeTab });
+                setActiveTab('admin');
+              }}
+              className="bg-gradient-to-r from-[#0f172a] via-[#1e293b] to-[#0f172a] rounded-2xl p-3 sm:p-3.5 text-white shadow-md border border-slate-700/70 cursor-pointer active:scale-98 transition flex items-center justify-between group"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-base shadow-xs flex-shrink-0 group-hover:scale-105 transition-transform">
+                  👑
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs sm:text-sm font-black text-white truncate">관리자 성경관리</span>
+                    <span className="text-[10px] bg-blue-600 text-blue-100 font-bold px-1.5 py-0.2 rounded-full flex-shrink-0">
+                      신규 프로그램
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-0.5 truncate">
+                    회원 낭독 현황 · 음원 검수 · 12목표 체계적 관리
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-white group-hover:translate-x-0.5 transition flex-shrink-0 ml-2" />
+            </section>
+
             {/* Top Sponsor Card: 갑자기 날아든 폭탄 */}
             <section className="bg-slate-100 rounded-xl border border-slate-200 overflow-hidden shadow-soft">
               <div className="px-3.5 py-2.5 flex items-center justify-between bg-white relative">
@@ -638,13 +666,53 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
             if (book) setChallengeSelectedBook(book);
           }}
           onBackToHome={() => setActiveTab('home')}
+          onOpenAdminManagement={() => {
+            pushHistory({
+              tab: 'challenge',
+              challengeSubScreen: challengeInitialSubScreen,
+              challengeBook: challengeSelectedBook,
+            });
+            setActiveTab('admin');
+          }}
         />
       )}
 
-      {activeTab === 'settings' && <SettingsView user={user} onLogout={onLogout} />}
+      {activeTab === 'settings' && (
+        <SettingsView
+          user={user}
+          onLogout={onLogout}
+          onOpenAdmin={() => {
+            pushHistory({ tab: 'settings' });
+            setActiveTab('admin');
+          }}
+        />
+      )}
+
+      {/* Admin Bible & Recitation Management View */}
+      {activeTab === 'admin' && (
+        <AdminBibleManagementView
+          user={user}
+          onBack={() => {
+            if (navHistory.length > 0) {
+              const prev = navHistory[navHistory.length - 1];
+              setNavHistory((p) => p.slice(0, -1));
+              setActiveTab(prev.tab);
+              if (prev.challengeSubScreen) {
+                setChallengeInitialSubScreen(prev.challengeSubScreen);
+              }
+              if (prev.challengeBook) {
+                setChallengeSelectedBook(prev.challengeBook);
+              }
+            } else {
+              setActiveTab('home');
+            }
+          }}
+          onNavigateToBible={navigateToPortion}
+        />
+      )}
 
       {/* Floating Microphone Button with Badge 'N' */}
-      {activeTab !== 'bible' && (
+      {activeTab !== 'bible' && activeTab !== 'admin' && (
         <aside className="absolute right-5 bottom-[70px] z-40">
           <div className="relative">
             <button
@@ -667,7 +735,8 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
       )}
 
       {/* Bottom Navigation Bar (홈 | 성경 | 찬송 | 도전!일독 | 설정 - Exact match to user screenshot) */}
-      <nav className="flex-shrink-0 bg-white border-t border-slate-200/90 z-30 px-2 py-1.5 flex items-center justify-around">
+      {activeTab !== 'admin' && (
+        <nav className="flex-shrink-0 bg-white border-t border-slate-200/90 z-30 px-2 py-1.5 flex items-center justify-around">
         {/* Tab 1: 홈 */}
         <button
           type="button"
@@ -728,6 +797,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
           <span className="text-[11px] font-medium mt-1">설정</span>
         </button>
       </nav>
+      )}
 
       {/* Global Search Modal */}
       {searchOpen && (

@@ -13,7 +13,7 @@ export interface User {
   recordingsCount: number;
 }
 
-export type ActiveTab = 'home' | 'bible' | 'stats' | 'challenge' | 'settings';
+export type ActiveTab = 'home' | 'bible' | 'stats' | 'challenge' | 'settings' | 'admin';
 
 export type ActiveModal =
   | 'none'

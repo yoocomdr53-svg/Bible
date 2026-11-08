@@ -5,9 +5,10 @@ import { User } from '../types';
 interface SettingsViewProps {
   user: User;
   onLogout: () => void;
+  onOpenAdmin?: () => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ user, onLogout }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ user, onLogout, onOpenAdmin }) => {
   const [alarmEnabled, setAlarmEnabled] = useState(true);
   const [readingSpeed, setReadingSpeed] = useState('1.0x');
   const [offlineCache, setOfflineCache] = useState(true);
@@ -101,6 +102,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, onLogout }) =>
             onChange={(e) => setOfflineCache(e.target.checked)}
             className="w-5 h-5 rounded text-[#0083e3] focus:ring-blue-500 cursor-pointer"
           />
+        </div>
+      </div>
+
+      {/* Admin Management Card */}
+      <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-4 border border-amber-200/90 shadow-soft">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-sm shadow-xs">
+              👑
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <h4 className="text-xs font-black text-amber-950">관리자 성경관리</h4>
+                <span className="text-[10px] bg-amber-200 text-amber-900 font-bold px-1.5 py-0.2 rounded-full">
+                  통합 관리
+                </span>
+              </div>
+              <p className="text-[11px] text-amber-800/90 mt-0.5">회원 성경낭독 진도, 음원 검수 및 수료증 발급</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenAdmin}
+            className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs cursor-pointer active:scale-95 transition shadow-xs flex-shrink-0"
+          >
+            프로그램 열기
+          </button>
         </div>
       </div>
 
