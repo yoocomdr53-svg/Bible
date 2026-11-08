@@ -67,93 +67,11 @@ const FALLBACK_SCRIPTURES = [
   '풀은 마르고 꽃은 시드나 우리 하나님의 말씀은 영원히 서리라 하라.',
 ];
 
-// Web Audio API ambient pad for Drama Bible reading (거룩하고 따뜻한 성전 오르간/패드 입체 배경음)
-class DramaAmbiencePlayer {
-  private ctx: AudioContext | null = null;
-  private masterGain: GainNode | null = null;
-  private oscillators: OscillatorNode[] = [];
-  public isRunning = false;
-
-  start() {
-    if (this.isRunning) return;
-    try {
-      const AudioCtx =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!AudioCtx) return;
-
-      this.ctx = new AudioCtx();
-      if (this.ctx.state === 'suspended') {
-        this.ctx.resume();
-      }
-
-      this.masterGain = this.ctx.createGain();
-
-      // Soft warm lowpass filter (380Hz) creating a heavenly church organ ambient pad
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(380, this.ctx.currentTime);
-
-      this.masterGain.connect(filter);
-      filter.connect(this.ctx.destination);
-
-      // Smooth fade-in: start at 0.001 and rise softly to 0.038 (3.8% volume - gentle, solemn non-intrusive pad)
-      this.masterGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
-      this.masterGain.gain.exponentialRampToValueAtTime(0.038, this.ctx.currentTime + 1.2);
-
-      // Sacred warm harmonic chord: F2 (87.31Hz), C3 (130.81Hz), A3 (220.00Hz), C4 (261.63Hz)
-      const freqs = [87.31, 130.81, 220.0, 261.63];
-      this.oscillators = freqs.map((f, i) => {
-        const osc = this.ctx!.createOscillator();
-        osc.type = i % 2 === 0 ? 'sine' : 'triangle';
-        osc.frequency.setValueAtTime(f, this.ctx!.currentTime);
-        osc.detune.setValueAtTime((i - 1.5) * 5, this.ctx!.currentTime);
-        osc.connect(this.masterGain!);
-        osc.start();
-        return osc;
-      });
-
-      this.isRunning = true;
-    } catch (e) {
-      console.warn('Web Audio ambience failed', e);
-    }
-  }
-
-  stop() {
-    if (!this.isRunning) return;
-    this.isRunning = false;
-    if (!this.ctx || !this.masterGain) return;
-
-    try {
-      const now = this.ctx.currentTime;
-      this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
-      this.masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
-      setTimeout(() => {
-        this.oscillators.forEach((osc) => {
-          try {
-            osc.stop();
-            osc.disconnect();
-          } catch (e) {}
-        });
-        this.oscillators = [];
-        if (this.ctx && this.ctx.state !== 'closed') {
-          this.ctx.close();
-        }
-        this.ctx = null;
-        this.masterGain = null;
-      }, 700);
-    } catch (e) {
-      this.isRunning = false;
-    }
-  }
-}
-
 export interface VoiceProfile {
   voice: SpeechSynthesisVoice | null;
   pitch: number;
   rate: number;
   pauseMs: number;
-  isDrama: boolean;
   engineName: string;
   summary: string;
 }
@@ -184,7 +102,6 @@ export const getVoiceProfile = (
       n.includes('female') ||
       n.includes('woman') ||
       n.includes('여성') ||
-      n.includes('girl') ||
       n.includes('google')
     );
   };
@@ -211,81 +128,65 @@ export const getVoiceProfile = (
     return n.includes('natural') || n.includes('online') || n.includes('neural');
   };
 
+  // Find natural female
   const naturalFemale = koVoices.find((v) => isFemale(v) && isNatural(v));
   const anyFemale = naturalFemale || koVoices.find((v) => isFemale(v));
 
+  // Find natural male
   const naturalMale = koVoices.find((v) => isMale(v) && isNatural(v));
   const anyMale = naturalMale || koVoices.find((v) => isMale(v));
 
-  // 1. 여성 (맑은 음성)
+  // 1. 여성 (맑고 부드러운 음성)
+  // 인위적인 피치 변조(기계음 원인)를 100% 제거하고, 천연 고음질 여성 뉴럴 보이스를 원음 그대로 재생!
   if (type.includes('여성') || type.includes('맑은음')) {
     const voice = anyFemale || koVoices.find((v) => !isMale(v)) || koVoices[0] || null;
-    const isActuallyMale = voice ? isMale(voice) && !isFemale(voice) : false;
-    // 여성 보이스 기본 피치 1.18, 남성 보이스 폴백 시 1.28로 조정하여 여성 음역대 완벽 구현
-    const pitch = isActuallyMale ? 1.28 : 1.18;
-    const rate = Math.round(baseRate * 1.02 * 100) / 100;
     return {
       voice,
-      pitch,
-      rate,
+      pitch: 1.0, // 왜곡 없는 순수 사람 목소리 톤 (남성 음성처럼 자연스럽고 매끄러움)
+      rate: baseRate,
       pauseMs: 60,
-      isDrama: false,
-      engineName: voice ? voice.name : '한국어 고음질 여성 엔진',
-      summary: '선명하고 맑은 고음질 여성 음성(Pitch 1.18)으로 은혜롭게 낭독합니다.',
+      engineName: voice ? voice.name : '자연스러운 고음질 여성 엔진',
+      summary: '기계음 왜곡 없이 부드럽고 은혜로운 100% 자연 여성 음성입니다.',
     };
   }
 
-  // 2. AI 청년 목소리
+  // 2. AI 청년 (젊은 남성 톤)
+  // 사용자 요구: "청년목소리면 남자인데 왜 여자 목소리가 나오는지 모르겠다" -> 반드시 남성 보이스 사용!
   if (type.includes('청년')) {
-    const voice =
-      koVoices.find((v) => v.name.toLowerCase().includes('google')) ||
-      koVoices.find((v) => isNatural(v) && v !== anyMale) ||
-      anyFemale ||
-      anyMale ||
-      koVoices[0] ||
-      null;
-    const pitch = 1.12; // 생동감 넘치고 자신감 있는 2030 청년 톤
-    const rate = Math.round(baseRate * 1.08 * 100) / 100; // 현대어에 맞춘 활기차고 경쾌한 낭독
+    const voice = naturalMale || anyMale || koVoices.find((v) => !isFemale(v)) || koVoices[0] || null;
     return {
       voice,
-      pitch,
-      rate,
+      pitch: 1.02, // 젊은 남성의 맑고 생동감 있는 톤
+      rate: Math.round(baseRate * 1.05 * 100) / 100, // 젊은 청년 특유의 밝고 거침없는 낭독
       pauseMs: 50,
-      isDrama: false,
-      engineName: voice ? voice.name : 'AI 고음질 청년 보이스',
-      summary: '또렷하고 생동감 있는 2030 청년 현대어 톤(Pitch 1.12, 속도 +8%)으로 낭독합니다.',
+      engineName: voice ? `${voice.name} (청년 남성)` : 'AI 청년 남성 보이스',
+      summary: '젊고 활기찬 청년 형제의 맑고 또렷한 남성 목소리입니다.',
     };
   }
 
-  // 3. 드라마 입체 낭독
+  // 3. 드라마 입체 낭독 (엄숙하고 경건한 대하 낭독)
+  // 거북한 인공 배경음(전자 부저음)을 완전히 삭제하고, 깊고 거룩한 대하 드라마풍 중저음 낭독으로 구현!
   if (type.includes('드라마')) {
-    const voice = naturalMale || anyMale || koVoices.find((v) => isNatural(v)) || koVoices[0] || null;
-    const pitch = 0.85; // 장엄하고 거룩한 저음 울림
-    const rate = Math.round(Math.max(0.92, baseRate * 0.93) * 100) / 100; // 성경의 장엄한 현장감을 살리는 엄숙한 템포
+    const voice = naturalMale || anyMale || koVoices[0] || null;
     return {
       voice,
-      pitch,
-      rate,
-      pauseMs: 180, // 장엄한 장면 전환과 묵상을 위한 입체 호흡 간격
-      isDrama: true,
-      engineName: voice ? `${voice.name} + 성전 배경음` : '드라마 입체 사운드 엔진',
-      summary: '웅장한 대하 드라마풍 중저음(Pitch 0.85)과 성전 오르간 배경음이 함께 재생됩니다.',
+      pitch: 0.94, // 장엄하고 거룩한 저음
+      rate: Math.round(Math.max(0.95, baseRate * 0.95) * 100) / 100, // 성경의 장엄함을 살리는 엄숙한 낭독
+      pauseMs: 120, // 성경 말씀의 깊은 묵상을 위한 자연스러운 호흡
+      engineName: voice ? `${voice.name} (드라마 낭독)` : '드라마 입체 낭독 엔진',
+      summary: '인공 잡음 없이 깊고 장엄한 울림의 대하 드라마풍 거룩한 낭독입니다.',
     };
   }
 
   // 4. 남성 (자연스러운 중저음) - 기본값
-  const voice = anyMale || koVoices.find((v) => !isFemale(v)) || koVoices[0] || null;
-  const isActuallyFemale = voice ? isFemale(voice) && !isMale(voice) : false;
-  const pitch = isActuallyFemale ? 0.78 : (userPitch <= 0.98 ? userPitch : 0.92);
-  const rate = baseRate;
+  const voice = naturalMale || anyMale || koVoices.find((v) => !isFemale(v)) || koVoices[0] || null;
   return {
     voice,
-    pitch,
-    rate,
+    pitch: 0.96, // 깊고 편안한 남성 중저음
+    rate: baseRate,
     pauseMs: 60,
-    isDrama: false,
     engineName: voice ? voice.name : '한국어 고음질 남성 엔진',
-    summary: '깊고 따뜻한 울림의 편안한 남성 중저음(Pitch 0.92)으로 낭독합니다.',
+    summary: '깊고 따뜻한 울림의 편안한 표준 남성 중저음(바리톤)입니다.',
   };
 };
 
@@ -354,7 +255,6 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   const speechRateRef = useRef(speechRate);
   const speechPitchRef = useRef(speechPitch);
   const voiceTypeRef = useRef(voiceType);
-  const dramaAmbienceRef = useRef<DramaAmbiencePlayer>(new DramaAmbiencePlayer());
 
   useEffect(() => {
     speechRateRef.current = speechRate;
@@ -383,7 +283,6 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     window.speechSynthesis.onvoiceschanged = loadVoices;
 
     return () => {
-      dramaAmbienceRef.current.stop();
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
@@ -394,7 +293,6 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   useEffect(() => {
     return () => {
       isPlayingRef.current = false;
-      dramaAmbienceRef.current.stop();
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
@@ -544,7 +442,6 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     isPlayingRef.current = false;
     setIsPlaying(false);
     setCurrentSpeakingVerse(null);
-    dramaAmbienceRef.current.stop();
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
@@ -560,7 +457,6 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     if (isPreviewPlaying && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       setIsPreviewPlaying(false);
-      dramaAmbienceRef.current.stop();
     }
 
     // 재생 중이면 설정 변경 즉시 현재 절부터 새로운 속도로 실시간 전환
@@ -580,7 +476,6 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     if (isPreviewPlaying && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       setIsPreviewPlaying(false);
-      dramaAmbienceRef.current.stop();
     }
 
     if (isPlayingRef.current && 'speechSynthesis' in window) {
@@ -599,7 +494,6 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     if (isPreviewPlaying && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       setIsPreviewPlaying(false);
-      dramaAmbienceRef.current.stop();
     }
 
     if (isPlayingRef.current && 'speechSynthesis' in window) {
@@ -635,13 +529,6 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     }
     utterance.pitch = profile.pitch;
     utterance.rate = profile.rate;
-
-    // 드라마 입체 낭독 선택 시 거룩한 성전 오르간 배경음 자동 재생
-    if (profile.isDrama) {
-      dramaAmbienceRef.current.start();
-    } else {
-      dramaAmbienceRef.current.stop();
-    }
 
     utterance.onend = () => {
       if (isPlayingRef.current) {
@@ -703,19 +590,11 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     utterance.pitch = profile.pitch;
     utterance.rate = profile.rate;
 
-    if (profile.isDrama) {
-      dramaAmbienceRef.current.start();
-    } else {
-      dramaAmbienceRef.current.stop();
-    }
-
     utterance.onend = () => {
       setIsPreviewPlaying(false);
-      dramaAmbienceRef.current.stop();
     };
     utterance.onerror = () => {
       setIsPreviewPlaying(false);
-      dramaAmbienceRef.current.stop();
     };
 
     window.speechSynthesis.speak(utterance);
@@ -1419,7 +1298,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
               {voiceType.includes('여성')
                 ? '🌸'
                 : voiceType.includes('청년')
-                ? '✨'
+                ? '👦'
                 : voiceType.includes('드라마')
                 ? '🎭'
                 : '🎙️'}
@@ -1722,7 +1601,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                 {voiceType.includes('여성')
                   ? '🌸'
                   : voiceType.includes('청년')
-                  ? '✨'
+                  ? '👦'
                   : voiceType.includes('드라마')
                   ? '🎭'
                   : '🎙️'}
@@ -2123,29 +2002,29 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                   {
                     id: '남성(중저음)',
                     label: '남성 (자연스러운 중저음)',
-                    sub: '깊고 따뜻한 바리톤 울림, 안정감 있는 낭독 (권장)',
-                    tag: '중저음 바리톤',
+                    sub: '깊고 편안한 바리톤 울림, 안정감 있는 낭독 (권장)',
+                    tag: '남성 바리톤',
                     icon: '🎙️',
                   },
                   {
                     id: '여성(맑은음)',
-                    label: '여성 (맑은 음성)',
-                    sub: '선명하고 맑은 고음질 여성 음성, 은혜로운 낭독',
-                    tag: '맑은 여성 톤',
+                    label: '여성 (맑고 부드러운 음성)',
+                    sub: '기계음 왜곡 없는 100% 자연스럽고 은혜로운 여성 목소리',
+                    tag: '자연 여성음',
                     icon: '🌸',
                   },
                   {
                     id: 'AI 청년 목소리',
-                    label: 'AI 청년 목소리',
-                    sub: '또렷하고 생동감 넘치는 2030 청년 현대어 낭독',
-                    tag: '생동감 청년 톤',
-                    icon: '✨',
+                    label: 'AI 청년 (젊은 남성 톤)',
+                    sub: '젊고 활기찬 청년 형제의 맑고 또렷한 남성 목소리',
+                    tag: '청년 남성',
+                    icon: '👦',
                   },
                   {
                     id: '드라마 입체 낭독',
-                    label: '드라마 입체 낭독',
-                    sub: '장엄하고 거룩한 저음 낭독 + 성전 오르간 배경음',
-                    tag: '입체음향 · 배경 패드',
+                    label: '드라마 입체 낭독 (엄숙·경건)',
+                    sub: '잡음 없이 깊고 장엄한 대하 드라마풍 거룩한 낭독',
+                    tag: '엄숙한 대하 낭독',
                     icon: '🎭',
                   },
                 ].map((item) => (
@@ -2295,7 +2174,6 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                       window.speechSynthesis.cancel();
                     }
                     setIsPreviewPlaying(false);
-                    dramaAmbienceRef.current.stop();
                   } else {
                     previewVoice(voiceType, speechRate, speechPitch);
                   }
@@ -2316,7 +2194,6 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                     window.speechSynthesis.cancel();
                     setIsPreviewPlaying(false);
                   }
-                  dramaAmbienceRef.current.stop();
                   setShowVoiceModal(false);
                 }}
                 className="w-full py-2.5 rounded-xl bg-[#1b64b9] hover:bg-blue-700 text-white font-black text-xs shadow-md transition cursor-pointer active:scale-95"
