@@ -94,17 +94,56 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(186); // 03:06
-  const [voiceType, setVoiceType] = useState('남성(중저음)');
+  const [voiceType, setVoiceType] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('superbible_voice_type');
+      if (saved) return saved;
+    } catch (e) {}
+    return '남성(중저음)';
+  });
 
   // Natural Korean TTS Speech Synthesis
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [speechRate, setSpeechRate] = useState<number>(0.92); // 차분하고 경건한 낭독 속도 (0.92x)
-  const [speechPitch, setSpeechPitch] = useState<number>(0.96); // 부드럽고 자연스러운 중저음 톤 (0.96)
+  const [speechRate, setSpeechRate] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('superbible_speech_rate');
+      if (saved) {
+        const parsed = parseFloat(saved);
+        if (!isNaN(parsed) && parsed >= 0.7 && parsed <= 2.0) return parsed;
+      }
+    } catch (e) {}
+    return 1.1; // 시원하고 경쾌한 1.1x 빠른 낭독 속도 (기본값)
+  });
+  const [speechPitch, setSpeechPitch] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('superbible_speech_pitch');
+      if (saved) {
+        const parsed = parseFloat(saved);
+        if (!isNaN(parsed) && parsed >= 0.7 && parsed <= 1.5) return parsed;
+      }
+    } catch (e) {}
+    return 0.96; // 부드럽고 자연스러운 중저음 톤 (0.96)
+  });
   const [currentSpeakingVerse, setCurrentSpeakingVerse] = useState<number | null>(null);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(false);
 
   const isPlayingRef = useRef(false);
   const currentVerseIndexRef = useRef(0);
+  const speechRateRef = useRef(speechRate);
+  const speechPitchRef = useRef(speechPitch);
+  const voiceTypeRef = useRef(voiceType);
+
+  useEffect(() => {
+    speechRateRef.current = speechRate;
+  }, [speechRate]);
+
+  useEffect(() => {
+    speechPitchRef.current = speechPitch;
+  }, [speechPitch]);
+
+  useEffect(() => {
+    voiceTypeRef.current = voiceType;
+  }, [voiceType]);
 
   // Load and cache browser/system speech synthesis voices
   useEffect(() => {
@@ -360,6 +399,61 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     }
   };
 
+  const handleSelectSpeechRate = (rate: number) => {
+    setSpeechRate(rate);
+    speechRateRef.current = rate;
+    try {
+      localStorage.setItem('superbible_speech_rate', String(rate));
+    } catch (e) {}
+
+    if (isPreviewPlaying && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setIsPreviewPlaying(false);
+    }
+
+    // 재생 중이면 설정 변경 즉시 현재 절부터 새로운 속도로 실시간 전환
+    if (isPlayingRef.current && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      playVerseAtIndex(currentVerseIndexRef.current);
+    }
+  };
+
+  const handleSelectVoiceType = (type: string) => {
+    setVoiceType(type);
+    voiceTypeRef.current = type;
+    try {
+      localStorage.setItem('superbible_voice_type', type);
+    } catch (e) {}
+
+    if (isPreviewPlaying && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setIsPreviewPlaying(false);
+    }
+
+    if (isPlayingRef.current && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      playVerseAtIndex(currentVerseIndexRef.current);
+    }
+  };
+
+  const handleSelectSpeechPitch = (pitch: number) => {
+    setSpeechPitch(pitch);
+    speechPitchRef.current = pitch;
+    try {
+      localStorage.setItem('superbible_speech_pitch', String(pitch));
+    } catch (e) {}
+
+    if (isPreviewPlaying && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setIsPreviewPlaying(false);
+    }
+
+    if (isPlayingRef.current && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      playVerseAtIndex(currentVerseIndexRef.current);
+    }
+  };
+
   const playVerseAtIndex = (index: number) => {
     if (!isPlayingRef.current) return;
     if (index >= verses.length) {
@@ -376,47 +470,54 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     const utterance = new SpeechSynthesisUtterance(textToRead);
     utterance.lang = 'ko-KR';
 
-    const bestVoice = getBestKoreanVoice(voiceType, availableVoices);
+    const currentVoice = voiceTypeRef.current || voiceType;
+    const bestVoice = getBestKoreanVoice(currentVoice, availableVoices);
     if (bestVoice) {
       utterance.voice = bestVoice;
     }
 
-    // 인위적인 pitch 0.8 강제 다운샘플링(기계음 원인)을 제거하고,
-    // 자연스러운 사람 목소리 대역(0.95~0.98)으로 부드럽게 재생
-    if (voiceType.includes('중저음')) {
+    const currentRate = speechRateRef.current || speechRate || 1.1;
+    const currentPitch = speechPitchRef.current || speechPitch || 0.96;
+
+    // 자연스러운 사람 목소리 톤과 활성화된 낭독 속도(기본 1.1x 빠른 낭독) 적용
+    if (currentVoice.includes('중저음')) {
       const isNaturalOnline =
         bestVoice?.name.toLowerCase().includes('natural') ||
         bestVoice?.name.toLowerCase().includes('online') ||
         bestVoice?.name.toLowerCase().includes('injoon');
-      utterance.pitch = isNaturalOnline ? 0.98 : (speechPitch || 0.95);
-      utterance.rate = speechRate || 0.92;
-    } else if (voiceType.includes('여성')) {
+      utterance.pitch = isNaturalOnline ? 0.98 : currentPitch;
+      utterance.rate = currentRate;
+    } else if (currentVoice.includes('여성')) {
       utterance.pitch = 1.02;
-      utterance.rate = speechRate || 0.95;
-    } else if (voiceType.includes('청년')) {
+      utterance.rate = currentRate;
+    } else if (currentVoice.includes('청년')) {
       utterance.pitch = 1.0;
-      utterance.rate = speechRate || 0.98;
+      utterance.rate = currentRate;
     } else {
       // 드라마 입체 낭독
       utterance.pitch = 0.95;
-      utterance.rate = 0.90;
+      utterance.rate = currentRate;
     }
 
     utterance.onend = () => {
       if (isPlayingRef.current) {
-        // 구절과 구절 사이 자연스러운 350ms 묵상/호흡 간격
+        // 절마다 넘어가는 속도 대폭 개선: 지체 없이 60ms 초고속 부드러운 전환
         setTimeout(() => {
           if (isPlayingRef.current) {
             playVerseAtIndex(index + 1);
           }
-        }, 350);
+        }, 60);
       }
     };
 
     utterance.onerror = (err) => {
       console.warn('Speech error at verse', v.verse, err);
       if (isPlayingRef.current) {
-        playVerseAtIndex(index + 1);
+        setTimeout(() => {
+          if (isPlayingRef.current) {
+            playVerseAtIndex(index + 1);
+          }
+        }, 60);
       }
     };
 
@@ -1162,16 +1263,18 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
             <span>선교 헌금 &gt;</span>
           </button>
 
-          {/* 남성(중저음) Voice Badge */}
+          {/* 남성(중저음) Voice & Speed Badge */}
           <button
             type="button"
             onClick={() => setShowVoiceModal(true)}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-full border font-bold text-[11px] transition cursor-pointer ${
+            title="클릭 시 낭독 음원 및 속도 설정"
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-bold text-[11px] transition cursor-pointer hover:opacity-90 active:scale-95 ${
               isInverted ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-100 border-slate-200 text-slate-800'
             }`}
           >
             <span>👦</span>
             <span>{voiceType}</span>
+            <span className="text-[10px] text-[#1b64b9] font-black">{speechRate}x</span>
           </button>
         </div>
       </div>
@@ -1453,14 +1556,22 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           <span className="font-mono text-xs text-slate-500 flex-shrink-0">{formatTime(currentTime)}</span>
 
           <div className="flex items-center gap-1.5 flex-wrap justify-center">
-            {/* 낭독: 남성(중저음) */}
-            <div
-              className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border shadow-2xs ${
-                isInverted ? 'bg-slate-800 text-blue-300 border-slate-700' : 'bg-blue-50 text-blue-700 border-blue-100/80'
+            {/* 낭독 음원 및 속도 활성화 버튼 (클릭 시 음원 설정) */}
+            <button
+              type="button"
+              onClick={() => setShowVoiceModal(true)}
+              title="클릭 시 낭독 음원 및 속도 설정 열기"
+              className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border shadow-2xs flex items-center gap-1.5 transition cursor-pointer hover:opacity-90 active:scale-95 ${
+                isInverted
+                  ? 'bg-slate-800 text-blue-300 border-slate-700 hover:bg-slate-700'
+                  : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100/70'
               }`}
             >
-              낭독: {voiceType}
-            </div>
+              <span>낭독: {voiceType}</span>
+              <span className="px-1.5 py-0.2 bg-[#1b64b9] text-white rounded-full text-[10px] font-black">
+                {speechRate}x
+              </span>
+            </button>
 
             {/* 낭독:남성(중저음) 옆 이 장 전체 완독 버튼 */}
             <button
@@ -1877,13 +1988,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => {
-                      setVoiceType(item.id);
-                      if (isPreviewPlaying && 'speechSynthesis' in window) {
-                        window.speechSynthesis.cancel();
-                        setIsPreviewPlaying(false);
-                      }
-                    }}
+                    onClick={() => handleSelectVoiceType(item.id)}
                     className={`w-full p-2.5 rounded-2xl text-left border transition cursor-pointer flex items-center justify-between ${
                       voiceType === item.id
                         ? 'bg-blue-50 border-2 border-[#1b64b9] shadow-xs'
@@ -1915,36 +2020,43 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
 
             {/* Speed Control */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <p className="text-xs font-bold text-slate-600">2. 낭독 속도</p>
-                <span className="text-xs font-black text-[#1b64b9]">{speechRate}x</span>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-bold text-slate-700">2. 낭독 속도</p>
+                <span className="text-xs font-black text-[#1b64b9] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                  현재 속도: {speechRate}x
+                </span>
               </div>
-              <div className="grid grid-cols-4 gap-1.5">
+              <div className="grid grid-cols-5 gap-1.5">
                 {[
-                  { label: '느리게', rate: 0.85 },
-                  { label: '차분하게', rate: 0.92 },
-                  { label: '보통', rate: 1.0 },
-                  { label: '빠르게', rate: 1.15 },
-                ].map((s) => (
-                  <button
-                    key={s.label}
-                    type="button"
-                    onClick={() => {
-                      setSpeechRate(s.rate);
-                      if (isPreviewPlaying && 'speechSynthesis' in window) {
-                        window.speechSynthesis.cancel();
-                        setIsPreviewPlaying(false);
-                      }
-                    }}
-                    className={`py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                      speechRate === s.rate
-                        ? 'bg-[#1b64b9] text-white border-[#1b64b9]'
-                        : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
-                    }`}
-                  >
-                    {s.label}
-                  </button>
-                ))}
+                  { label: '0.9x', sub: '차분하게', rate: 0.9 },
+                  { label: '1.0x', sub: '표준', rate: 1.0 },
+                  { label: '1.1x', sub: '추천·빠름', rate: 1.1 },
+                  { label: '1.2x', sub: '빠르게', rate: 1.2 },
+                  { label: '1.35x', sub: '속독', rate: 1.35 },
+                ].map((s) => {
+                  const isActive = Math.abs(speechRate - s.rate) < 0.03;
+                  return (
+                    <button
+                      key={s.rate}
+                      type="button"
+                      onClick={() => handleSelectSpeechRate(s.rate)}
+                      className={`py-2 px-1 rounded-xl text-center border transition cursor-pointer flex flex-col items-center justify-center ${
+                        isActive
+                          ? 'bg-[#1b64b9] text-white border-[#1b64b9] shadow-sm ring-2 ring-blue-300 font-black'
+                          : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700 font-semibold'
+                      }`}
+                    >
+                      <span className="text-xs font-black leading-tight">{s.label}</span>
+                      <span
+                        className={`text-[10px] mt-0.5 leading-tight ${
+                          isActive ? 'text-blue-100 font-bold' : 'text-slate-400'
+                        }`}
+                      >
+                        {s.sub}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -1961,26 +2073,23 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                   { label: '깊은 저음', pitch: 0.94 },
                   { label: '부드러운 중저음', pitch: 0.96 },
                   { label: '표준 톤', pitch: 1.0 },
-                ].map((p) => (
-                  <button
-                    key={p.label}
-                    type="button"
-                    onClick={() => {
-                      setSpeechPitch(p.pitch);
-                      if (isPreviewPlaying && 'speechSynthesis' in window) {
-                        window.speechSynthesis.cancel();
-                        setIsPreviewPlaying(false);
-                      }
-                    }}
-                    className={`py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                      speechPitch === p.pitch
-                        ? 'bg-[#1b64b9] text-white border-[#1b64b9]'
-                        : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
+                ].map((p) => {
+                  const isActive = Math.abs(speechPitch - p.pitch) < 0.01;
+                  return (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => handleSelectSpeechPitch(p.pitch)}
+                      className={`py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                        isActive
+                          ? 'bg-[#1b64b9] text-white border-[#1b64b9] shadow-xs ring-2 ring-blue-300 font-black'
+                          : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -1994,7 +2103,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                 </span>
               </div>
               <p className="text-[10px] text-slate-500 font-bold leading-relaxed">
-                ✓ 인위적인 기계음 왜곡(Pitch 0.8)을 제거하고 자연스러운 억양과 절간 묵상 간격(350ms)을 적용했습니다.
+                ✓ 자연스러운 고음질 억양과 지연 없이 빠른 절간 전환 속도(60ms)를 적용했습니다.
               </p>
             </div>
 
