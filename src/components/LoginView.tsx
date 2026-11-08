@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Lock, Eye, EyeOff, Settings, Info, Loader2 } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Settings, Info, Loader2, Smartphone, CheckCircle2, ChevronRight, Sparkles } from 'lucide-react';
 import { ActiveModal, User } from '../types';
 
 interface LoginViewProps {
@@ -233,16 +233,108 @@ export const LoginView: React.FC<LoginViewProps> = ({
             <div className="relative flex items-center justify-center my-1">
               <div className="border-t border-slate-200 w-full" />
               <span className="bg-white px-2.5 text-[11px] text-slate-400 font-medium absolute">
-                또는 간편 로그인
+                스마트폰 구글 로그인 연동
               </span>
             </div>
 
-            {/* Google Sign-in Button (Matching Official Google Colors) */}
+            {/* Smartphone Detected Google Account 1-Touch Card */}
+            <div className="p-3 bg-gradient-to-br from-blue-50/90 via-slate-50 to-indigo-50/80 rounded-2xl border-2 border-blue-400/80 shadow-xs space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Smartphone className="w-3.5 h-3.5 text-blue-600" />
+                  <span className="text-[11.5px] font-black text-slate-800">
+                    스마트폰 접속 구글 계정
+                  </span>
+                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                </div>
+                <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                  👑 최고 관리자
+                </span>
+              </div>
+
+              {/* Account Quick Card */}
+              <div className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-blue-100 shadow-2xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="relative flex-shrink-0">
+                    <div className="w-9 h-9 rounded-full bg-[#1b64b9] text-white flex items-center justify-center font-black text-xs shadow-xs">
+                      관리
+                    </div>
+                    <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-white rounded-full flex items-center justify-center border border-slate-200">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                    </div>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1">
+                      <p className="text-[12.5px] font-black text-slate-900 truncate">로고스 관리자</p>
+                      <CheckCircle2 className="w-3 h-3 text-blue-600 flex-shrink-0" />
+                    </div>
+                    <p className="text-[11px] text-blue-900 font-semibold truncate font-mono">
+                      yoocomdr57@gmail.com
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => openModal('google-chooser')}
+                  className="text-[11px] text-slate-500 hover:text-blue-600 font-bold px-2 py-1 rounded-lg hover:bg-slate-50 transition cursor-pointer flex-shrink-0"
+                >
+                  계정변경
+                </button>
+              </div>
+
+              {/* Direct 1-Touch Google Login Button for Smartphone */}
+              <button
+                id="directGoogleConnectBtn"
+                type="button"
+                onClick={() => {
+                  onLoginSuccess({
+                    id: 'user-yoocomdr57',
+                    name: '로고스 관리자 (yoocomdr57)',
+                    email: 'yoocomdr57@gmail.com',
+                    avatarText: '관리',
+                    role: 'admin',
+                    provider: 'google',
+                    schoolName: '로고스 수퍼바이블 공동체',
+                    department: '교목실 & 성경통독 총괄관리부',
+                    consecutiveDays: 30,
+                    ntProgress: 100,
+                    todayVersesRead: 10,
+                    recordingsCount: 25,
+                  });
+                }}
+                className="w-full h-11 bg-[#1b64b9] hover:bg-blue-600 active:scale-[0.99] text-white font-black text-[13px] rounded-xl shadow-md transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center p-0.5 flex-shrink-0">
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                    <path
+                      d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
+                      fill="#4285F4"
+                    />
+                    <path
+                      d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.26v3.15C3.25 21.36 7.31 24 12 24z"
+                      fill="#34A853"
+                    />
+                    <path
+                      d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.26C.46 8.16 0 9.97 0 12s.46 3.84 1.26 5.42l4.02-3.15z"
+                      fill="#FBBC05"
+                    />
+                    <path
+                      d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.25 2.64 1.26 6.58l4.02 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+                      fill="#EA4335"
+                    />
+                  </svg>
+                </div>
+                <span>yoocomdr57@gmail.com 으로 바로 로그인</span>
+              </button>
+            </div>
+
+            {/* Standard Google Sign-in Button (Opens Account Chooser) */}
             <button
               id="googleSignInBtn"
               type="button"
-              onClick={onGoogleLogin}
-              className="w-full h-11 bg-white hover:bg-slate-50 active:scale-[0.99] text-slate-700 font-medium text-[13.5px] rounded-xl border border-slate-200 shadow-xs transition-all duration-150 flex items-center justify-center gap-2.5 tracking-tight focus:outline-none focus:ring-1.5 focus:ring-slate-400 cursor-pointer"
+              onClick={() => openModal('google-chooser')}
+              className="w-full h-11 bg-white hover:bg-slate-50 active:scale-[0.99] text-slate-700 font-bold text-[13px] rounded-xl border border-slate-200 shadow-2xs transition-all duration-150 flex items-center justify-center gap-2.5 tracking-tight focus:outline-none focus:ring-1.5 focus:ring-slate-400 cursor-pointer"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
                 <path
@@ -262,11 +354,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   fill="#EA4335"
                 />
               </svg>
-              <span>Google 아이디로 로그인</span>
+              <span>Google 다른 계정 선택 로그인</span>
             </button>
 
             <p className="text-center text-[11px] text-slate-400 tracking-tight">
-              학교 구글 워크스페이스 및 연동 계정으로 즉시 로그인됩니다
+              스마트폰 Google 계정 및 구글 시트 데이터와 실시간 연동됩니다
             </p>
           </div>
 

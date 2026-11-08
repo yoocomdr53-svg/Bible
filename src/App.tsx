@@ -66,32 +66,76 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 }
 
+const SESSION_USER_KEY = 'superbible_user_session_v2';
+const SESSION_VIEW_KEY = 'superbible_view_session_v2';
+
+const DEFAULT_CONNECTED_ADMIN_USER: User = {
+  id: 'user-yoocomdr57',
+  name: '로고스 관리자',
+  email: 'yoocomdr57@gmail.com',
+  avatarText: '관리',
+  role: 'admin',
+  provider: 'google',
+  schoolName: '로고스 수퍼바이블 공동체',
+  department: '교목실 & 성경통독 총괄관리부',
+  consecutiveDays: 30,
+  ntProgress: 100,
+  todayVersesRead: 10,
+  recordingsCount: 25,
+};
+
+function getSavedUser(): User {
+  try {
+    const saved = localStorage.getItem(SESSION_USER_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && parsed.email) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to restore user session:', e);
+  }
+  return DEFAULT_CONNECTED_ADMIN_USER;
+}
+
+function getSavedView(): 'login' | 'dashboard' {
+  try {
+    const savedView = localStorage.getItem(SESSION_VIEW_KEY);
+    if (savedView === 'login' || savedView === 'dashboard') {
+      return savedView;
+    }
+    const savedUser = localStorage.getItem(SESSION_USER_KEY);
+    if (savedUser) return 'dashboard';
+  } catch (e) {
+    // ignore
+  }
+  return 'dashboard';
+}
+
 export default function App() {
-  const [currentView, setCurrentView] = useState<'login' | 'dashboard'>('login');
+  const [currentView, setCurrentView] = useState<'login' | 'dashboard'>(getSavedView);
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
   const [deviceFrameMode, setDeviceFrameMode] = useState<boolean>(true);
 
-  // User session state
-  const [user, setUser] = useState<User>({
-    id: 'user-yooc',
-    name: '로고스 관리자',
-    email: 'yoocomdr57@gmail.com',
-    avatarText: '관리',
-    role: 'admin',
-    provider: 'google',
-    schoolName: '로고스 수퍼바이블 공동체',
-    department: '교목실 & 성경통독부',
-    consecutiveDays: 14,
-    ntProgress: 42,
-    todayVersesRead: 4,
-    recordingsCount: 7,
-  });
+  // User session state (Defaults to connected Google admin account: yoocomdr57@gmail.com)
+  const [user, setUser] = useState<User>(getSavedUser);
 
   const [pendingAccount, setPendingAccount] = useState<Partial<User> | null>(null);
   const [readingPlans, setReadingPlans] = useState<ReadingDayPlan[]>(INITIAL_READING_PLANS);
   const [recordings, setRecordings] = useState<UserRecording[]>(INITIAL_RECORDINGS);
   const [verseForCard, setVerseForCard] = useState<BibleVerse>(TODAY_VERSE);
   const [verseForRecorder, setVerseForRecorder] = useState<BibleVerse>(TODAY_VERSE);
+
+  // Helper to persist user & view session
+  const persistSession = (updatedUser: User, updatedView: 'login' | 'dashboard') => {
+    try {
+      localStorage.setItem(SESSION_USER_KEY, JSON.stringify(updatedUser));
+      localStorage.setItem(SESSION_VIEW_KEY, updatedView);
+    } catch (e) {
+      console.warn('Failed to persist session:', e);
+    }
+  };
 
   // Handlers
   const handleOpenModal = (modal: ActiveModal) => {
@@ -110,38 +154,71 @@ export default function App() {
 
   // Auth sync animation finished -> switch to Bible Dashboard
   const handleFinishSync = () => {
+    let nextUser = user;
     if (pendingAccount) {
-      setUser((prev) => ({ ...prev, ...pendingAccount }));
+      nextUser = { ...user, ...pendingAccount } as User;
+      setUser(nextUser);
     }
+    persistSession(nextUser, 'dashboard');
     setActiveModal('none');
     setCurrentView('dashboard');
   };
 
-  // Direct Google login without account chooser modal
+  // Direct Google login with connected smartphone Google account (yoocomdr57@gmail.com)
   const handleDirectGoogleLogin = () => {
-    setUser((prev) => ({
-      ...prev,
-      id: 'user-yooc',
-      name: 'yooc',
-      email: 'yooc.dev@gmail.com',
-      avatarText: 'yooc',
-      role: 'saint',
+    const adminUser: User = {
+      ...user,
+      id: 'user-yoocomdr57',
+      name: '로고스 관리자 (yoocomdr57)',
+      email: 'yoocomdr57@gmail.com',
+      avatarText: '관리',
+      role: 'admin',
       provider: 'google',
       schoolName: '로고스 수퍼바이블 공동체',
-      department: '청장년 성경통독부',
-    }));
+      department: '교목실 & 성경통독 총괄관리부',
+      consecutiveDays: 30,
+      ntProgress: 100,
+      todayVersesRead: 10,
+      recordingsCount: 25,
+    };
+    setUser(adminUser);
+    persistSession(adminUser, 'dashboard');
     setCurrentView('dashboard');
   };
 
-  // Direct login from standard form (logos_admin@school.ac.kr)
+  // Direct login from standard form or quick login card
   const handleStandardLogin = (userData: Partial<User>) => {
-    setUser((prev) => ({ ...prev, ...userData }));
+    const nextUser = { ...user, ...userData } as User;
+    setUser(nextUser);
+    persistSession(nextUser, 'dashboard');
     setCurrentView('dashboard');
   };
 
-  // Logout back to ERP Login
+  // Logout back to ERP Login & clear session
   const handleLogout = () => {
+    try {
+      localStorage.removeItem(SESSION_USER_KEY);
+      localStorage.setItem(SESSION_VIEW_KEY, 'login');
+    } catch (e) {
+      console.warn('Failed to clear session:', e);
+    }
     setCurrentView('login');
+  };
+
+  // Toggle user role between admin & saint for easy testing
+  const handleToggleRole = () => {
+    setUser((u) => {
+      const isAdmin = u.role === 'admin';
+      const updated: User = {
+        ...u,
+        role: isAdmin ? 'saint' : 'admin',
+        name: isAdmin ? 'yooc (성도)' : '로고스 관리자',
+        avatarText: isAdmin ? 'yooc' : '관리',
+        email: isAdmin ? 'yooc.dev@gmail.com' : 'yoocomdr57@gmail.com',
+      };
+      persistSession(updated, currentView);
+      return updated;
+    });
   };
 
   // Toggle reading plan completion
@@ -190,17 +267,7 @@ export default function App() {
       <div className="fixed top-2.5 right-3 z-50 flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-slate-700/70 shadow-lg text-xs text-slate-300">
         {/* Role Switcher (일반회원 <-> 관리자 테스트) */}
         <button
-          onClick={() => {
-            setUser((u) => {
-              const isAdmin = u.role === 'admin';
-              return {
-                ...u,
-                role: isAdmin ? 'saint' : 'admin',
-                name: isAdmin ? 'yooc (성도)' : '로고스 관리자',
-                avatarText: isAdmin ? 'yooc' : '관리',
-              };
-            });
-          }}
+          onClick={handleToggleRole}
           className={`px-2.5 py-1 rounded-full text-xs font-black transition cursor-pointer flex items-center gap-1 shadow-xs ${
             user.role === 'admin'
               ? 'bg-amber-400 text-slate-950 ring-1 ring-amber-300'
@@ -251,17 +318,7 @@ export default function App() {
             <BibleDashboard
               user={user}
               onLogout={handleLogout}
-              onToggleRole={() => {
-                setUser((u) => {
-                  const isAdmin = u.role === 'admin';
-                  return {
-                    ...u,
-                    role: isAdmin ? 'saint' : 'admin',
-                    name: isAdmin ? 'yooc (성도)' : '로고스 관리자',
-                    avatarText: isAdmin ? 'yooc' : '관리',
-                  };
-                });
-              }}
+              onToggleRole={handleToggleRole}
               openModal={handleOpenModal}
               onOpenVerseCard={handleOpenVerseCard}
               onOpenRecorder={handleOpenRecorder}

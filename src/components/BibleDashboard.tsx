@@ -325,6 +325,11 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                     <span className="inline-block bg-blue-100 text-[#0083e3] text-[10px] font-bold px-1.5 py-0.2 rounded">
                       Google 연동
                     </span>
+                    {user.role === 'admin' && (
+                      <span className="inline-block bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-black px-1.5 py-0.2 rounded">
+                        👑 관리자
+                      </span>
+                    )}
                   </div>
                   <p className="text-[11px] text-slate-500 truncate" id="dashboardUserEmail">
                     {user.email}

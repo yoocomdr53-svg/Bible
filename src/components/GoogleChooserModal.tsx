@@ -14,14 +14,33 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
   onSelectAccount,
 }) => {
   const [showCustomInput, setShowCustomInput] = useState(false);
-  const [customEmail, setCustomEmail] = useState('new_faculty@school.ac.kr');
+  const [customEmail, setCustomEmail] = useState('yoocomdr57@gmail.com');
 
   if (!isOpen) return null;
 
+  // Primary Account: yoocomdr57@gmail.com (Connected Google Account & Admin)
+  const handleSelectAdmin = () => {
+    onSelectAccount({
+      id: 'user-yoocomdr57',
+      name: '로고스 관리자 (yoocomdr57)',
+      email: 'yoocomdr57@gmail.com',
+      avatarText: '관리',
+      role: 'admin',
+      provider: 'google',
+      schoolName: '로고스 수퍼바이블 공동체',
+      department: '교목실 & 성경통독 총괄관리부',
+      consecutiveDays: 30,
+      ntProgress: 100,
+      todayVersesRead: 10,
+      recordingsCount: 25,
+    });
+  };
+
+  // Account 2: yooc (일반 성도)
   const handleSelectYooc = () => {
     onSelectAccount({
       id: 'user-yooc',
-      name: 'yooc',
+      name: 'yooc (성도)',
       email: 'yooc.dev@gmail.com',
       avatarText: 'yooc',
       role: 'saint',
@@ -35,12 +54,13 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
     });
   };
 
+  // Account 3: 로고스 교직원
   const handleSelectTeacher = () => {
     onSelectAccount({
       id: 'user-teacher',
       name: '로고스 교직원',
       email: 'logos_teacher@school.ac.kr',
-      avatarText: '로고스',
+      avatarText: '교직',
       role: 'faculty',
       provider: 'google',
       schoolName: '로고스 고등학교',
@@ -52,19 +72,28 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
     });
   };
 
+  // Custom Account Input
   const handleSubmitCustom = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanEmail = customEmail.trim() || 'custom_user@school.ac.kr';
+    const cleanEmail = customEmail.trim() || 'yoocomdr57@gmail.com';
     const userName = cleanEmail.split('@')[0];
+    const isAdmin =
+      cleanEmail.toLowerCase().includes('yoocomdr') ||
+      cleanEmail.toLowerCase().includes('admin');
+    const isFaculty =
+      cleanEmail.toLowerCase().includes('school') ||
+      cleanEmail.toLowerCase().includes('teacher') ||
+      cleanEmail.toLowerCase().includes('logos.hs.kr');
+
     onSelectAccount({
-      id: 'user-custom',
-      name: userName,
+      id: `user-${Date.now()}`,
+      name: isAdmin ? '로고스 관리자' : isFaculty ? '로고스 교직원' : userName,
       email: cleanEmail,
-      avatarText: userName.slice(0, 2).toUpperCase(),
-      role: 'saint',
+      avatarText: isAdmin ? '관리' : isFaculty ? '교직' : userName.slice(0, 2).toUpperCase(),
+      role: isAdmin ? 'admin' : isFaculty ? 'faculty' : 'saint',
       provider: 'google',
-      schoolName: '로고스 아카데미 학사망',
-      department: '일반 교인 & 학생',
+      schoolName: '로고스 수퍼바이블 공동체',
+      department: isAdmin ? '교목실 & 총괄운영부' : isFaculty ? '학사연구부' : '일반 교인 & 성경통독부',
       consecutiveDays: 1,
       ntProgress: 5,
       todayVersesRead: 1,
@@ -130,16 +159,50 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
         {/* Account List or Custom Input */}
         {!showCustomInput ? (
           <div className="space-y-2 pb-2">
-            {/* Account 1: yooc */}
+            {/* Account 1: yoocomdr57@gmail.com (Connected Google Account & Admin) */}
+            <button
+              id="selectAdminAccountBtn"
+              type="button"
+              onClick={handleSelectAdmin}
+              className="w-full flex items-center justify-between p-3 rounded-xl border-2 border-blue-500 bg-blue-50/60 hover:bg-blue-100/60 active:bg-blue-100 transition-all text-left group cursor-pointer shadow-xs"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="relative flex-shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-[#1b64b9] flex items-center justify-center text-white font-black text-sm shadow-inner">
+                    관리
+                  </div>
+                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-xs border border-slate-200">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-sm font-black text-slate-900 truncate">로고스 관리자</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-black border border-amber-300">
+                      👑 최고 관리자
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold border border-blue-200">
+                      📱 접속 계정
+                    </span>
+                  </div>
+                  <span className="text-xs text-blue-900 font-semibold truncate block mt-0.5">
+                    yoocomdr57@gmail.com
+                  </span>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-blue-600 group-hover:translate-x-0.5 transition-transform flex-shrink-0" />
+            </button>
+
+            {/* Account 2: yooc (일반 성도) */}
             <button
               id="selectYoocAccountBtn"
               type="button"
               onClick={handleSelectYooc}
-              className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 active:bg-blue-50 transition-all text-left group cursor-pointer"
+              className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-slate-50 active:bg-blue-50/50 transition-all text-left group cursor-pointer"
             >
               <div className="flex items-center gap-3 min-w-0">
                 <div className="relative flex-shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-[#0083e3] font-bold text-sm border border-blue-200 shadow-inner">
+                  <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-[#1b64b9] font-bold text-sm border border-slate-200 shadow-inner">
                     yooc
                   </div>
                   <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-xs border border-slate-200">
@@ -148,28 +211,28 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-bold text-slate-800 truncate">yooc 성도님</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
-                      기본
+                    <span className="text-sm font-bold text-slate-800 truncate">yooc (성도)</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-semibold border border-slate-200">
+                      일반 성도
                     </span>
                   </div>
                   <span className="text-xs text-slate-500 truncate block">yooc.dev@gmail.com</span>
                 </div>
               </div>
-              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors flex-shrink-0" />
             </button>
 
-            {/* Account 2: Teacher */}
+            {/* Account 3: Teacher (교직원) */}
             <button
               id="selectTeacherAccountBtn"
               type="button"
               onClick={handleSelectTeacher}
-              className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 active:bg-blue-50 transition-all text-left group cursor-pointer"
+              className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-slate-50 active:bg-blue-50/50 transition-all text-left group cursor-pointer"
             >
               <div className="flex items-center gap-3 min-w-0">
                 <div className="relative flex-shrink-0">
                   <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-800 font-bold text-sm border border-amber-200 shadow-inner">
-                    로고스
+                    교직
                   </div>
                   <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-xs border border-slate-200">
                     <div className="w-2 h-2 rounded-full bg-amber-500" />
@@ -177,7 +240,7 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-bold text-slate-800 truncate">교직원 전용 계정</span>
+                    <span className="text-sm font-bold text-slate-800 truncate">로고스 교직원</span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold border border-blue-200">
                       학사
                     </span>
@@ -187,7 +250,7 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
                   </span>
                 </div>
               </div>
-              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors flex-shrink-0" />
             </button>
 
             {/* Button: Use another account */}
