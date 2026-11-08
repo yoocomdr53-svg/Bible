@@ -51,6 +51,11 @@ import {
   GoogleSheetConfig,
   SheetSyncLog,
 } from '../services/googleSheetsSync';
+import {
+  getOrSyncAdminMembers,
+  ADMIN_MEMBERS_KEY,
+  ADMIN_RECORDINGS_KEY,
+} from '../services/authService';
 
 interface AdminBibleManagementViewProps {
   user?: User;
@@ -58,9 +63,7 @@ interface AdminBibleManagementViewProps {
   onNavigateToBible?: (book: string, chapter?: number, verse?: number) => void;
 }
 
-const ADMIN_MEMBERS_KEY = 'superbible_admin_members_v1';
-const ADMIN_RECORDINGS_KEY = 'superbible_admin_recordings_v1';
-const ADMIN_CAMPAIGNS_KEY = 'superbible_admin_campaigns_v1';
+const ADMIN_CAMPAIGNS_KEY = 'superbible_admin_campaigns_v4';
 
 export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> = ({
   user,
@@ -77,16 +80,8 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
   const [copiedScript, setCopiedScript] = useState(false);
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
 
-  // Members state (localStorage 연동 지속 보관)
-  const [members, setMembers] = useState<MemberReadingProfile[]>(() => {
-    try {
-      const saved = localStorage.getItem(ADMIN_MEMBERS_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error(e);
-    }
-    return INITIAL_MEMBERS;
-  });
+  // Members state (회원가입한 실제 회원 데이터들로만 관리)
+  const [members, setMembers] = useState<MemberReadingProfile[]>(() => getOrSyncAdminMembers());
   const [memberSearch, setMemberSearch] = useState('');
   const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>('전체');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('전체');
@@ -411,18 +406,19 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     setNewCampTitle('');
   };
 
-  // Reset admin demo data
+  // Reset admin demo data (실제 회원가입 회원 데이터만 유지)
   const handleResetAdminData = () => {
-    if (confirm('모든 관리자 데이터를 초기 샘플 데이터로 복원하시겠습니까?')) {
-      setMembers(INITIAL_MEMBERS);
-      setRecordings(INITIAL_MEMBER_RECORDINGS);
-      setCampaigns(INITIAL_CAMPAIGNS);
+    if (confirm('모든 샘플 데이터를 초기화하고 실제 회원가입한 회원 데이터만 유지하시겠습니까?')) {
       try {
         localStorage.removeItem(ADMIN_MEMBERS_KEY);
         localStorage.removeItem(ADMIN_RECORDINGS_KEY);
         localStorage.removeItem(ADMIN_CAMPAIGNS_KEY);
       } catch (e) {}
-      showToast('관리자 데이터가 초기 샘플로 복원되었습니다.');
+      const clean = getOrSyncAdminMembers();
+      setMembers(clean);
+      setRecordings([]);
+      setCampaigns(INITIAL_CAMPAIGNS);
+      showToast('샘플 데이터가 초기화되었으며 실제 회원가입 회원 데이터로 동기화되었습니다.');
     }
   };
 
@@ -1337,7 +1333,18 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
             </div>
 
             <div className="space-y-2.5">
-              {recordings.map((rec) => {
+              {recordings.length === 0 ? (
+                <div className="bg-white rounded-2xl p-8 text-center border border-slate-200/90 shadow-2xs space-y-2.5">
+                  <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto text-xl">
+                    🎙️
+                  </div>
+                  <h4 className="text-sm font-black text-slate-800">등록된 낭독 녹음 음원이 없습니다</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    회원가입한 회원이 성경 구절을 낭독하고 녹음하여 저장하면 이곳에 실시간 음원 검수 목록으로 자동 표시됩니다.
+                  </p>
+                </div>
+              ) : (
+                recordings.map((rec) => {
                 const isPlaying = playingRecId === rec.id;
 
                 return (
@@ -1436,7 +1443,8 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                     </div>
                   </div>
                 );
-              })}
+              })
+            )}
             </div>
           </div>
         )}

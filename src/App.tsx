@@ -11,6 +11,8 @@ import {
   getActiveSession,
   saveActiveSession,
   clearActiveSession,
+  updateMemberReadingProgress,
+  addMemberRecordingToAdmin,
 } from './services/authService';
 
 interface ErrorBoundaryProps {
@@ -157,11 +159,15 @@ export default function App() {
       prev.map((p) => {
         if (p.day === day) {
           const updated = !p.completed;
-          // Update user stat
-          setUser((u) => ({
-            ...u,
-            todayVersesRead: updated ? u.todayVersesRead + 1 : Math.max(0, u.todayVersesRead - 1),
-          }));
+          setUser((u) => {
+            const nextCount = updated ? u.todayVersesRead + 1 : Math.max(0, u.todayVersesRead - 1);
+            const nextUser = { ...u, todayVersesRead: nextCount };
+            saveActiveSession(nextUser);
+            return nextUser;
+          });
+          if (updated) {
+            updateMemberReadingProgress(user.email, p.portion.split(' ')[0] || '창세기', 1);
+          }
           return { ...p, completed: updated };
         }
         return p;
@@ -172,7 +178,13 @@ export default function App() {
   // Save new audio recording
   const handleSaveRecording = (newRec: UserRecording) => {
     setRecordings((prev) => [newRec, ...prev]);
-    setUser((u) => ({ ...u, recordingsCount: u.recordingsCount + 1 }));
+    setUser((u) => {
+      const nextUser = { ...u, recordingsCount: u.recordingsCount + 1 };
+      saveActiveSession(nextUser);
+      return nextUser;
+    });
+    // Sync recording to Admin Inspection List in real-time
+    addMemberRecordingToAdmin(user, newRec);
   };
 
   // Delete recording

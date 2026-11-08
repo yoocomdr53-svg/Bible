@@ -30,6 +30,7 @@ import {
 } from '../data/bibleData';
 import { BibleVerse } from '../types';
 import { BibleSelectorModal } from './BibleSelectorModal';
+import { updateMemberReadingProgress, getActiveSession } from '../services/authService';
 
 interface BibleReaderViewProps {
   onOpenVerseCard: (verse: BibleVerse) => void;
@@ -471,6 +472,10 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   const handleToggleCompleteAllChapterVerses = () => {
     toggleChapterVersesCompleted(selectedBook, selectedChapter, verses.length);
     setCompletedVerses(getCompletedVerses());
+    const session = getActiveSession();
+    if (session && session.email) {
+      updateMemberReadingProgress(session.email, selectedBook, selectedChapter);
+    }
   };
 
   const chapterReadVersesCount = verses.filter((v) =>

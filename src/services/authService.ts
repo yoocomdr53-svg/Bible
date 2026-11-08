@@ -1,10 +1,11 @@
 import { User } from '../types';
-import { MemberReadingProfile, INITIAL_MEMBERS } from '../data/adminData';
+import { MemberReadingProfile, MemberRecordingItem, INITIAL_MEMBERS } from '../data/adminData';
 
-const SESSION_KEY = 'superbible_auth_session_v3';
-const REGISTRY_KEY = 'superbible_user_registry_v1';
-const ADMIN_MEMBERS_KEY = 'superbible_admin_members_v1';
-const REMEMBERED_ID_KEY = 'superbible_remembered_id_v3';
+export const SESSION_KEY = 'superbible_auth_session_v3';
+export const REGISTRY_KEY = 'superbible_user_registry_v2';
+export const ADMIN_MEMBERS_KEY = 'superbible_admin_members_v4';
+export const ADMIN_RECORDINGS_KEY = 'superbible_admin_recordings_v4';
+export const REMEMBERED_ID_KEY = 'superbible_remembered_id_v3';
 
 export interface RegisteredAccount {
   loginId: string;
@@ -13,7 +14,7 @@ export interface RegisteredAccount {
   createdAt: string;
 }
 
-// Built-in primary accounts
+// Built-in primary master admin account (샘플 더미 사용자 제거)
 const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
   {
     loginId: 'yoocomdr57@gmail.com',
@@ -30,7 +31,7 @@ const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
       consecutiveDays: 30,
       ntProgress: 100,
       todayVersesRead: 10,
-      recordingsCount: 25,
+      recordingsCount: 0,
     },
     createdAt: '2026-01-01',
   },
@@ -49,34 +50,33 @@ const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
       consecutiveDays: 30,
       ntProgress: 100,
       todayVersesRead: 10,
-      recordingsCount: 25,
-    },
-    createdAt: '2026-01-01',
-  },
-  {
-    loginId: 'yooc',
-    passwordHash: '1234',
-    user: {
-      id: 'user-yooc',
-      name: 'yooc (성도)',
-      email: 'yooc.dev@gmail.com',
-      avatarText: 'yooc',
-      role: 'saint',
-      provider: 'standard',
-      schoolName: '로고스 수퍼바이블 공동체',
-      department: '청장년 성경통독부',
-      consecutiveDays: 14,
-      ntProgress: 42,
-      todayVersesRead: 4,
-      recordingsCount: 7,
+      recordingsCount: 0,
     },
     createdAt: '2026-01-01',
   },
 ];
 
-// Load registry from localStorage
+// Clean up legacy dummy data keys from localStorage
+function cleanupLegacyStorage(): void {
+  try {
+    const legacyKeys = [
+      'superbible_admin_members_v1',
+      'superbible_admin_members_v2',
+      'superbible_admin_members_v3',
+      'superbible_admin_recordings_v1',
+      'superbible_admin_recordings_v2',
+      'superbible_admin_recordings_v3',
+    ];
+    legacyKeys.forEach((k) => localStorage.removeItem(k));
+  } catch (e) {
+    // ignore
+  }
+}
+
+// Load registered accounts
 export function getRegisteredAccounts(): RegisteredAccount[] {
   try {
+    cleanupLegacyStorage();
     const raw = localStorage.getItem(REGISTRY_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
@@ -87,7 +87,7 @@ export function getRegisteredAccounts(): RegisteredAccount[] {
   } catch (e) {
     console.error('Failed to read registry:', e);
   }
-  // Initialize with default accounts
+
   try {
     localStorage.setItem(REGISTRY_KEY, JSON.stringify(DEFAULT_ACCOUNTS));
   } catch (e) {
@@ -96,7 +96,6 @@ export function getRegisteredAccounts(): RegisteredAccount[] {
   return DEFAULT_ACCOUNTS;
 }
 
-// Save registry
 function saveRegisteredAccounts(accounts: RegisteredAccount[]): void {
   try {
     localStorage.setItem(REGISTRY_KEY, JSON.stringify(accounts));
@@ -105,37 +104,110 @@ function saveRegisteredAccounts(accounts: RegisteredAccount[]): void {
   }
 }
 
-// Append new member to Admin Member Roster (ADMIN_MEMBERS_KEY)
-function syncMemberToAdminRoster(user: User, loginId: string): void {
+// Get or sync admin member roster (ONLY real registered users, 0 sample dummy users)
+export function getOrSyncAdminMembers(): MemberReadingProfile[] {
   try {
-    let currentMembers: MemberReadingProfile[] = INITIAL_MEMBERS;
+    cleanupLegacyStorage();
+    const accounts = getRegisteredAccounts();
+    let currentMembers: MemberReadingProfile[] = [];
+
     const raw = localStorage.getItem(ADMIN_MEMBERS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        currentMembers = parsed;
+        // Strip any legacy dummy names
+        currentMembers = parsed.filter(
+          (m: MemberReadingProfile) =>
+            !m.email.includes('@logos.church') &&
+            !['김은혜', '박요셉', '이모세', '최한나', '정다윗', '한수민', '오바울', '강소망'].includes(m.name)
+        );
       }
     }
 
-    // Check if member already exists
+    if (currentMembers.length === 0) {
+      currentMembers = [...INITIAL_MEMBERS];
+    }
+
+    // Ensure all registered accounts exist in currentMembers
+    let changed = false;
+    for (const acc of accounts) {
+      const exists = currentMembers.some(
+        (m) =>
+          m.email.toLowerCase() === acc.user.email.toLowerCase() ||
+          m.name === acc.user.name
+      );
+      if (!exists) {
+        const isMasterAdmin =
+          acc.loginId.toLowerCase().includes('yoocomdr') ||
+          acc.loginId.toLowerCase() === 'admin';
+
+        const newProfile: MemberReadingProfile = {
+          id: `M-${String(currentMembers.length + 1).padStart(2, '0')}`,
+          name: acc.user.name,
+          department: acc.user.department || '새가족 성경통독부',
+          role: isMasterAdmin ? '관리자' : '성도',
+          phone: '010-미등록',
+          email: acc.user.email,
+          registeredDate: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
+          birthdate: '1995.01.01',
+          baptismStatus: '원입',
+          smallGroup: '새가족 1구역',
+          accountRole: isMasterAdmin ? 'admin' : 'member',
+          accountStatus: 'active',
+          avatarColor: isMasterAdmin ? 'bg-amber-500' : 'bg-blue-500',
+          avatarText: acc.user.avatarText,
+          currentReadingRound: 1,
+          targetRounds: 12,
+          currentBook: '창세기',
+          currentChapter: 1,
+          totalReadChapters: 0,
+          recordingsCount: 0,
+          lastActive: '방금 가입',
+          status: 'active',
+          consecutiveDays: 1,
+          featuredCount: 0,
+          memo: `웹 간편가입 회원 (아이디: ${acc.loginId})`,
+        };
+        currentMembers.push(newProfile);
+        changed = true;
+      }
+    }
+
+    if (changed || !raw) {
+      localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(currentMembers));
+    }
+    return currentMembers;
+  } catch (e) {
+    console.error('Failed to sync admin members:', e);
+    return INITIAL_MEMBERS;
+  }
+}
+
+// Append new member to Admin Member Roster (ADMIN_MEMBERS_KEY)
+export function syncMemberToAdminRoster(user: User, loginId: string): void {
+  try {
+    const currentMembers = getOrSyncAdminMembers();
     const exists = currentMembers.some(
       (m) => m.email.toLowerCase() === user.email.toLowerCase() || m.name === user.name
     );
     if (!exists) {
+      const isMasterAdmin =
+        loginId.toLowerCase().includes('yoocomdr') || loginId.toLowerCase() === 'admin';
+
       const newMember: MemberReadingProfile = {
         id: `M-${String(currentMembers.length + 1).padStart(2, '0')}`,
         name: user.name,
         department: user.department || '새가족 성경통독부',
-        role: user.role === 'admin' ? '관리자' : '성도',
+        role: isMasterAdmin ? '관리자' : '성도',
         phone: '010-미등록',
         email: user.email,
         registeredDate: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
         birthdate: '1995.01.01',
         baptismStatus: '원입',
         smallGroup: '새가족 1구역',
-        accountRole: user.role === 'admin' ? 'admin' : 'member',
+        accountRole: isMasterAdmin ? 'admin' : 'member',
         accountStatus: 'active',
-        avatarColor: user.role === 'admin' ? 'bg-amber-500' : 'bg-blue-500',
+        avatarColor: isMasterAdmin ? 'bg-amber-500' : 'bg-blue-500',
         avatarText: user.avatarText,
         currentReadingRound: 1,
         targetRounds: 12,
@@ -149,11 +221,74 @@ function syncMemberToAdminRoster(user: User, loginId: string): void {
         featuredCount: 0,
         memo: `웹 간편가입 회원 (아이디: ${loginId})`,
       };
-      const updatedMembers = [newMember, ...currentMembers];
+      const updatedMembers = [...currentMembers, newMember];
       localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(updatedMembers));
     }
   } catch (e) {
     console.error('Failed to sync to admin roster:', e);
+  }
+}
+
+// Update reading progress in admin members roster in real-time
+export function updateMemberReadingProgress(
+  userEmail: string,
+  bookName: string,
+  chapterNumber: number
+): void {
+  try {
+    const members = getOrSyncAdminMembers();
+    const idx = members.findIndex(
+      (m) => m.email.toLowerCase() === userEmail.toLowerCase()
+    );
+    if (idx !== -1) {
+      members[idx].currentBook = bookName;
+      members[idx].currentChapter = chapterNumber;
+      members[idx].totalReadChapters = (members[idx].totalReadChapters || 0) + 1;
+      members[idx].lastActive = '방금 통독';
+      members[idx].consecutiveDays = (members[idx].consecutiveDays || 0) + 1;
+      localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(members));
+    }
+  } catch (e) {
+    console.error('Failed to update member reading progress:', e);
+  }
+}
+
+// Add member recording to admin inspection list
+export function addMemberRecordingToAdmin(
+  user: User,
+  rec: { id: string; title: string; verseRef: string; duration: string; date: string; audioBlobUrl?: string }
+): void {
+  try {
+    const raw = localStorage.getItem(ADMIN_RECORDINGS_KEY);
+    const currentRecs: MemberRecordingItem[] = raw ? JSON.parse(raw) : [];
+    const newRecItem: MemberRecordingItem = {
+      id: rec.id,
+      memberId: user.id,
+      memberName: user.name,
+      department: user.department,
+      role: user.role === 'admin' ? '관리자' : '성도',
+      title: rec.title,
+      verseRef: rec.verseRef,
+      passageSnippet: `${rec.verseRef} 말씀 낭독 녹음`,
+      duration: rec.duration,
+      date: rec.date,
+      isFeatured: false,
+      status: 'approved',
+      audioBlobUrl: rec.audioBlobUrl,
+    };
+    const updated = [newRecItem, ...currentRecs];
+    localStorage.setItem(ADMIN_RECORDINGS_KEY, JSON.stringify(updated));
+
+    // Also update member recordingsCount
+    const members = getOrSyncAdminMembers();
+    const mIdx = members.findIndex((m) => m.email.toLowerCase() === user.email.toLowerCase());
+    if (mIdx !== -1) {
+      members[mIdx].recordingsCount = (members[mIdx].recordingsCount || 0) + 1;
+      members[mIdx].lastActive = '방금 낭독';
+      localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(members));
+    }
+  } catch (e) {
+    console.error('Failed to add recording to admin:', e);
   }
 }
 
@@ -182,7 +317,7 @@ export function registerUser(
 
   const isAdmin =
     loginId.toLowerCase().includes('yoocomdr') ||
-    loginId.toLowerCase().includes('admin');
+    loginId.toLowerCase() === 'admin';
 
   const displayName = isAdmin
     ? '로고스 관리자'
@@ -250,7 +385,6 @@ export function loginUser(
   );
 
   if (matched) {
-    // Check password if stored, or allow for admin/demo
     if (
       matched.passwordHash &&
       matched.passwordHash !== password &&
@@ -285,7 +419,7 @@ export function loginUser(
       consecutiveDays: 30,
       ntProgress: 100,
       todayVersesRead: 10,
-      recordingsCount: 25,
+      recordingsCount: 0,
     };
     if (rememberMe) saveRememberedId(loginId);
     saveActiveSession(adminUser, loginId);
@@ -293,7 +427,6 @@ export function loginUser(
   }
 
   // 3. Graceful auto-creation for new user entering ID/Password on login form
-  // (Ensures users are never blocked even if they skipped registration tab)
   const isUserAdmin =
     loginId.toLowerCase().includes('yoocomdr') ||
     loginId.toLowerCase().includes('admin');
@@ -332,7 +465,7 @@ export function loginUser(
   return { success: true, user: newUser };
 }
 
-// Active session persistence (한 번 입력하면 새로고침/재방문 시에도 웹 그대로 유지)
+// Active session persistence
 export function saveActiveSession(user: User, loginId?: string): void {
   try {
     const sessionData = {
