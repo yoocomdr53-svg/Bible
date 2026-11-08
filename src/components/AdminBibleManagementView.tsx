@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ChevronLeft,
   Users,
@@ -49,6 +49,10 @@ interface AdminBibleManagementViewProps {
   onNavigateToBible?: (book: string, chapter?: number, verse?: number) => void;
 }
 
+const ADMIN_MEMBERS_KEY = 'superbible_admin_members_v1';
+const ADMIN_RECORDINGS_KEY = 'superbible_admin_recordings_v1';
+const ADMIN_CAMPAIGNS_KEY = 'superbible_admin_campaigns_v1';
+
 export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> = ({
   user,
   onBack,
@@ -57,24 +61,67 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
   // Navigation Sub-tabs: 'overview' | 'members' | 'recordings' | 'campaigns' | 'reports'
   const [adminTab, setAdminTab] = useState<'overview' | 'members' | 'recordings' | 'campaigns' | 'reports'>('overview');
 
-  // Members state
-  const [members, setMembers] = useState<MemberReadingProfile[]>(INITIAL_MEMBERS);
+  // Members state (localStorage 연동 지속 보관)
+  const [members, setMembers] = useState<MemberReadingProfile[]>(() => {
+    try {
+      const saved = localStorage.getItem(ADMIN_MEMBERS_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return INITIAL_MEMBERS;
+  });
   const [memberSearch, setMemberSearch] = useState('');
   const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>('전체');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('전체');
   const [selectedMember, setSelectedMember] = useState<MemberReadingProfile | null>(null);
 
-  // Recordings state
-  const [recordings, setRecordings] = useState<MemberRecordingItem[]>(INITIAL_MEMBER_RECORDINGS);
+  // Recordings state (localStorage 연동 지속 보관)
+  const [recordings, setRecordings] = useState<MemberRecordingItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(ADMIN_RECORDINGS_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return INITIAL_MEMBER_RECORDINGS;
+  });
   const [playingRecId, setPlayingRecId] = useState<string | null>(null);
   const [feedbackModalRec, setFeedbackModalRec] = useState<MemberRecordingItem | null>(null);
   const [feedbackInput, setFeedbackInput] = useState('');
 
-  // Campaigns state
-  const [campaigns, setCampaigns] = useState<ReadingCampaign[]>(INITIAL_CAMPAIGNS);
+  // Campaigns state (localStorage 연동 지속 보관)
+  const [campaigns, setCampaigns] = useState<ReadingCampaign[]>(() => {
+    try {
+      const saved = localStorage.getItem(ADMIN_CAMPAIGNS_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return INITIAL_CAMPAIGNS;
+  });
   const [showAddCampaignModal, setShowAddCampaignModal] = useState(false);
   const [newCampTitle, setNewCampTitle] = useState('');
   const [newCampScope, setNewCampScope] = useState('성경 66권 12독');
+
+  // Sync to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(members));
+    } catch (e) {}
+  }, [members]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ADMIN_RECORDINGS_KEY, JSON.stringify(recordings));
+    } catch (e) {}
+  }, [recordings]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ADMIN_CAMPAIGNS_KEY, JSON.stringify(campaigns));
+    } catch (e) {}
+  }, [campaigns]);
 
   // Manual Progress Adjustment Modal
   const [progressAdjustMember, setProgressAdjustMember] = useState<MemberReadingProfile | null>(null);
@@ -213,6 +260,45 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     showToast('전체 회원 성경낭독 진도표 엑셀(CSV)이 다운로드되었습니다.');
   };
 
+  // Add new campaign
+  const handleCreateCampaign = () => {
+    if (!newCampTitle.trim()) {
+      alert('캠페인 제목을 입력해주세요.');
+      return;
+    }
+    const newCamp: ReadingCampaign = {
+      id: `camp-${Date.now()}`,
+      title: newCampTitle.trim(),
+      description: '교회 공동체 말씀 낭독 캠페인',
+      targetScope: newCampScope,
+      startDate: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
+      endDate: '2026.12.31',
+      participantsCount: members.length,
+      avgProgress: 0,
+      isActive: true,
+      badgeTag: '신규 캠페인',
+    };
+    setCampaigns((prev) => [newCamp, ...prev]);
+    showToast(`새 캠페인 '${newCamp.title}'이(가) 등록되었습니다! 🎉`);
+    setShowAddCampaignModal(false);
+    setNewCampTitle('');
+  };
+
+  // Reset admin demo data
+  const handleResetAdminData = () => {
+    if (confirm('모든 관리자 데이터를 초기 샘플 데이터로 복원하시겠습니까?')) {
+      setMembers(INITIAL_MEMBERS);
+      setRecordings(INITIAL_MEMBER_RECORDINGS);
+      setCampaigns(INITIAL_CAMPAIGNS);
+      try {
+        localStorage.removeItem(ADMIN_MEMBERS_KEY);
+        localStorage.removeItem(ADMIN_RECORDINGS_KEY);
+        localStorage.removeItem(ADMIN_CAMPAIGNS_KEY);
+      } catch (e) {}
+      showToast('관리자 데이터가 초기 샘플로 복원되었습니다.');
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full bg-[#f8fafc] relative overflow-hidden select-none text-slate-800">
       {/* 1. Header Bar: Deep Blue Admin Style */}
@@ -243,6 +329,14 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
         </div>
 
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleResetAdminData}
+            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition cursor-pointer border border-slate-700"
+            title="관리자 데이터 초기화 (초기 샘플 데이터 복원)"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
           <button
             type="button"
             onClick={handleExportCSV}
@@ -1282,6 +1376,74 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                 className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl cursor-pointer shadow-xs"
               >
                 성도에게 수료증 발송
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          MODAL 6: 새 캠페인 등록 모달 (Add Campaign Modal)
+         ======================================================== */}
+      {showAddCampaignModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowAddCampaignModal(false);
+          }}
+        >
+          <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl p-5 border border-slate-100 space-y-3.5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <h3 className="text-sm font-black text-slate-900 flex items-center gap-1.5">
+                <span>🎯 새 통독 캠페인 개설</span>
+              </h3>
+              <button onClick={() => setShowAddCampaignModal(false)} className="text-slate-400 hover:text-slate-700 p-1">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2.5 text-xs">
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 block mb-1">캠페인 명칭</label>
+                <input
+                  type="text"
+                  value={newCampTitle}
+                  onChange={(e) => setNewCampTitle(e.target.value)}
+                  placeholder="예: 2026 하반기 전교인 성경 12독"
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 block mb-1">목표 범위</label>
+                <select
+                  value={newCampScope}
+                  onChange={(e) => setNewCampScope(e.target.value)}
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
+                >
+                  <option value="성경 66권 12독">성경 66권 12독</option>
+                  <option value="성경 66권 1독">성경 66권 1독</option>
+                  <option value="신약 27권 완독">신약 27권 완독</option>
+                  <option value="구약 39권 완독">구약 39권 완독</option>
+                  <option value="시편·잠언 지혜서">시편·잠언 지혜서</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAddCampaignModal(false)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateCampaign}
+                className="flex-1 py-2.5 bg-[#1b64b9] hover:bg-blue-600 text-white text-xs font-black rounded-xl cursor-pointer shadow-xs"
+              >
+                캠페인 개설
               </button>
             </div>
           </div>

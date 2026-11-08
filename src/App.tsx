@@ -188,6 +188,30 @@ export default function App() {
     <div className="w-full min-h-screen bg-slate-950 flex flex-col items-center justify-center relative select-none">
       {/* Top Floating Controls Bar */}
       <div className="fixed top-2.5 right-3 z-50 flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-slate-700/70 shadow-lg text-xs text-slate-300">
+        {/* Role Switcher (일반회원 <-> 관리자 테스트) */}
+        <button
+          onClick={() => {
+            setUser((u) => {
+              const isAdmin = u.role === 'admin';
+              return {
+                ...u,
+                role: isAdmin ? 'saint' : 'admin',
+                name: isAdmin ? 'yooc (성도)' : '로고스 관리자',
+                avatarText: isAdmin ? 'yooc' : '관리',
+              };
+            });
+          }}
+          className={`px-2.5 py-1 rounded-full text-xs font-black transition cursor-pointer flex items-center gap-1 shadow-xs ${
+            user.role === 'admin'
+              ? 'bg-amber-400 text-slate-950 ring-1 ring-amber-300'
+              : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+          }`}
+          title="권한 전환 (일반회원 / 관리자 모드 즉시 테스트)"
+        >
+          <span>{user.role === 'admin' ? '👑 관리자' : '👤 일반회원'}</span>
+          <span className="text-[10px] opacity-75 font-normal">(전환)</span>
+        </button>
+
         <button
           onClick={() => setCurrentView(currentView === 'login' ? 'dashboard' : 'login')}
           className="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-white font-medium transition cursor-pointer flex items-center gap-1.5"
@@ -227,6 +251,17 @@ export default function App() {
             <BibleDashboard
               user={user}
               onLogout={handleLogout}
+              onToggleRole={() => {
+                setUser((u) => {
+                  const isAdmin = u.role === 'admin';
+                  return {
+                    ...u,
+                    role: isAdmin ? 'saint' : 'admin',
+                    name: isAdmin ? 'yooc (성도)' : '로고스 관리자',
+                    avatarText: isAdmin ? 'yooc' : '관리',
+                  };
+                });
+              }}
               openModal={handleOpenModal}
               onOpenVerseCard={handleOpenVerseCard}
               onOpenRecorder={handleOpenRecorder}

@@ -654,24 +654,26 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           </div>
         </div>
 
-        {/* 2. Dark Sub-Bar (관리자 모드, BIBLEONLINE 3.0, 앱 설치, 🔄, 심) */}
+        {/* 2. Dark Sub-Bar (관리자 모드[관리자만 노출], BIBLEONLINE 3.0, 앱 설치, 🔄, 심) */}
         <div className="bg-[#1e2026] text-white px-3 sm:px-4 py-2 flex items-center justify-between text-xs flex-shrink-0 border-b border-slate-700/50 z-30">
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-            <button
-              type="button"
-              onClick={() => {
-                if (onOpenAdminManagement) {
-                  onOpenAdminManagement();
-                } else {
-                  alert('관리자 성경관리 프로그램을 엽니다.');
-                }
-              }}
-              className="border border-amber-400/80 rounded-md px-2 py-0.5 text-amber-300 font-bold text-[11px] flex items-center gap-1 flex-shrink-0 hover:bg-amber-400/20 active:scale-95 transition cursor-pointer"
-              title="관리자 성경관리 프로그램 열기"
-            >
-              <span>👑</span>
-              <span>관리자 모드</span>
-            </button>
+            {user?.role === 'admin' && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (onOpenAdminManagement) {
+                    onOpenAdminManagement();
+                  } else {
+                    alert('관리자 성경관리 프로그램을 엽니다.');
+                  }
+                }}
+                className="border border-amber-400/80 rounded-md px-2 py-0.5 text-amber-300 font-bold text-[11px] flex items-center gap-1 flex-shrink-0 hover:bg-amber-400/20 active:scale-95 transition cursor-pointer"
+                title="관리자 성경관리 프로그램 열기"
+              >
+                <span>👑</span>
+                <span>관리자 모드</span>
+              </button>
+            )}
             <div className="flex items-center gap-1.5 text-[11px] font-black text-emerald-400 flex-shrink-0">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span>BIBLEONLINE 3.0</span>
@@ -1700,18 +1702,20 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                       삭제
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowManageMenu(false);
-                        if (onOpenAdminManagement) {
-                          onOpenAdminManagement();
-                        }
-                      }}
-                      className="w-full px-4 py-2 text-left text-xs sm:text-sm font-black hover:bg-amber-50 text-amber-900 flex items-center gap-2 cursor-pointer border-t border-slate-100"
-                    >
-                      👑 관리자 성경관리
-                    </button>
+                    {user?.role === 'admin' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowManageMenu(false);
+                          if (onOpenAdminManagement) {
+                            onOpenAdminManagement();
+                          }
+                        }}
+                        className="w-full px-4 py-2 text-left text-xs sm:text-sm font-black hover:bg-amber-50 text-amber-900 flex items-center gap-2 cursor-pointer border-t border-slate-100"
+                      >
+                        👑 관리자 성경관리
+                      </button>
+                    )}
                   </div>
                 </>
               )}

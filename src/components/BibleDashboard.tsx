@@ -26,6 +26,7 @@ import { AdminBibleManagementView } from './AdminBibleManagementView';
 interface BibleDashboardProps {
   user: User;
   onLogout: () => void;
+  onToggleRole?: () => void;
   openModal: (modal: ActiveModal) => void;
   onOpenVerseCard: (verse: BibleVerse) => void;
   onOpenRecorder: (verse: BibleVerse) => void;
@@ -38,6 +39,7 @@ interface BibleDashboardProps {
 export const BibleDashboard: React.FC<BibleDashboardProps> = ({
   user,
   onLogout,
+  onToggleRole,
   openModal,
   onOpenVerseCard,
   onOpenRecorder,
@@ -289,32 +291,34 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
 
           {/* Cards & Content Area */}
           <div className="px-4 py-3 space-y-3.5">
-            {/* Admin Management Quick Banner: 👑 관리자 성경관리 */}
-            <section
-              onClick={() => {
-                pushHistory({ tab: activeTab });
-                setActiveTab('admin');
-              }}
-              className="bg-gradient-to-r from-[#0f172a] via-[#1e293b] to-[#0f172a] rounded-2xl p-3 sm:p-3.5 text-white shadow-md border border-slate-700/70 cursor-pointer active:scale-98 transition flex items-center justify-between group"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-base shadow-xs flex-shrink-0 group-hover:scale-105 transition-transform">
-                  👑
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs sm:text-sm font-black text-white truncate">관리자 성경관리</span>
-                    <span className="text-[10px] bg-blue-600 text-blue-100 font-bold px-1.5 py-0.2 rounded-full flex-shrink-0">
-                      신규 프로그램
-                    </span>
+            {/* Admin Management Quick Banner: 👑 관리자 성경관리 (관리자 접속 시에만 노출) */}
+            {user.role === 'admin' && (
+              <section
+                onClick={() => {
+                  pushHistory({ tab: activeTab });
+                  setActiveTab('admin');
+                }}
+                className="bg-gradient-to-r from-[#0f172a] via-[#1e293b] to-[#0f172a] rounded-2xl p-3 sm:p-3.5 text-white shadow-md border border-slate-700/70 cursor-pointer active:scale-98 transition flex items-center justify-between group"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-base shadow-xs flex-shrink-0 group-hover:scale-105 transition-transform">
+                    👑
                   </div>
-                  <p className="text-[11px] text-slate-300 mt-0.5 truncate">
-                    회원 낭독 현황 · 음원 검수 · 12목표 체계적 관리
-                  </p>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs sm:text-sm font-black text-white truncate">관리자 성경관리</span>
+                      <span className="text-[10px] bg-blue-600 text-blue-100 font-bold px-1.5 py-0.2 rounded-full flex-shrink-0">
+                        관리자 전용
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 mt-0.5 truncate">
+                      회원 낭독 현황 · 음원 검수 · 12목표 체계적 관리
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-white group-hover:translate-x-0.5 transition flex-shrink-0 ml-2" />
-            </section>
+                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-white group-hover:translate-x-0.5 transition flex-shrink-0 ml-2" />
+              </section>
+            )}
 
             {/* Top Sponsor Card: 갑자기 날아든 폭탄 */}
             <section className="bg-slate-100 rounded-xl border border-slate-200 overflow-hidden shadow-soft">
@@ -681,6 +685,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
         <SettingsView
           user={user}
           onLogout={onLogout}
+          onToggleRole={onToggleRole}
           onOpenAdmin={() => {
             pushHistory({ tab: 'settings' });
             setActiveTab('admin');
@@ -688,27 +693,59 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
         />
       )}
 
-      {/* Admin Bible & Recitation Management View */}
+      {/* Admin Bible & Recitation Management View (관리자 전용 접근 보호) */}
       {activeTab === 'admin' && (
-        <AdminBibleManagementView
-          user={user}
-          onBack={() => {
-            if (navHistory.length > 0) {
-              const prev = navHistory[navHistory.length - 1];
-              setNavHistory((p) => p.slice(0, -1));
-              setActiveTab(prev.tab);
-              if (prev.challengeSubScreen) {
-                setChallengeInitialSubScreen(prev.challengeSubScreen);
+        user.role === 'admin' ? (
+          <AdminBibleManagementView
+            user={user}
+            onBack={() => {
+              if (navHistory.length > 0) {
+                const prev = navHistory[navHistory.length - 1];
+                setNavHistory((p) => p.slice(0, -1));
+                setActiveTab(prev.tab);
+                if (prev.challengeSubScreen) {
+                  setChallengeInitialSubScreen(prev.challengeSubScreen);
+                }
+                if (prev.challengeBook) {
+                  setChallengeSelectedBook(prev.challengeBook);
+                }
+              } else {
+                setActiveTab('home');
               }
-              if (prev.challengeBook) {
-                setChallengeSelectedBook(prev.challengeBook);
-              }
-            } else {
-              setActiveTab('home');
-            }
-          }}
-          onNavigateToBible={navigateToPortion}
-        />
+            }}
+            onNavigateToBible={navigateToPortion}
+          />
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-[#f8fafc]">
+            <div className="w-16 h-16 rounded-3xl bg-rose-50 border border-rose-200 flex items-center justify-center text-3xl mb-3 shadow-inner">
+              🔒
+            </div>
+            <h3 className="text-base font-black text-slate-900 mb-1">관리자 전용 메뉴입니다</h3>
+            <p className="text-xs text-slate-500 mb-6 max-w-xs leading-relaxed">
+              성경낭독 관리는 교회 관리자 및 목회자 계정으로 접속했을 때만 열람하실 수 있습니다.
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab('home')}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                홈으로 돌아가기
+              </button>
+              {onToggleRole && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onToggleRole();
+                  }}
+                  className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl shadow-xs transition cursor-pointer"
+                >
+                  👑 관리자 권한으로 전환
+                </button>
+              )}
+            </div>
+          </div>
+        )
       )}
 
       {/* Floating Microphone Button with Badge 'N' */}

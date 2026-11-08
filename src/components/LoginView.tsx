@@ -31,7 +31,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
         name: username.includes('admin') ? '로고스 관리자' : '로고스 교직원',
         email: username,
         avatarText: '로고스',
-        role: 'faculty',
+        role: username.includes('admin') ? 'admin' : 'faculty',
         provider: 'standard',
         schoolName: '로고스 고등학교 (Logos Academy High School)',
         department: '교목실 & 학사연구부',
