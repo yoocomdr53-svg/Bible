@@ -262,6 +262,10 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
   ).length;
   const planProgressPercent = Math.min(100, Math.round((genesisReadChapters / 50) * 100));
 
+  // 상세 진도표 2가지 메뉴 모드: 'single' (일독상세표) vs 'goal' (목표상세표)
+  const [progressDetailMode, setProgressDetailMode] = useState<'single' | 'goal'>('single');
+  const targetGoalReads = 12; // 12독 목표 기준
+
   // Completed Bible Readings count (통독 수) - 1독 완료 시마다 배지 1개씩 추가, 12독 목표 달성 시 축하 모달 표시
   const [completedReadingsCount, setCompletedReadingsCount] = useState<number>(() => {
     try {
@@ -271,6 +275,25 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
       return 0;
     }
   });
+
+  // 66권 전체 1,189장 중 현재 읽은 장 수
+  const totalReadChAll = React.useMemo(() => {
+    let count = 0;
+    for (const b of BIBLE_BOOKS) {
+      for (let ch = 1; ch <= b.chaptersCount; ch++) {
+        if (isChapterFullyRead(b.name, ch, completedVerses)) {
+          count++;
+        }
+      }
+    }
+    return count;
+  }, [completedVerses]);
+
+  // 12독 목표 기준 전체 누적 읽은 장 수 (총 14,268장)
+  const totalCumChAll = Math.min(
+    1189 * targetGoalReads,
+    completedReadingsCount * 1189 + totalReadChAll
+  );
 
   const [showBadgeModal, setShowBadgeModal] = useState(false);
   const [showCelebrationModal, setShowCelebrationModal] = useState(false);
@@ -663,13 +686,13 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           </div>
         </div>
 
-        {/* 3. Section Header: 📊 상세 진도표 | 현재 1독 | 🗄 데이터 아카이브 */}
-        <div className="px-3 sm:px-4 pt-3.5 pb-2 flex items-center justify-between bg-white flex-shrink-0">
+        {/* 3. Section Header: Back button + 상세 진도표 + 데이터 아카이브 (총통독 메뉴 삭제, 스마트폰 가로 한 줄 정렬) */}
+        <div className="px-3 sm:px-4 py-2.5 flex items-center justify-between bg-white border-b border-slate-100 flex-shrink-0">
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleBackFromTotalProgress}
-              className="p-1 -ml-1 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+              className="p-1 -ml-1 text-slate-700 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition cursor-pointer"
               title="뒤로 가기"
             >
               <ChevronLeft className="w-6 h-6 stroke-[2.5]" />
@@ -681,63 +704,59 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                 <div className="w-1 h-4 bg-blue-500 rounded-xs" />
                 <div className="w-1 h-2 bg-teal-400 rounded-xs" />
               </div>
-              <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+              <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight whitespace-nowrap">
                 상세 진도표
               </h1>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setShowBadgeModal(true)}
-              className="px-2.5 py-0.5 rounded-full bg-[#eff6ff] hover:bg-blue-100 text-[#2563eb] border border-[#bfdbfe] text-xs font-black cursor-pointer transition active:scale-95 flex items-center gap-1 shadow-2xs"
-              title="총통독 현황 및 12목표 배지함 열기"
-            >
-              {completedReadingsCount >= 12 ? (
-                <>
-                  <span>👑</span>
-                  <span>총통독 12독 완수!</span>
-                </>
-              ) : (
-                <>
-                  <span>총통독: {completedReadingsCount}독</span>
-                  <span className="text-[10px] text-blue-500 font-bold">/ 12독</span>
-                </>
-              )}
-            </button>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => alert('데이터 아카이브: 과거 통독 기록')}
+            className="px-2.5 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold rounded-lg flex items-center gap-1 shadow-2xs transition cursor-pointer whitespace-nowrap"
+          >
+            <span>🗄</span>
+            <span>데이터 아카이브</span>
+          </button>
+        </div>
+
+        {/* 4. 2-Tab Menu: 일독상세표 vs 목표상세표 (12독) - 스마트폰 맞춤 가로 정렬 */}
+        <div className="px-3 sm:px-4 pt-2.5 pb-2 bg-white flex-shrink-0">
+          <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-2xl text-xs sm:text-sm font-black">
             <button
               type="button"
-              onClick={() => {
-                if (window.confirm('모든 성경 통독 완료 기록을 초기화하시겠습니까?')) {
-                  resetAllReadingProgress();
-                }
-              }}
-              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold rounded-lg flex items-center gap-1 shadow-2xs transition cursor-pointer"
-              title="통독한 데이터 모두 초기화"
+              onClick={() => setProgressDetailMode('single')}
+              className={`py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                progressDetailMode === 'single'
+                  ? 'bg-white text-[#1b64b9] shadow-xs font-black'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
             >
-              <span>🔄</span>
-              <span>통독 초기화</span>
+              <span>📖</span>
+              <span className="whitespace-nowrap">일독상세표</span>
             </button>
             <button
               type="button"
-              onClick={() => alert('데이터 아카이브: 과거 통독 기록')}
-              className="px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-lg flex items-center gap-1 shadow-2xs transition cursor-pointer"
+              onClick={() => setProgressDetailMode('goal')}
+              className={`py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                progressDetailMode === 'goal'
+                  ? 'bg-white text-[#1b64b9] shadow-xs font-black'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
             >
-              <span>🗄</span>
-              <span>데이터 아카이브</span>
+              <span>🎯</span>
+              <span className="whitespace-nowrap">목표상세표 ({targetGoalReads}독)</span>
             </button>
           </div>
         </div>
 
-        {/* 4. Subtitle: 구약 성경 (39권) / 신약 성경 (27권) | 책 클릭 시 해당 성경으로 바로 이동 */}
-        <div className="px-3 sm:px-4 py-2 flex items-center justify-between bg-white border-b border-slate-100 flex-shrink-0">
-          <div className="flex items-center gap-2">
+        {/* 5. Sub-bar: 구약 / 신약 + 해당 상세표 전용 통독 초기화 버튼 (가로 정렬) */}
+        <div className="px-3 sm:px-4 py-2 flex items-center justify-between bg-white border-b border-slate-100 flex-shrink-0 gap-2">
+          <div className="flex items-center gap-2 whitespace-nowrap">
             <button
               type="button"
               onClick={() => setSelectedTestament('OT')}
-              className={`text-sm sm:text-base font-black transition cursor-pointer pb-0.5 ${
+              className={`text-xs sm:text-sm font-black transition cursor-pointer pb-0.5 ${
                 selectedTestament === 'OT'
                   ? 'text-slate-900 border-b-2 border-[#1b64b9]'
                   : 'text-slate-400 hover:text-slate-600'
@@ -749,7 +768,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             <button
               type="button"
               onClick={() => setSelectedTestament('NT')}
-              className={`text-sm sm:text-base font-black transition cursor-pointer pb-0.5 ${
+              className={`text-xs sm:text-sm font-black transition cursor-pointer pb-0.5 ${
                 selectedTestament === 'NT'
                   ? 'text-slate-900 border-b-2 border-[#1b64b9]'
                   : 'text-slate-400 hover:text-slate-600'
@@ -759,12 +778,62 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </button>
           </div>
 
-          <span className="text-[11px] sm:text-xs text-slate-400 font-medium">
+          {progressDetailMode === 'single' ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('현재 1독 진행 중인 모든 장의 읽기 완료 기록을 초기화하시겠습니까?')) {
+                  resetAllReadingProgress();
+                }
+              }}
+              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold rounded-lg flex items-center gap-1 shadow-2xs transition cursor-pointer whitespace-nowrap flex-shrink-0"
+              title="현재 1독 읽기 기록 초기화"
+            >
+              <span>🔄</span>
+              <span>일독 초기화</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('12목표 누적 통독 기록을 0으로 초기화하시겠습니까?')) {
+                  updateReadingsCount(() => 0);
+                }
+              }}
+              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold rounded-lg flex items-center gap-1 shadow-2xs transition cursor-pointer whitespace-nowrap flex-shrink-0"
+              title="12목표 통독 기록 초기화"
+            >
+              <span>🔄</span>
+              <span>목표 초기화</span>
+            </button>
+          )}
+        </div>
+
+        {/* 6. Summary Banner: 일독 진도 vs 12독 목표 진도 */}
+        <div className="px-3 sm:px-4 py-1.5 bg-slate-50 border-b border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500 flex-shrink-0">
+          <div className="flex items-center gap-1 font-bold text-slate-600 truncate">
+            {progressDetailMode === 'single' ? (
+              <>
+                <span className="text-[#10b981]">●</span>
+                <span className="whitespace-nowrap">
+                  일독 진도: 총 1,189장 중 <strong className="text-emerald-600 font-black">{totalReadChAll}장</strong> 완독 ({Math.round((totalReadChAll / 1189) * 100)}%)
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="text-[#1b64b9]">●</span>
+                <span className="whitespace-nowrap">
+                  12독 목표: 총 14,268장 중 <strong className="text-[#1b64b9] font-black">{totalCumChAll}장</strong> 완독 ({Math.round((totalCumChAll / 14268) * 100)}%)
+                </span>
+              </>
+            )}
+          </div>
+          <span className="text-slate-400 font-medium whitespace-nowrap hidden sm:inline">
             책 클릭 시 해당 성경으로 바로 이동
           </span>
         </div>
 
-        {/* 5. 2-Column Cards Grid (책 목록 및 50/50장, 40/40장 녹색 진행바) */}
+        {/* 7. Cards Grid (일독상세표: 50장 기준 | 목표상세표: 12독 기준 창세기 600장) */}
         <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 pb-24 bg-[#f8fafc]">
           <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
             {displayedBooks.map((book) => {
@@ -774,38 +843,79 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                   readCount++;
                 }
               }
-              const progressPercent = Math.round((readCount / book.chaptersCount) * 100);
 
-              return (
-                <div
-                  key={book.id}
-                  onClick={() => openChapterGrid('total-progress', book.name)}
-                  className="bg-white rounded-xl p-3 sm:p-3.5 border border-slate-200/90 shadow-2xs hover:border-blue-400 hover:shadow-xs transition-all text-left cursor-pointer group active:scale-98 flex flex-col justify-between min-h-[64px]"
-                  title={`${book.name} 터치 시 읽기 계획 현황(장별 그리드) 열기`}
-                >
-                  <div className="flex items-center justify-between w-full">
-                    <span className="text-sm sm:text-base font-black text-slate-900 group-hover:text-[#1b64b9] transition-colors">
-                      {book.name}
-                    </span>
-                    <span
-                      className={`text-xs sm:text-sm font-bold ${
-                        readCount > 0 ? 'text-slate-600' : 'text-slate-400'
-                      }`}
-                    >
-                      {readCount}/{book.chaptersCount}장
-                    </span>
+              if (progressDetailMode === 'single') {
+                const progressPercent = Math.round((readCount / book.chaptersCount) * 100);
+                return (
+                  <div
+                    key={book.id}
+                    onClick={() => openChapterGrid('total-progress', book.name)}
+                    className="bg-white rounded-xl p-3 sm:p-3.5 border border-slate-200/90 shadow-2xs hover:border-blue-400 hover:shadow-xs transition-all text-left cursor-pointer group active:scale-98 flex flex-col justify-between min-h-[64px]"
+                    title={`${book.name} 터치 시 읽기 계획 현황(장별 그리드) 열기`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-sm sm:text-base font-black text-slate-900 group-hover:text-[#1b64b9] transition-colors">
+                        {book.name}
+                      </span>
+                      <span
+                        className={`text-xs sm:text-sm font-bold ${
+                          readCount > 0 ? 'text-slate-600' : 'text-slate-400'
+                        }`}
+                      >
+                        {readCount}/{book.chaptersCount}장
+                      </span>
+                    </div>
+
+                    {readCount > 0 && (
+                      <div className="w-full bg-slate-100 h-1.5 sm:h-2 rounded-full overflow-hidden mt-2">
+                        <div
+                          className="bg-[#10b981] h-full rounded-full transition-all duration-300"
+                          style={{ width: `${progressPercent}%` }}
+                        />
+                      </div>
+                    )}
                   </div>
+                );
+              } else {
+                // 목표상세표: 12독 목표 기준 (예: 창세기 50장 * 12 = 600장)
+                const targetChapters = book.chaptersCount * targetGoalReads;
+                const cumRead = Math.min(
+                  targetChapters,
+                  completedReadingsCount * book.chaptersCount + readCount
+                );
+                const goalPercent = Math.min(100, Math.round((cumRead / targetChapters) * 100));
+                const bookDoneRounds = completedReadingsCount + (readCount === book.chaptersCount ? 1 : 0);
 
-                  {readCount > 0 && (
-                    <div className="w-full bg-slate-100 h-1.5 sm:h-2 rounded-full overflow-hidden mt-2">
+                return (
+                  <div
+                    key={book.id}
+                    onClick={() => openChapterGrid('total-progress', book.name)}
+                    className="bg-white rounded-xl p-3 sm:p-3.5 border border-slate-200/90 shadow-2xs hover:border-blue-400 hover:shadow-xs transition-all text-left cursor-pointer group active:scale-98 flex flex-col justify-between min-h-[72px]"
+                    title={`${book.name} 12목표 누적 진도 확인 (${cumRead}/${targetChapters}장)`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-sm sm:text-base font-black text-slate-900 group-hover:text-[#1b64b9] transition-colors">
+                        {book.name}
+                      </span>
+                      <span className="text-xs sm:text-sm font-bold text-slate-700">
+                        <strong className="text-[#1b64b9] font-black">{cumRead}</strong>/{targetChapters}장
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold mt-1">
+                      <span>{Math.min(targetGoalReads, bookDoneRounds)}/{targetGoalReads}회 완독</span>
+                      <span className="text-[#1b64b9] font-bold">{goalPercent}%</span>
+                    </div>
+
+                    <div className="w-full bg-slate-100 h-1.5 sm:h-2 rounded-full overflow-hidden mt-1.5">
                       <div
-                        className="bg-[#10b981] h-full rounded-full transition-all duration-300"
-                        style={{ width: `${progressPercent}%` }}
+                        className="bg-gradient-to-r from-[#1b64b9] to-blue-400 h-full rounded-full transition-all duration-300"
+                        style={{ width: `${goalPercent}%` }}
                       />
                     </div>
-                  )}
-                </div>
-              );
+                  </div>
+                );
+              }
             })}
           </div>
         </div>
