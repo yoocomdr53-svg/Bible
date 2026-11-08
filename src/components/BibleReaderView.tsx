@@ -96,6 +96,57 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   const [duration, setDuration] = useState(186); // 03:06
   const [voiceType, setVoiceType] = useState('남성(중저음)');
 
+  // Natural Korean TTS Speech Synthesis
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [speechRate, setSpeechRate] = useState<number>(0.92); // 차분하고 경건한 낭독 속도 (0.92x)
+  const [speechPitch, setSpeechPitch] = useState<number>(0.96); // 부드럽고 자연스러운 중저음 톤 (0.96)
+  const [currentSpeakingVerse, setCurrentSpeakingVerse] = useState<number | null>(null);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(false);
+
+  const isPlayingRef = useRef(false);
+  const currentVerseIndexRef = useRef(0);
+
+  // Load and cache browser/system speech synthesis voices
+  useEffect(() => {
+    if (!('speechSynthesis' in window)) return;
+
+    const loadVoices = () => {
+      const list = window.speechSynthesis.getVoices();
+      if (list && list.length > 0) {
+        setAvailableVoices(list);
+      }
+    };
+
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+
+    return () => {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  // When changing chapter or book, clean up any active playback
+  useEffect(() => {
+    return () => {
+      isPlayingRef.current = false;
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [selectedBook, selectedChapter]);
+
+  // Smooth scroll current speaking verse into center view
+  useEffect(() => {
+    if (currentSpeakingVerse !== null && isPlaying) {
+      const el = document.getElementById(`verse-row-${currentSpeakingVerse}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [currentSpeakingVerse, isPlaying]);
+
   // Bible Reading Recording Mode (성경낭독녹음 모드 - matching user uploaded screenshot)
   const [isRecordingMode, setIsRecordingMode] = useState(initialRecordingMode);
   const [activeRecordVerse, setActiveRecordVerse] = useState<number>(initialVerse || 1);
@@ -225,25 +276,205 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     return () => clearInterval(interval);
   }, [isRecordingNow]);
 
+  // Select highest quality natural Korean voice from browser synthesis
+  const getBestKoreanVoice = (type: string, voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null => {
+    if (!voices || voices.length === 0) return null;
+
+    const koVoices = voices.filter(
+      (v) => v.lang.toLowerCase().includes('ko') || v.lang.toLowerCase().includes('kr')
+    );
+
+    if (koVoices.length === 0) return null;
+
+    // 1. 남성(중저음): Natural / Neural 남성 목소리 최우선 (InJoon, Google 한국어, 남성 음성)
+    if (type.includes('남성') || type.includes('중저음')) {
+      const naturalMale = koVoices.find((v) => {
+        const n = v.name.toLowerCase();
+        return (
+          (n.includes('injoon') || n.includes('in-joon') || n.includes('인준') || n.includes('male') || n.includes('남성')) &&
+          (n.includes('natural') || n.includes('online') || n.includes('neural'))
+        );
+      });
+      if (naturalMale) return naturalMale;
+
+      const anyMale = koVoices.find((v) => {
+        const n = v.name.toLowerCase();
+        return n.includes('injoon') || n.includes('in-joon') || n.includes('인준') || n.includes('male') || n.includes('남성');
+      });
+      if (anyMale) return anyMale;
+
+      const google = koVoices.find((v) => v.name.toLowerCase().includes('google'));
+      if (google) return google;
+
+      const anyNatural = koVoices.find((v) => {
+        const n = v.name.toLowerCase();
+        return n.includes('natural') || n.includes('online') || n.includes('neural');
+      });
+      if (anyNatural) return anyNatural;
+
+      return koVoices[0];
+    }
+
+    // 2. 여성(맑은음): Natural / Neural 여성 목소리 (SunHi, 선희, Sora, Yuna)
+    if (type.includes('여성') || type.includes('맑은음')) {
+      const naturalFemale = koVoices.find((v) => {
+        const n = v.name.toLowerCase();
+        return (
+          (n.includes('sunhi') || n.includes('선희') || n.includes('female') || n.includes('여성') || n.includes('yuna') || n.includes('sora')) &&
+          (n.includes('natural') || n.includes('online') || n.includes('neural'))
+        );
+      });
+      if (naturalFemale) return naturalFemale;
+
+      const anyFemale = koVoices.find((v) => {
+        const n = v.name.toLowerCase();
+        return n.includes('sunhi') || n.includes('선희') || n.includes('female') || n.includes('yuna') || n.includes('sora');
+      });
+      if (anyFemale) return anyFemale;
+
+      const google = koVoices.find((v) => v.name.toLowerCase().includes('google'));
+      if (google) return google;
+
+      return koVoices[0];
+    }
+
+    // 3. AI 청년 / 드라마 입체 낭독
+    const google = koVoices.find((v) => v.name.toLowerCase().includes('google'));
+    if (google) return google;
+
+    const anyNatural = koVoices.find((v) => {
+      const n = v.name.toLowerCase();
+      return n.includes('natural') || n.includes('online') || n.includes('neural');
+    });
+    if (anyNatural) return anyNatural;
+
+    return koVoices[0];
+  };
+
+  const stopPlayback = () => {
+    isPlayingRef.current = false;
+    setIsPlaying(false);
+    setCurrentSpeakingVerse(null);
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+  };
+
+  const playVerseAtIndex = (index: number) => {
+    if (!isPlayingRef.current) return;
+    if (index >= verses.length) {
+      stopPlayback();
+      return;
+    }
+
+    currentVerseIndexRef.current = index;
+    const v = verses[index];
+    setCurrentSpeakingVerse(v.verse);
+
+    // 구절 낭독 시 쉼표(,)를 사용하여 자연스러운 호흡과 억양 부여 (마침표의 급격한 끊김 및 기계음 방지)
+    const textToRead = `${v.verse}절, ${v.text}`;
+    const utterance = new SpeechSynthesisUtterance(textToRead);
+    utterance.lang = 'ko-KR';
+
+    const bestVoice = getBestKoreanVoice(voiceType, availableVoices);
+    if (bestVoice) {
+      utterance.voice = bestVoice;
+    }
+
+    // 인위적인 pitch 0.8 강제 다운샘플링(기계음 원인)을 제거하고,
+    // 자연스러운 사람 목소리 대역(0.95~0.98)으로 부드럽게 재생
+    if (voiceType.includes('중저음')) {
+      const isNaturalOnline =
+        bestVoice?.name.toLowerCase().includes('natural') ||
+        bestVoice?.name.toLowerCase().includes('online') ||
+        bestVoice?.name.toLowerCase().includes('injoon');
+      utterance.pitch = isNaturalOnline ? 0.98 : (speechPitch || 0.95);
+      utterance.rate = speechRate || 0.92;
+    } else if (voiceType.includes('여성')) {
+      utterance.pitch = 1.02;
+      utterance.rate = speechRate || 0.95;
+    } else if (voiceType.includes('청년')) {
+      utterance.pitch = 1.0;
+      utterance.rate = speechRate || 0.98;
+    } else {
+      // 드라마 입체 낭독
+      utterance.pitch = 0.95;
+      utterance.rate = 0.90;
+    }
+
+    utterance.onend = () => {
+      if (isPlayingRef.current) {
+        // 구절과 구절 사이 자연스러운 350ms 묵상/호흡 간격
+        setTimeout(() => {
+          if (isPlayingRef.current) {
+            playVerseAtIndex(index + 1);
+          }
+        }, 350);
+      }
+    };
+
+    utterance.onerror = (err) => {
+      console.warn('Speech error at verse', v.verse, err);
+      if (isPlayingRef.current) {
+        playVerseAtIndex(index + 1);
+      }
+    };
+
+    window.speechSynthesis.speak(utterance);
+  };
+
   const togglePlay = () => {
     if ('speechSynthesis' in window) {
       if (isPlaying) {
-        window.speechSynthesis.cancel();
-        setIsPlaying(false);
+        stopPlayback();
       } else {
+        window.speechSynthesis.cancel();
+        isPlayingRef.current = true;
         setIsPlaying(true);
-        const textToRead = verses.map((v) => `${v.verse}절. ${v.text}`).join(' ');
-        const utterance = new SpeechSynthesisUtterance(textToRead);
-        utterance.lang = 'ko-KR';
-        utterance.rate = voiceType.includes('중저음') ? 0.9 : 1.0;
-        utterance.pitch = voiceType.includes('중저음') ? 0.8 : 1.0;
-        utterance.onend = () => setIsPlaying(false);
-        utterance.onerror = () => setIsPlaying(false);
-        window.speechSynthesis.speak(utterance);
+        // 현재 선택된 절이 있으면 해당 절부터 낭독, 없으면 1절부터 시작
+        const startIndex =
+          selectedVerse && selectedVerse > 1
+            ? Math.max(0, verses.findIndex((v) => v.verse === selectedVerse))
+            : 0;
+        playVerseAtIndex(startIndex >= 0 ? startIndex : 0);
       }
     } else {
       setIsPlaying(!isPlaying);
     }
+  };
+
+  const previewVoice = (type: string, rate: number, pitch: number) => {
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    setIsPreviewPlaying(true);
+
+    const sample = '창세기 1장 1절, 태초에 하나님이 천지를 창조하시니라.';
+    const utterance = new SpeechSynthesisUtterance(sample);
+    utterance.lang = 'ko-KR';
+
+    const voice = getBestKoreanVoice(type, availableVoices);
+    if (voice) {
+      utterance.voice = voice;
+    }
+
+    if (type.includes('중저음')) {
+      const isNaturalOnline =
+        voice?.name.toLowerCase().includes('natural') ||
+        voice?.name.toLowerCase().includes('online') ||
+        voice?.name.toLowerCase().includes('injoon');
+      utterance.pitch = isNaturalOnline ? 0.98 : pitch;
+      utterance.rate = rate;
+    } else if (type.includes('여성')) {
+      utterance.pitch = 1.02;
+      utterance.rate = rate;
+    } else {
+      utterance.pitch = pitch;
+      utterance.rate = rate;
+    }
+
+    utterance.onend = () => setIsPreviewPlaying(false);
+    utterance.onerror = () => setIsPreviewPlaying(false);
+    window.speechSynthesis.speak(utterance);
   };
 
   const formatTime = (sec: number) => {
@@ -265,7 +496,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
       setSelectedVerse(1);
       setActiveRecordVerse(1);
       setCurrentTime(0);
-      setIsPlaying(false);
+      stopPlayback();
     }
   };
 
@@ -277,7 +508,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
       setSelectedVerse(1);
       setActiveRecordVerse(1);
       setCurrentTime(0);
-      setIsPlaying(false);
+      stopPlayback();
     }
   };
 
@@ -298,7 +529,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     setSelectedVerse(verse);
     setActiveRecordVerse(verse);
     setCurrentTime(0);
-    setIsPlaying(false);
+    stopPlayback();
   };
 
   // Recording controls
@@ -1055,6 +1286,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           {filteredVerses.map((v) => {
             const isHighlighted = highlightedVerses.includes(v.verse);
             const isRead = completedVerses.has(`${selectedBook}-${selectedChapter}-${v.verse}`);
+            const isSpeaking = currentSpeakingVerse === v.verse;
             return (
               <div
                 id={`verse-row-${v.verse}`}
@@ -1065,7 +1297,11 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                   );
                 }}
                 className={`flex items-start gap-3 py-2 px-2.5 rounded-xl transition cursor-pointer ${
-                  isHighlighted
+                  isSpeaking
+                    ? isInverted
+                      ? 'bg-blue-950/70 border-2 border-blue-400 shadow-md ring-2 ring-blue-500/30'
+                      : 'bg-blue-50/90 border-2 border-[#1b64b9] shadow-sm ring-2 ring-blue-200'
+                    : isHighlighted
                     ? isInverted
                       ? 'bg-amber-950/60 border border-amber-500/80 shadow-xs'
                       : 'bg-amber-100/80 border-2 border-amber-400 shadow-sm'
@@ -1103,18 +1339,25 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                   </button>
                 </div>
 
-                {/* Verse Number */}
-                <span
-                  className={`text-base sm:text-lg font-black select-none min-w-[20px] pt-0.5 ${
-                    isRead
-                      ? 'text-emerald-600'
-                      : isInverted
-                      ? 'text-amber-400'
-                      : 'text-slate-900'
-                  }`}
-                >
-                  {v.verse}
-                </span>
+                {/* Verse Number & Speaking Pulsing Indicator */}
+                <div className="flex items-center gap-1 min-w-[24px] pt-0.5">
+                  {isSpeaking && (
+                    <span className="w-2 h-2 rounded-full bg-[#1b64b9] animate-ping flex-shrink-0" title="현재 낭독 중" />
+                  )}
+                  <span
+                    className={`text-base sm:text-lg font-black select-none ${
+                      isSpeaking
+                        ? 'text-[#1b64b9]'
+                        : isRead
+                        ? 'text-emerald-600'
+                        : isInverted
+                        ? 'text-amber-400'
+                        : 'text-slate-900'
+                    }`}
+                  >
+                    {v.verse}
+                  </span>
+                </div>
 
                 {/* Verse Text with dynamic font size, weight, and family */}
                 <p
@@ -1577,35 +1820,239 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
         </div>
       )}
 
-      {/* MODAL: Voice Selector */}
+      {/* MODAL: Voice and Natural AI TTS Settings */}
       {showVoiceModal && (
         <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setShowVoiceModal(false);
+            if (e.target === e.currentTarget) {
+              if (isPreviewPlaying && 'speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                setIsPreviewPlaying(false);
+              }
+              setShowVoiceModal(false);
+            }
           }}
         >
-          <div className="bg-white rounded-2xl p-5 w-full max-w-xs shadow-2xl border">
-            <h3 className="font-extrabold text-slate-900 pb-3 border-b">낭독 음원 선택</h3>
-            <div className="space-y-2 py-3">
-              {['남성(중저음)', '여성(맑은음)', 'AI 청년 목소리', '드라마 입체 낭독'].map((voice) => (
-                <button
-                  key={voice}
-                  type="button"
-                  onClick={() => {
-                    setVoiceType(voice);
-                    setShowVoiceModal(false);
-                  }}
-                  className={`w-full p-2.5 rounded-xl text-left text-xs font-bold border flex items-center justify-between ${
-                    voiceType === voice
-                      ? 'bg-[#1b64b9] text-white border-[#1b64b9]'
-                      : 'hover:bg-slate-50 border-slate-200 text-slate-800'
-                  }`}
-                >
-                  <span>{voice}</span>
-                  {voiceType === voice && <span>✓</span>}
-                </button>
-              ))}
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto space-y-4 text-slate-800">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🎙️</span>
+                <div>
+                  <h3 className="font-black text-slate-900 text-sm sm:text-base">
+                    낭독 음원 및 AI TTS 설정
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-bold">
+                    기계음을 제거하고 자연스러운 낭독을 제공합니다
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isPreviewPlaying && 'speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                    setIsPreviewPlaying(false);
+                  }
+                  setShowVoiceModal(false);
+                }}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Voice Type Options */}
+            <div>
+              <p className="text-xs font-bold text-slate-600 mb-2">1. 낭독 음원 선택</p>
+              <div className="space-y-1.5">
+                {[
+                  {
+                    id: '남성(중저음)',
+                    label: '남성 (자연스러운 중저음)',
+                    sub: '깊고 따뜻한 울림, 기계음 왜곡 제거 (권장)',
+                    icon: '🎙️',
+                  },
+                  {
+                    id: '여성(맑은음)',
+                    label: '여성 (맑은 음성)',
+                    sub: '선명하고 차분한 여성 낭독',
+                    icon: '🌸',
+                  },
+                  {
+                    id: 'AI 청년 목소리',
+                    label: 'AI 청년 목소리',
+                    sub: '또렷하고 자연스러운 현대어 낭독',
+                    icon: '✨',
+                  },
+                  {
+                    id: '드라마 입체 낭독',
+                    label: '드라마 입체 낭독',
+                    sub: '경건한 호흡과 엄숙한 분위기',
+                    icon: '🎭',
+                  },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setVoiceType(item.id);
+                      if (isPreviewPlaying && 'speechSynthesis' in window) {
+                        window.speechSynthesis.cancel();
+                        setIsPreviewPlaying(false);
+                      }
+                    }}
+                    className={`w-full p-2.5 rounded-2xl text-left border transition cursor-pointer flex items-center justify-between ${
+                      voiceType === item.id
+                        ? 'bg-blue-50 border-2 border-[#1b64b9] shadow-xs'
+                        : 'hover:bg-slate-50 border-slate-200 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-xl">{item.icon}</span>
+                      <div>
+                        <p
+                          className={`text-xs font-black ${
+                            voiceType === item.id ? 'text-[#1b64b9]' : 'text-slate-900'
+                          }`}
+                        >
+                          {item.label}
+                        </p>
+                        <p className="text-[10px] text-slate-500 font-bold">{item.sub}</p>
+                      </div>
+                    </div>
+                    {voiceType === item.id && (
+                      <span className="w-5 h-5 rounded-full bg-[#1b64b9] text-white flex items-center justify-center text-xs font-black">
+                        ✓
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Speed Control */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-xs font-bold text-slate-600">2. 낭독 속도</p>
+                <span className="text-xs font-black text-[#1b64b9]">{speechRate}x</span>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {[
+                  { label: '느리게', rate: 0.85 },
+                  { label: '차분하게', rate: 0.92 },
+                  { label: '보통', rate: 1.0 },
+                  { label: '빠르게', rate: 1.15 },
+                ].map((s) => (
+                  <button
+                    key={s.label}
+                    type="button"
+                    onClick={() => {
+                      setSpeechRate(s.rate);
+                      if (isPreviewPlaying && 'speechSynthesis' in window) {
+                        window.speechSynthesis.cancel();
+                        setIsPreviewPlaying(false);
+                      }
+                    }}
+                    className={`py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                      speechRate === s.rate
+                        ? 'bg-[#1b64b9] text-white border-[#1b64b9]'
+                        : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Pitch / Tone Control */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-xs font-bold text-slate-600">3. 음성 톤 (저음/표준)</p>
+                <span className="text-xs font-black text-[#1b64b9]">
+                  {speechPitch <= 0.94 ? '깊은 저음' : speechPitch <= 0.97 ? '부드러운 중저음' : '표준 톤'}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { label: '깊은 저음', pitch: 0.94 },
+                  { label: '부드러운 중저음', pitch: 0.96 },
+                  { label: '표준 톤', pitch: 1.0 },
+                ].map((p) => (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => {
+                      setSpeechPitch(p.pitch);
+                      if (isPreviewPlaying && 'speechSynthesis' in window) {
+                        window.speechSynthesis.cancel();
+                        setIsPreviewPlaying(false);
+                      }
+                    }}
+                    className={`py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                      speechPitch === p.pitch
+                        ? 'bg-[#1b64b9] text-white border-[#1b64b9]'
+                        : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Active Voice Info Box */}
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-[11px] space-y-1">
+              <div className="flex items-center gap-1.5 text-slate-700 font-extrabold">
+                <span className="text-emerald-600">●</span>
+                <span>감지된 고품질 엔진:</span>
+                <span className="text-[#1b64b9] truncate max-w-[150px]">
+                  {getBestKoreanVoice(voiceType, availableVoices)?.name || '한국어 고음질 자연어 엔진'}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-500 font-bold leading-relaxed">
+                ✓ 인위적인 기계음 왜곡(Pitch 0.8)을 제거하고 자연스러운 억양과 절간 묵상 간격(350ms)을 적용했습니다.
+              </p>
+            </div>
+
+            {/* Preview and Save Action Buttons */}
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  if (isPreviewPlaying) {
+                    if ('speechSynthesis' in window) {
+                      window.speechSynthesis.cancel();
+                    }
+                    setIsPreviewPlaying(false);
+                  } else {
+                    previewVoice(voiceType, speechRate, speechPitch);
+                  }
+                }}
+                className={`w-full py-2.5 rounded-xl font-black text-xs flex items-center justify-center gap-2 border transition cursor-pointer active:scale-95 ${
+                  isPreviewPlaying
+                    ? 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse'
+                    : 'bg-blue-50 hover:bg-blue-100 text-[#1b64b9] border-blue-200'
+                }`}
+              >
+                <span>{isPreviewPlaying ? '⏹ 미리듣기 멈춤' : '▶ 낭독 음원 미리듣기 (1절 시연)'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (isPreviewPlaying && 'speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                    setIsPreviewPlaying(false);
+                  }
+                  setShowVoiceModal(false);
+                }}
+                className="w-full py-2.5 rounded-xl bg-[#1b64b9] hover:bg-blue-700 text-white font-black text-xs shadow-md transition cursor-pointer active:scale-95"
+              >
+                설정 완료
+              </button>
             </div>
           </div>
         </div>
