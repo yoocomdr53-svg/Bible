@@ -75,6 +75,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
   const [syncLogs, setSyncLogs] = useState<SheetSyncLog[]>(() => getSheetSyncLogs());
   const [isSyncing, setIsSyncing] = useState(false);
   const [copiedScript, setCopiedScript] = useState(false);
+  const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
 
   // Members state (localStorage 연동 지속 보관)
   const [members, setMembers] = useState<MemberReadingProfile[]>(() => {
@@ -542,6 +543,15 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
         </div>
 
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleCopyAppsScript}
+            className="px-2.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black rounded-xl flex items-center gap-1 shadow-xs transition cursor-pointer active:scale-95 flex-shrink-0"
+            title="yoocomdr57@gmail.com Google Apps Script 코드 복사"
+          >
+            <Share2 className="w-3.5 h-3.5 text-slate-950 stroke-[2.5]" />
+            <span>{copiedScript ? '복사됨!' : '스크립트 복사'}</span>
+          </button>
           <button
             type="button"
             onClick={handleTriggerSheetSync}
@@ -1577,13 +1587,13 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
           <div className="space-y-4">
             {/* 1. Account & Sheet Connection Status Card */}
             <div className="bg-gradient-to-r from-[#064e3b] via-[#065f46] to-[#047857] text-white rounded-3xl p-4 sm:p-5 shadow-lg border border-emerald-500/30 space-y-3.5">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-center gap-2.5">
                   <div className="w-10 h-10 rounded-2xl bg-white text-emerald-700 flex items-center justify-center font-black text-lg shadow-md flex-shrink-0">
                     📊
                   </div>
                   <div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <h3 className="text-base sm:text-lg font-black tracking-tight">구글 스프레드시트 양방향 연동</h3>
                       <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-400 text-slate-950">
                         실시간 연동중
@@ -1595,15 +1605,34 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleTriggerSheetSync}
-                  disabled={isSyncing}
-                  className="px-3.5 py-2 rounded-xl bg-white hover:bg-emerald-50 active:scale-95 text-emerald-800 text-xs font-black shadow-md transition cursor-pointer flex items-center gap-1.5 flex-shrink-0"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-amber-600' : 'text-emerald-700'}`} />
-                  <span>{isSyncing ? '동기화 중...' : '지금 실시간 동기화'}</span>
-                </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleCopyAppsScript}
+                    className="px-3 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 text-xs font-black shadow-md transition cursor-pointer flex items-center gap-1.5 flex-shrink-0"
+                    title="Google Apps Script 연동 코드 클립보드 복사"
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-slate-950 stroke-[2.5]" />
+                    <span>{copiedScript ? '✓ 복사 완료!' : '📋 스크립트 코드 복사'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAppsScriptModal(true)}
+                    className="px-3 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold border border-white/20 transition cursor-pointer flex items-center gap-1 flex-shrink-0"
+                    title="전체 코드 및 가이드 팝업 열기"
+                  >
+                    <span>👁️ 코드 전체보기</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleTriggerSheetSync}
+                    disabled={isSyncing}
+                    className="px-3.5 py-2 rounded-xl bg-white hover:bg-emerald-50 active:scale-95 text-emerald-800 text-xs font-black shadow-md transition cursor-pointer flex items-center gap-1.5 flex-shrink-0"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-amber-600' : 'text-emerald-700'}`} />
+                    <span>{isSyncing ? '동기화 중...' : '지금 동기화'}</span>
+                  </button>
+                </div>
               </div>
 
               {/* Status Pills */}
@@ -1627,7 +1656,126 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
               </div>
             </div>
 
-            {/* 2. Google Spreadsheet 5-Sheet Schema & Structure Preview */}
+            {/* 2. Google Apps Script One-Click Integration Setup (Placed Prominently at Top) */}
+            <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-blue-950 text-white rounded-3xl p-4 sm:p-5 shadow-xl border border-indigo-500/40 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-xl shadow-md flex-shrink-0">
+                    ⚡
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h4 className="text-base sm:text-lg font-black text-white tracking-tight">
+                        구글 앱스 스크립트(Apps Script) 연동 코드
+                      </h4>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-400 text-slate-950">
+                        원클릭 복사
+                      </span>
+                    </div>
+                    <p className="text-xs text-indigo-200 mt-0.5">
+                      구글 시트 [확장 프로그램 &gt; Apps Script]에 붙여넣기만 하면 5개 마스터 시트가 자동 완성됩니다.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={handleCopyAppsScript}
+                    className={`flex-1 sm:flex-none px-4 py-2.5 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-lg active:scale-95 ${
+                      copiedScript
+                        ? 'bg-emerald-500 text-white shadow-emerald-500/30 ring-2 ring-emerald-300'
+                        : 'bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 shadow-amber-500/20'
+                    }`}
+                  >
+                    <Share2 className="w-4 h-4 stroke-[2.5]" />
+                    <span className="text-sm font-black">
+                      {copiedScript ? '✓ 클립보드 복사 완료!' : '📋 스크립트 코드 복사'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowAppsScriptModal(true)}
+                    className="px-3.5 py-2.5 text-xs font-bold rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 transition cursor-pointer flex items-center justify-center gap-1.5 flex-shrink-0"
+                  >
+                    <span>👁️ 전체보기</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4-Step Quick Instructions */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs">
+                <div className="bg-black/30 backdrop-blur-xs rounded-xl p-2.5 border border-white/10">
+                  <span className="text-[10px] text-amber-300 font-bold block mb-0.5">STEP 1</span>
+                  <p className="text-[11px] text-slate-200">
+                    <strong className="text-white">구글 시트 생성/열기</strong>
+                    <br />
+                    <span className="text-slate-400 text-[10px]">yoocomdr57@gmail.com</span>
+                  </p>
+                </div>
+                <div className="bg-black/30 backdrop-blur-xs rounded-xl p-2.5 border border-white/10">
+                  <span className="text-[10px] text-amber-300 font-bold block mb-0.5">STEP 2</span>
+                  <p className="text-[11px] text-slate-200">
+                    상단 메뉴 <strong className="text-white">[확장 프로그램]</strong> 클릭 후 <strong className="text-white">[Apps Script]</strong> 열기
+                  </p>
+                </div>
+                <div className="bg-black/30 backdrop-blur-xs rounded-xl p-2.5 border border-white/10">
+                  <span className="text-[10px] text-amber-300 font-bold block mb-0.5">STEP 3</span>
+                  <p className="text-[11px] text-slate-200">
+                    기존 코드 지우고 <strong className="text-amber-300">[복사한 스크립트]</strong> 붙여넣기 (Ctrl+V) 후 저장
+                  </p>
+                </div>
+                <div className="bg-black/30 backdrop-blur-xs rounded-xl p-2.5 border border-white/10">
+                  <span className="text-[10px] text-amber-300 font-bold block mb-0.5">STEP 4</span>
+                  <p className="text-[11px] text-slate-200">
+                    함수 <strong className="text-emerald-300">[setupSuperBibleSheets]</strong> 선택 후 [실행] 누르면 5개 시트 자동 생성!
+                  </p>
+                </div>
+              </div>
+
+              {/* Code Snippet Box with Quick Copy Overlay */}
+              <div className="relative rounded-2xl bg-black/60 border border-white/10 p-3 text-[11px] font-mono overflow-hidden">
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10 text-[10px] text-slate-400">
+                  <span className="flex items-center gap-1.5 font-bold text-slate-300">
+                    <span>📄 Code.gs</span>
+                    <span className="text-slate-500 font-normal">(총 135줄, 5개 마스터 시트 자동 생성 및 실시간 동기화 Web App)</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyAppsScript}
+                    className="text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 cursor-pointer bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20"
+                  >
+                    <span>{copiedScript ? '✓ 복사됨' : '복사하기'}</span>
+                  </button>
+                </div>
+                <pre className="text-slate-300 overflow-x-auto max-h-32 no-scrollbar leading-relaxed">
+                  {generateAppsScriptCode('yoocomdr57@gmail.com').slice(0, 480)}...
+                </pre>
+              </div>
+
+              {/* Action Buttons: Open new Google Sheet or Trigger Sync */}
+              <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+                <a
+                  href="https://docs.google.com/spreadsheets/u/0/create"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full sm:flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 transition text-center shadow-md cursor-pointer"
+                >
+                  <span>🔗 yoocomdr57 새 구글 시트 만들기 (새 창)</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={handleDownloadGoogleSheetTemplate}
+                  className="w-full sm:flex-1 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition border border-white/20 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-sky-400" />
+                  <span>5개 시트 템플릿 파일(CSV) 받기</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 3. Google Spreadsheet 5-Sheet Schema & Structure Preview */}
             <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -1718,56 +1866,6 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                     로그ID, 일시, 방향(양방향), 동기화 요약, 영향 받은 행 수(Rows)
                   </p>
                 </div>
-              </div>
-            </div>
-
-            {/* 3. Google Apps Script One-Click Integration Setup */}
-            <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-sm font-black text-slate-900 flex items-center gap-1.5">
-                    <span>⚡ 구글 앱스 스크립트(Apps Script) 자동 연동 코드</span>
-                  </h4>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    구글 시트의 [확장 프로그램 &gt; Apps Script]에 붙여넣으면 별도 서버 없이 실시간 2-way 연동이 완성됩니다.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCopyAppsScript}
-                  className={`px-3 py-1.5 text-xs font-black rounded-xl transition cursor-pointer flex items-center gap-1 shadow-2xs ${
-                    copiedScript
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-slate-900 hover:bg-slate-800 text-white'
-                  }`}
-                >
-                  <Share2 className="w-3.5 h-3.5" />
-                  <span>{copiedScript ? '✓ 복사 완료!' : '스크립트 코드 복사'}</span>
-                </button>
-              </div>
-
-              <div className="bg-slate-900 text-slate-200 rounded-xl p-3 text-[11px] font-mono overflow-x-auto max-h-36 no-scrollbar">
-                <pre>{generateAppsScriptCode('yoocomdr57@gmail.com').slice(0, 500)}... (전체 120줄 복사 가능)</pre>
-              </div>
-
-              {/* Direct Actions: Create Google Sheet or Open template */}
-              <div className="flex items-center gap-2 pt-1">
-                <a
-                  href="https://docs.google.com/spreadsheets/u/0/create"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex-1 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 transition text-center"
-                >
-                  <span>🔗 yoocomdr57 새 구글 시트 만들기</span>
-                </a>
-                <button
-                  type="button"
-                  onClick={handleTriggerSheetSync}
-                  className="flex-1 py-2.5 bg-[#1b64b9] hover:bg-blue-600 text-white font-black rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-xs cursor-pointer text-center"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>현재 회원 진도 시트에 동기화</span>
-                </button>
               </div>
             </div>
 
@@ -2652,6 +2750,122 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                 className="flex-1 py-2.5 bg-[#0284c7] hover:bg-sky-600 text-white text-xs font-black rounded-xl cursor-pointer shadow-xs"
               >
                 수정사항 저장
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          MODAL 9: Google Apps Script 연동 코드 전체보기 및 복사 모달
+         ======================================================== */}
+      {showAppsScriptModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowAppsScriptModal(false);
+          }}
+        >
+          <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="bg-[#0f172a] text-white p-4 sm:p-5 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-lg">
+                  ⚡
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
+                    <span>Google Apps Script 연동 코드 (Code.gs)</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500 text-slate-950">
+                      yoocomdr57@gmail.com
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    구글 시트 확장 프로그램 &gt; Apps Script에 붙여넣어 5개 시트 자동 생성 및 실시간 양방향 동기화
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAppsScriptModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
+              {/* Step instructions */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2">
+                <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                  <span>📌 간편 설치 가이드 (3분 완료)</span>
+                </h4>
+                <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-600 font-medium">
+                  <li>
+                    <strong className="text-slate-800">구글 스프레드시트</strong> 열기 (
+                    <a
+                      href="https://docs.google.com/spreadsheets/u/0/create"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[#1b64b9] underline font-bold"
+                    >
+                      새 스프레드시트 바로 열기
+                    </a>
+                    )
+                  </li>
+                  <li>
+                    상단 메뉴에서 <strong className="text-slate-800">[확장 프로그램]</strong> &gt; <strong className="text-slate-800">[Apps Script]</strong> 클릭
+                  </li>
+                  <li>
+                    기존 기본 코드를 모두 지우고(Ctrl+A 후 Backspace), 아래의 <strong className="text-indigo-600">[복사한 스크립트 코드]</strong>를 붙여넣기(Ctrl+V) 한 뒤 저장(Ctrl+S)
+                  </li>
+                  <li>
+                    상단 함수 드롭다운에서 <strong className="text-emerald-700">[setupSuperBibleSheets]</strong>를 선택하고 <strong className="text-emerald-700">[실행]</strong> 버튼 클릭 (5개 마스터 시트 자동 생성!)
+                  </li>
+                  <li>
+                    우측 상단 <strong className="text-blue-700">[배포]</strong> &gt; <strong className="text-blue-700">[새 배포]</strong> 클릭 후 유형을 <strong className="text-blue-700">[웹 앱(Web App)]</strong>으로 선택하고 모든 사용자(Anyone) 권한으로 배포
+                  </li>
+                </ol>
+              </div>
+
+              {/* Code Box with Floating Copy Button */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
+                  <span>Code.gs 소스코드 (전체 내용)</span>
+                  <button
+                    type="button"
+                    onClick={handleCopyAppsScript}
+                    className="px-3 py-1 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-lg text-xs font-black shadow-xs flex items-center gap-1 transition cursor-pointer"
+                  >
+                    <Share2 className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>{copiedScript ? '✓ 복사되었습니다!' : '코드 복사하기'}</span>
+                  </button>
+                </div>
+                <div className="bg-slate-900 text-slate-200 rounded-2xl p-3.5 font-mono text-[11px] overflow-x-auto max-h-72 border border-slate-800 select-all leading-relaxed">
+                  <pre>{generateAppsScriptCode('yoocomdr57@gmail.com')}</pre>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowAppsScriptModal(false)}
+                className="px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                닫기
+              </button>
+              <button
+                type="button"
+                onClick={handleCopyAppsScript}
+                className="flex-1 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black rounded-xl transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
+              >
+                <Share2 className="w-4 h-4 text-slate-950 stroke-[2.5]" />
+                <span className="text-sm font-black">
+                  {copiedScript ? '✓ 클립보드에 복사 완료되었습니다!' : 'Google Apps Script 코드 전체 복사하기'}
+                </span>
               </button>
             </div>
           </div>
