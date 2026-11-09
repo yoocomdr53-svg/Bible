@@ -1910,9 +1910,6 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
             </div>
           )}
 
-          {/* 성경 읽기 완료 현황 및 장수 완독 (구간 일괄 완독) 카드 */}
-          {renderRangeCompletionCard('top')}
-
           {filteredVerses.map((v) => {
             const isHighlighted = highlightedVerses.includes(v.verse);
             const isRead = completedVerses.has(`${selectedBook}-${selectedChapter}-${v.verse}`);
