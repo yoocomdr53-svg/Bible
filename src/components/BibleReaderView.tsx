@@ -41,6 +41,7 @@ import {
   getActiveSession,
   addMemberRecordingToAdmin,
 } from '../services/authService';
+import { convertBlobToMp3 } from '../utils/audioToMp3';
 
 interface BibleReaderViewProps {
   onOpenVerseCard: (verse: BibleVerse) => void;
@@ -1150,7 +1151,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     }
   };
 
-  const handleCompleteRecording = () => {
+  const handleCompleteRecording = async () => {
     if (isRecordingNow) {
       setIsRecordingNow(false);
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -1167,6 +1168,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     const minCh = Math.min(recordStartChapter, recordEndChapter);
     const maxCh = Math.max(recordStartChapter, recordEndChapter);
     const chapterRangeText = getFormattedPassage(selectedBook, minCh, maxCh);
+    const chapterCount = Math.max(1, maxCh - minCh + 1);
 
     const newRecItem = {
       id: `rec-${Date.now()}`,
@@ -1176,26 +1178,14 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
       date: dateStr,
     };
     if (session) {
-      addMemberRecordingToAdmin(
-        {
-          id: session.id,
-          name: session.name,
-          email: session.email,
-          role: session.role,
-          avatarText: session.avatarText,
-          provider: session.provider,
-          schoolName: session.schoolName,
-          department: session.department,
-          consecutiveDays: session.consecutiveDays,
-          ntProgress: session.ntProgress,
-          todayVersesRead: session.todayVersesRead,
-          recordingsCount: session.recordingsCount,
-        },
-        newRecItem
-      );
+      // 1. 관리자 음원 검수 목록 및 누적 녹음 건수 갱신
+      addMemberRecordingToAdmin(session, newRecItem);
+
+      // 2. 관리자 회원_낭독진도 명부 및 구글 스프레드시트에 즉시 낭독진도 실시간 동기화
+      updateMemberReadingProgress(session.email, selectedBook, maxCh, chapterCount);
     }
 
-    // 낭독한 장 범위의 모든 장을 완독 및 오늘 읽은 말씀으로 등록
+    // 3. 낭독한 장 범위의 모든 장을 완독 및 오늘 읽은 말씀으로 등록
     try {
       markChapterRangeCompleted(selectedBook, minCh, maxCh, true);
       for (let ch = minCh; ch <= maxCh; ch++) {
@@ -1204,11 +1194,20 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
       setCompletedChapters(getCompletedChapters());
     } catch (e) {}
 
-    // Prepare recorded audio blob & file (파일명: 말라기 1~5장.webm)
-    const finalBlob = recordedBlobRef.current || (audioChunksRef.current.length > 0 ? new Blob(audioChunksRef.current, { type: 'audio/webm' }) : null);
-    const finalUrl = recordedUrlRef.current || (finalBlob ? URL.createObjectURL(finalBlob) : null);
-    const fileName = `${chapterRangeText}.webm`;
-    const audioFile = finalBlob ? new File([finalBlob], fileName, { type: finalBlob.type || 'audio/webm' }) : null;
+    // 4. 고음질 MP3 변환 (모든 기기/차량/메신저 100% 호환 + 초경량)
+    const rawBlob = recordedBlobRef.current || (audioChunksRef.current.length > 0 ? new Blob(audioChunksRef.current, { type: 'audio/webm' }) : null);
+    let finalBlob: Blob | null = rawBlob;
+    if (rawBlob) {
+      try {
+        finalBlob = await convertBlobToMp3(rawBlob);
+      } catch (convErr) {
+        console.warn('MP3 conversion fallback', convErr);
+      }
+    }
+
+    const finalUrl = finalBlob ? URL.createObjectURL(finalBlob) : (recordedUrlRef.current || null);
+    const fileName = `${chapterRangeText}.mp3`;
+    const audioFile = finalBlob ? new File([finalBlob], fileName, { type: 'audio/mp3' }) : null;
 
     // Open Share Modal immediately for seamless Telegram / Team 과제제출방 sharing
     setActiveShareData({

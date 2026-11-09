@@ -273,7 +273,12 @@ export async function uploadAudioToDrive(params: {
   const cleanId = (params.loginId || 'user').replace(/@.*$/, '').trim();
   const userFolderName = `${cleanName}_${cleanId}`;
   const cleanBibleName = (params.bibleName || params.verseRef || params.fileName || '성경낭독').trim();
-  const fileName = cleanBibleName.endsWith('.webm') ? cleanBibleName : `${cleanBibleName}.webm`;
+  const rawTarget = params.fileName || cleanBibleName;
+  const fileName = rawTarget.endsWith('.mp3')
+    ? rawTarget
+    : rawTarget.endsWith('.webm')
+    ? rawTarget.replace(/\.webm$/i, '.mp3')
+    : `${rawTarget}.mp3`;
 
   if (!scriptUrl || !scriptUrl.startsWith('http')) {
     return {
@@ -303,7 +308,7 @@ export async function uploadAudioToDrive(params: {
       bibleName: cleanBibleName,
       userFolderName,
       base64Audio,
-      mimeType: params.audioBlob.type || 'audio/webm',
+      mimeType: params.audioBlob.type || 'audio/mp3',
       memberName: cleanName,
       loginId: cleanId,
       teamName: params.teamName || '지벳팀',
@@ -766,15 +771,19 @@ function doPost(e) {
       var userFolders = rootRecFolder.getFoldersByName(userFolderName);
       var targetUserFolder = userFolders.hasNext() ? userFolders.next() : rootRecFolder.createFolder(userFolderName);
       
-      // 3) 생성폴더안에 낭독한 성경명으로 녹음 파일 저장 (예: "사무엘상 1장.webm" 또는 "사무엘상 1장 1절.webm")
+      // 3) 생성폴더안에 낭독한 성경명으로 녹음 파일 저장 (예: "말라기 1~5장.mp3")
       var bibleName = (data.bibleName || data.verseRef || data.fileName || "성경낭독").trim();
-      var targetFileName = bibleName.indexOf(".") > -1 ? bibleName : (bibleName + ".webm");
+      var rawTargetName = data.fileName || (bibleName.indexOf(".") > -1 ? bibleName : (bibleName + ".mp3"));
+      var targetFileName = rawTargetName.replace(/\.webm$/i, ".mp3");
+      if (targetFileName.indexOf(".mp3") === -1) {
+        targetFileName = targetFileName + ".mp3";
+      }
       
       var base64Data = data.base64Audio || "";
       if (base64Data.indexOf("base64,") > -1) {
         base64Data = base64Data.split("base64,")[1];
       }
-      var mimeType = data.mimeType || "audio/webm";
+      var mimeType = data.mimeType || "audio/mp3";
       var decodedBytes = Utilities.base64Decode(base64Data);
       var blob = Utilities.newBlob(decodedBytes, mimeType, targetFileName);
       var file = targetUserFolder.createFile(blob);

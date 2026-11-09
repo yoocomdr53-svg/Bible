@@ -292,11 +292,19 @@ export function updateMemberReadingProgress(
       members[idx].currentBook = bookName;
       members[idx].currentChapter = chapterNumber;
       members[idx].totalReadChapters = (members[idx].totalReadChapters || 0) + deltaChapters;
-      members[idx].lastActive = '방금 통독';
+      members[idx].lastActive = '방금 낭독';
       members[idx].consecutiveDays = (members[idx].consecutiveDays || 0) + 1;
       totalRead = members[idx].totalReadChapters;
       localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(members));
     }
+
+    // Update active session user if matching
+    const session = getActiveSession();
+    if (session && session.email.toLowerCase() === userEmail.toLowerCase()) {
+      session.todayVersesRead = (session.todayVersesRead || 0) + deltaChapters;
+      saveActiveSession(session);
+    }
+
     // Realtime sync to Google Sheet (yoocomdr57@gmail.com)
     syncProgressToGoogleSheet(userEmail, bookName, chapterNumber, totalRead).catch(console.error);
   } catch (e) {
@@ -337,6 +345,13 @@ export function addMemberRecordingToAdmin(
       members[mIdx].recordingsCount = (members[mIdx].recordingsCount || 0) + 1;
       members[mIdx].lastActive = '방금 낭독';
       localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(members));
+    }
+
+    // Update active session user recordingsCount
+    const session = getActiveSession();
+    if (session && session.email.toLowerCase() === user.email.toLowerCase()) {
+      session.recordingsCount = (session.recordingsCount || 0) + 1;
+      saveActiveSession(session);
     }
 
     // Realtime sync to Google Sheet (yoocomdr57@gmail.com)

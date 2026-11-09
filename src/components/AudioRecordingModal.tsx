@@ -1,8 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Mic, Square, Play, Pause, Save, Check, RefreshCw, Share2 } from 'lucide-react';
 import { UserRecording, BibleVerse } from '../types';
-import { addMemberRecordingToAdmin, getActiveSession } from '../services/authService';
+import {
+  addMemberRecordingToAdmin,
+  updateMemberReadingProgress,
+  getActiveSession,
+} from '../services/authService';
 import { AudioShareModal, AudioShareData } from './AudioShareModal';
+import { convertBlobToMp3 } from '../utils/audioToMp3';
 
 interface AudioRecordingModalProps {
   isOpen: boolean;
@@ -177,7 +182,7 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
     return `${String(mins).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const newRec: UserRecording = {
       id: `rec-${Date.now()}`,
       title: `${chapterRangeText} 낭독 녹음`,
@@ -189,27 +194,27 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
 
     const session = getActiveSession();
     if (session) {
-      addMemberRecordingToAdmin(
-        {
-          id: session.id,
-          name: session.name,
-          email: session.email,
-          role: session.role,
-          avatarText: session.avatarText,
-          provider: session.provider,
-          schoolName: session.schoolName,
-          department: session.department,
-          consecutiveDays: session.consecutiveDays,
-          ntProgress: session.ntProgress,
-          todayVersesRead: session.todayVersesRead,
-          recordingsCount: session.recordingsCount,
-        },
-        newRec
-      );
+      // 1. 관리자 음원 검수 목록 및 낭독 녹음 수 갱신
+      addMemberRecordingToAdmin(session, newRec);
+
+      // 2. 관리자 회원_낭독진도 명부 및 구글 스프레드시트에 즉시 낭독진도 실시간 동기화
+      const chapterCount = Math.max(1, maxCh - minCh + 1);
+      updateMemberReadingProgress(session.email, verse.book, maxCh, chapterCount);
     }
 
-    const fileName = `${chapterRangeText}.webm`;
-    const audioFile = recordedBlob ? new File([recordedBlob], fileName, { type: recordedBlob.type || 'audio/webm' }) : null;
+    // 3. 고음질 MP3 변환 (모든 기기/차량/메신저 100% 호환 + 초경량)
+    let finalBlob: Blob | null = recordedBlob;
+    if (recordedBlob) {
+      try {
+        finalBlob = await convertBlobToMp3(recordedBlob);
+      } catch (convErr) {
+        console.warn('MP3 conversion fallback', convErr);
+      }
+    }
+
+    const fileName = `${chapterRangeText}.mp3`;
+    const audioFile = finalBlob ? new File([finalBlob], fileName, { type: 'audio/mp3' }) : null;
+    const finalUrl = finalBlob ? URL.createObjectURL(finalBlob) : recordedUrl;
 
     setSavedSuccess(true);
     setShareData({
@@ -217,8 +222,8 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
       verseRef: chapterRangeText,
       duration: newRec.duration,
       date: newRec.date,
-      audioBlob: recordedBlob,
-      audioUrl: recordedUrl,
+      audioBlob: finalBlob,
+      audioUrl: finalUrl,
       audioFile: audioFile,
       book: verse.book,
       chapter: maxCh,

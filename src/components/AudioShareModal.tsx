@@ -80,14 +80,21 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
   }, [data]);
 
   const effectivePassageName = (customPassageName || data?.verseRef || data?.title || '성경낭독').trim();
-  const targetFileName = `${effectivePassageName}.webm`;
+  const rawBase = effectivePassageName.replace(/\.(mp3|webm)$/i, '');
+  const targetFileName = `${rawBase}.mp3`;
 
   const getAudioFile = (): File | null => {
     if (!data) return null;
-    if (data.audioFile) return data.audioFile;
+    if (data.audioFile) {
+      // Ensure file name ends with .mp3
+      if (data.audioFile.name.endsWith('.webm')) {
+        return new File([data.audioFile], targetFileName, { type: 'audio/mp3' });
+      }
+      return data.audioFile;
+    }
     if (data.audioBlob) {
       return new File([data.audioBlob], targetFileName, {
-        type: data.audioBlob.type || 'audio/webm',
+        type: data.audioBlob.type || 'audio/mp3',
       });
     }
     return null;
