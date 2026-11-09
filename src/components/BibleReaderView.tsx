@@ -24,6 +24,8 @@ import {
   SAMPLE_VERSES_CHAPTER,
   getChapterVerseCount,
   getCompletedVerses,
+  getCompletedChapters,
+  isChapterFullyRead,
   toggleVerseCompleted,
   toggleChapterVersesCompleted,
   markChapterVersesCompleted,
@@ -489,217 +491,93 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     completedVerses.has(`${selectedBook}-${selectedChapter}-${v.verse}`)
   ).length;
 
-  // Range Chapter Completion State (1-5장 등 읽은 장수 한번에 완독)
+  // Completion dropdown state & handlers (현재장 완독 / 장 완독 / 전체 완독)
   const currentBookObj = BIBLE_BOOKS.find((b) => b.name === selectedBook);
   const maxChapters = currentBookObj?.chaptersCount || 50;
-  const [rangeStart, setRangeStart] = useState<number>(1);
-  const [rangeEnd, setRangeEnd] = useState<number>(initialChapter || 1);
+  const [showCompletionDropdown, setShowCompletionDropdown] = useState(false);
   const [rangeToast, setRangeToast] = useState<string | null>(null);
 
-  useEffect(() => {
-    setRangeStart(1);
-    setRangeEnd(selectedChapter);
-  }, [selectedBook, selectedChapter]);
+  // Status checks for currently viewed book and chapter
+  const isCurrentChapterDone =
+    completedChapters.has(`${selectedBook}-${selectedChapter}`) ||
+    (chapterReadVersesCount === verses.length && verses.length > 0) ||
+    isChapterFullyRead(selectedBook, selectedChapter, completedVerses);
 
-  const handleRangeComplete = (isCompleted: boolean = true) => {
-    const start = Math.max(1, Math.min(rangeStart, rangeEnd));
-    const end = Math.min(maxChapters, Math.max(rangeStart, rangeEnd));
-    const res = markChapterRangeCompleted(selectedBook, start, end, isCompleted);
+  const isRangeDone = (() => {
+    if (selectedChapter < 1) return false;
+    for (let ch = 1; ch <= selectedChapter; ch++) {
+      if (
+        !completedChapters.has(`${selectedBook}-${ch}`) &&
+        !isChapterFullyRead(selectedBook, ch, completedVerses)
+      ) {
+        return false;
+      }
+    }
+    return true;
+  })();
+
+  const isAllBookDone = (() => {
+    if (maxChapters < 1) return false;
+    for (let ch = 1; ch <= maxChapters; ch++) {
+      if (
+        !completedChapters.has(`${selectedBook}-${ch}`) &&
+        !isChapterFullyRead(selectedBook, ch, completedVerses)
+      ) {
+        return false;
+      }
+    }
+    return true;
+  })();
+
+  // 1. 현재장 완독 토글 (클릭 시 활성화 / 재클릭 시 해제)
+  const handleToggleCurrentChapter = () => {
+    const willComplete = !isCurrentChapterDone;
+    toggleChapterVersesCompleted(selectedBook, selectedChapter, verses.length);
     setCompletedVerses(getCompletedVerses());
-
     const session = getActiveSession();
-    if (session && session.email) {
-      updateMemberReadingProgress(session.email, selectedBook, end, res.completedCount);
+    if (session && session.email && willComplete) {
+      updateMemberReadingProgress(session.email, selectedBook, selectedChapter);
     }
-
-    if (isCompleted) {
-      setRangeToast(`📖 ${selectedBook} ${start}장 ~ ${end}장 (총 ${res.completedCount}개 장) 완독 완료! 내 전체 읽기표에 한번에 표시되었습니다.`);
-    } else {
-      setRangeToast(`↩️ ${selectedBook} ${start}장 ~ ${end}장 완독 표시가 해제되었습니다.`);
-    }
-
-    setTimeout(() => {
-      setRangeToast(null);
-    }, 4500);
+    setRangeToast(
+      willComplete
+        ? `✓ ${selectedBook} ${selectedChapter}장 완독되었습니다!`
+        : `↩️ ${selectedBook} ${selectedChapter}장 완독이 해제되었습니다.`
+    );
+    setTimeout(() => setRangeToast(null), 3000);
   };
 
-  const renderRangeCompletionCard = (position: 'top' | 'bottom') => {
-    const isCurrentChapterDone = chapterReadVersesCount === verses.length && verses.length > 0;
-    const startCh = Math.min(rangeStart, rangeEnd);
-    const endCh = Math.max(rangeStart, rangeEnd);
-    const count = Math.abs(rangeEnd - rangeStart) + 1;
-
-    return (
-      <div
-        key={`range-card-${position}`}
-        className={`p-3.5 sm:p-4 rounded-2xl border shadow-xs transition-all ${
-          position === 'bottom' ? 'mt-4 mb-2' : 'my-2'
-        } ${
-          isInverted
-            ? 'bg-slate-900/95 border-emerald-900/70 text-slate-100'
-            : 'bg-emerald-50/70 border-emerald-200/90 text-emerald-950'
-        }`}
-      >
-        {/* Row 1: 현재 장 완독 상태 및 단일 완독 버튼 */}
-        <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-emerald-200/60 dark:border-emerald-900/50">
-          <div className="flex items-center gap-2">
-            <span
-              className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-black shadow-xs ${
-                isCurrentChapterDone
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-slate-300 dark:bg-slate-700 text-slate-700 dark:text-slate-200'
-              }`}
-            >
-              ✓
-            </span>
-            <span className={`${isInverted ? 'text-emerald-100' : 'text-emerald-950'} text-xs sm:text-sm font-black`}>
-              {selectedBook} {selectedChapter}장 읽기 완료:{' '}
-              <strong className="text-emerald-600 dark:text-emerald-400 font-black">
-                {chapterReadVersesCount}
-              </strong>{' '}
-              / {verses.length}절
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleToggleCompleteAllChapterVerses}
-            className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shadow-xs active:scale-95 flex items-center gap-1 flex-shrink-0 ${
-              isCurrentChapterDone
-                ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-300'
-                : isInverted
-                ? 'bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-700'
-                : 'bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300'
-            }`}
-            title="현재 장만 체크/해제"
-          >
-            <span>{isCurrentChapterDone ? '✓ 현재 장 완독됨' : '현재 장만 완독'}</span>
-          </button>
-        </div>
-
-        {/* Row 2: 읽은 장수 구간 일괄 완독 (1~5장 등) - 사용자 핵심 요청 */}
-        <div className="pt-2.5 space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm">📚</span>
-              <span className="text-xs sm:text-sm font-black text-emerald-950 dark:text-emerald-100">
-                장수 완독{' '}
-                <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
-                  (1~5장 등 읽은 장수 한번에 완독)
-                </span>
-              </span>
-            </div>
-
-            {onGoToChallenge && (
-              <button
-                type="button"
-                onClick={onGoToChallenge}
-                className="text-[11px] font-black text-[#1b64b9] hover:underline flex items-center gap-0.5 cursor-pointer"
-                title="내 전체 읽기표로 이동하여 확인"
-              >
-                <span>내 전체 읽기표 확인</span>
-                <span>&gt;</span>
-              </button>
-            )}
-          </div>
-
-          {/* 장수 구간 선택 및 빠른 프리셋 */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-emerald-200 dark:border-slate-700 shadow-2xs">
-              <span className="text-[11px] font-bold text-slate-500">시작</span>
-              <input
-                type="number"
-                min={1}
-                max={maxChapters}
-                value={rangeStart}
-                onChange={(e) =>
-                  setRangeStart(Math.max(1, Math.min(maxChapters, parseInt(e.target.value) || 1)))
-                }
-                className="w-11 text-center text-xs font-black bg-transparent border-b border-emerald-400 focus:outline-none"
-              />
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">장</span>
-            </div>
-
-            <span className="text-xs font-black text-emerald-700 dark:text-emerald-300">~</span>
-
-            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-emerald-200 dark:border-slate-700 shadow-2xs">
-              <span className="text-[11px] font-bold text-slate-500">종료</span>
-              <input
-                type="number"
-                min={1}
-                max={maxChapters}
-                value={rangeEnd}
-                onChange={(e) =>
-                  setRangeEnd(Math.max(1, Math.min(maxChapters, parseInt(e.target.value) || 1)))
-                }
-                className="w-11 text-center text-xs font-black bg-transparent border-b border-emerald-400 focus:outline-none"
-              />
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">장</span>
-            </div>
-
-            {/* 빠른 선택 버튼들 */}
-            <div className="flex items-center gap-1 flex-wrap">
-              <button
-                type="button"
-                onClick={() => {
-                  setRangeStart(1);
-                  setRangeEnd(selectedChapter);
-                }}
-                className="px-2 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-emerald-800 dark:text-emerald-300 text-[11px] font-black transition cursor-pointer"
-                title={`1장부터 현재 ${selectedChapter}장까지`}
-              >
-                1~{selectedChapter}장
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setRangeStart(1);
-                  setRangeEnd(Math.min(5, maxChapters));
-                }}
-                className="px-2 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-emerald-800 dark:text-emerald-300 text-[11px] font-black transition cursor-pointer"
-                title="1장부터 5장까지"
-              >
-                1~5장
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setRangeStart(1);
-                  setRangeEnd(Math.min(10, maxChapters));
-                }}
-                className="px-2 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-emerald-800 dark:text-emerald-300 text-[11px] font-black transition cursor-pointer"
-                title="1장부터 10장까지"
-              >
-                1~10장
-              </button>
-            </div>
-          </div>
-
-          {/* 일괄 완독 실행 버튼 */}
-          <div className="flex items-center gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => handleRangeComplete(true)}
-              className="flex-1 py-2 px-3 rounded-xl bg-[#05c46b] hover:bg-[#04b05f] text-white text-xs sm:text-sm font-black shadow-md hover:shadow-lg transition cursor-pointer active:scale-95 flex items-center justify-center gap-1.5"
-            >
-              <span>✓</span>
-              <span>
-                {selectedBook} {startCh}~{endCh}장 장완독 누르기 ({count}개 장 일괄 완독)
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleRangeComplete(false)}
-              className="py-2 px-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition cursor-pointer active:scale-95"
-              title="선택한 구간의 완독 표시 해제"
-            >
-              해제
-            </button>
-          </div>
-        </div>
-      </div>
+  // 2. 장 완독 토글 (1~현재장 완독: 클릭 시 활성화 / 재클릭 시 해제)
+  const handleToggleRangeChapter = () => {
+    const willComplete = !isRangeDone;
+    const res = markChapterRangeCompleted(selectedBook, 1, selectedChapter, willComplete);
+    setCompletedVerses(getCompletedVerses());
+    const session = getActiveSession();
+    if (session && session.email && willComplete) {
+      updateMemberReadingProgress(session.email, selectedBook, selectedChapter, res.completedCount);
+    }
+    setRangeToast(
+      willComplete
+        ? `📚 ${selectedBook} 1~${selectedChapter}장 (${res.completedCount}개 장) 완독 완료! 읽기표에 반영되었습니다.`
+        : `↩️ ${selectedBook} 1~${selectedChapter}장 완독이 해제되었습니다.`
     );
+    setTimeout(() => setRangeToast(null), 3500);
+  };
+
+  // 3. 전체 완독 토글 (해당 성경 전권 1~maxChapters 완독: 클릭 시 활성화 / 재클릭 시 해제)
+  const handleToggleAllBook = () => {
+    const willComplete = !isAllBookDone;
+    const res = markChapterRangeCompleted(selectedBook, 1, maxChapters, willComplete);
+    setCompletedVerses(getCompletedVerses());
+    const session = getActiveSession();
+    if (session && session.email && willComplete) {
+      updateMemberReadingProgress(session.email, selectedBook, maxChapters, res.completedCount);
+    }
+    setRangeToast(
+      willComplete
+        ? `👑 ${selectedBook} 전권 (1~${maxChapters}장) 전체 완독 완료! 읽기표에 반영되었습니다.`
+        : `↩️ ${selectedBook} 전권 완독이 해제되었습니다.`
+    );
+    setTimeout(() => setRangeToast(null), 3500);
   };
 
   // Auto-scroll to selected verse and highlight
@@ -1981,9 +1859,6 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
               </div>
             );
           })}
-
-          {/* 맨 아래 절 부분 - 성경 읽기 완료 현황 및 장수 완독 (구간 일괄 완독) 카드 */}
-          {renderRangeCompletionCard('bottom')}
         </div>
       </div>
 
@@ -2060,30 +1935,194 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
               </span>
             </button>
 
-            {/* 낭독:남성(중저음) 옆 이 장 전체 완독 버튼 */}
-            <button
-              type="button"
-              onClick={handleToggleCompleteAllChapterVerses}
-              className={`px-2.5 py-0.5 rounded-full text-[11px] font-black transition cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1 ${
-                chapterReadVersesCount === verses.length && verses.length > 0
-                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-500'
-                  : isInverted
-                  ? 'bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-700'
-                  : 'bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300'
-              }`}
-              title={
-                chapterReadVersesCount === verses.length && verses.length > 0
-                  ? '클릭 시 이 장 전체 완독 해제'
-                  : '클릭 시 이 장 전체 완독 체크'
-              }
-            >
-              <span>✓</span>
-              <span>
-                {chapterReadVersesCount === verses.length && verses.length > 0
-                  ? '전체 완독됨'
-                  : '이 장 전체 완독'}
-              </span>
-            </button>
+            {/* 전체완독됨 드롭다운 메뉴 (현재장 완독 / 장 완독 / 전체 완독) */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowCompletionDropdown(!showCompletionDropdown)}
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-black transition cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1 ${
+                  isCurrentChapterDone || isRangeDone || isAllBookDone
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-500 shadow-sm ring-2 ring-emerald-300/60'
+                    : isInverted
+                    ? 'bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-700'
+                    : 'bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300'
+                }`}
+                title="완독 메뉴 열기 (현재장 완독, 장 완독, 전체 완독)"
+              >
+                <span>✓</span>
+                <span>
+                  {isAllBookDone
+                    ? '전체 완독됨'
+                    : isRangeDone
+                    ? '장 완독됨'
+                    : isCurrentChapterDone
+                    ? '현재장 완독됨'
+                    : '전체완독됨'}
+                </span>
+                <span className="text-[9px] ml-0.5 opacity-80">▾</span>
+              </button>
+
+              {/* 드롭다운 팝업 (위로 팝업) */}
+              {showCompletionDropdown && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowCompletionDropdown(false)}
+                  />
+
+                  <div className="absolute bottom-full right-0 mb-2 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-2 z-50 animate-in fade-in slide-in-from-bottom duration-150 text-slate-800 dark:text-slate-100">
+                    <div className="px-2 py-1.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1">
+                        <span>📖</span>
+                        <span>완독 관리</span>
+                      </span>
+                      <span className="text-[10px] text-slate-400">클릭 시 활성화 / 재클릭 시 해제</span>
+                    </div>
+
+                    <div className="py-1 space-y-1">
+                      {/* 1. 현재장 완독 */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleToggleCurrentChapter();
+                          setShowCompletionDropdown(false);
+                        }}
+                        className={`w-full px-2.5 py-2 rounded-xl text-left flex items-center justify-between transition cursor-pointer active:scale-98 ${
+                          isCurrentChapterDone
+                            ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-900 dark:text-emerald-100 font-black border border-emerald-200 dark:border-emerald-800'
+                            : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
+                              isCurrentChapterDone
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
+                            }`}
+                          >
+                            ✓
+                          </span>
+                          <div>
+                            <p className="text-xs font-black">현재장 완독</p>
+                            <p className="text-[10px] text-slate-400 font-normal">
+                              {selectedBook} {selectedChapter}장만 완독
+                            </p>
+                          </div>
+                        </div>
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${
+                            isCurrentChapterDone
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {isCurrentChapterDone ? '완독됨 ✓' : '미완독'}
+                        </span>
+                      </button>
+
+                      {/* 2. 장 완독 */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleToggleRangeChapter();
+                          setShowCompletionDropdown(false);
+                        }}
+                        className={`w-full px-2.5 py-2 rounded-xl text-left flex items-center justify-between transition cursor-pointer active:scale-98 ${
+                          isRangeDone
+                            ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-900 dark:text-emerald-100 font-black border border-emerald-200 dark:border-emerald-800'
+                            : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
+                              isRangeDone
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
+                            }`}
+                          >
+                            📚
+                          </span>
+                          <div>
+                            <p className="text-xs font-black">장 완독</p>
+                            <p className="text-[10px] text-slate-400 font-normal">
+                              1장 ~ {selectedChapter}장 ({selectedChapter}개 장 일괄)
+                            </p>
+                          </div>
+                        </div>
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${
+                            isRangeDone
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {isRangeDone ? '완독됨 ✓' : '미완독'}
+                        </span>
+                      </button>
+
+                      {/* 3. 전체 완독 */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleToggleAllBook();
+                          setShowCompletionDropdown(false);
+                        }}
+                        className={`w-full px-2.5 py-2 rounded-xl text-left flex items-center justify-between transition cursor-pointer active:scale-98 ${
+                          isAllBookDone
+                            ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-900 dark:text-emerald-100 font-black border border-emerald-200 dark:border-emerald-800'
+                            : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
+                              isAllBookDone
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
+                            }`}
+                          >
+                            👑
+                          </span>
+                          <div>
+                            <p className="text-xs font-black">전체 완독</p>
+                            <p className="text-[10px] text-slate-400 font-normal">
+                              {selectedBook} 1~{maxChapters}장 전권 완독
+                            </p>
+                          </div>
+                        </div>
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${
+                            isAllBookDone
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {isAllBookDone ? '전권완독 ✓' : '미완독'}
+                        </span>
+                      </button>
+                    </div>
+
+                    {onGoToChallenge && (
+                      <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 text-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCompletionDropdown(false);
+                            onGoToChallenge();
+                          }}
+                          className="text-[11px] font-bold text-[#1b64b9] dark:text-blue-400 hover:underline cursor-pointer inline-flex items-center gap-0.5"
+                        >
+                          <span>내 전체 읽기표 바로가기</span>
+                          <span>&gt;</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           <span className="font-mono text-xs text-slate-500 flex-shrink-0">{formatTime(duration)}</span>
