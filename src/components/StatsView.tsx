@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play, Pause, Trash2, Award, Calendar, Clock, Flame, BookOpen } from 'lucide-react';
 import { User, UserRecording } from '../types';
+import { getNewTestamentStats, getOldTestamentStats } from '../data/bibleData';
 
 interface StatsViewProps {
   user: User;
@@ -10,6 +11,21 @@ interface StatsViewProps {
 
 export const StatsView: React.FC<StatsViewProps> = ({ user, recordings, onDeleteRecording }) => {
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [ntStats, setNtStats] = useState(getNewTestamentStats);
+  const [otStats, setOtStats] = useState(getOldTestamentStats);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setNtStats(getNewTestamentStats());
+      setOtStats(getOldTestamentStats());
+    };
+    window.addEventListener('superbible_verse_read_changed', handleUpdate);
+    window.addEventListener('superbible_today_read_changed', handleUpdate);
+    return () => {
+      window.removeEventListener('superbible_verse_read_changed', handleUpdate);
+      window.removeEventListener('superbible_today_read_changed', handleUpdate);
+    };
+  }, []);
 
   const togglePlay = (id: string) => {
     if (playingId === id) {
@@ -42,29 +58,33 @@ export const StatsView: React.FC<StatsViewProps> = ({ user, recordings, onDelete
         <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-soft">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
             <span className="font-semibold">신약 성경 통독</span>
-            <span className="font-bold text-[#0083e3]">{user.ntProgress}%</span>
+            <span className="font-bold text-[#0083e3]">{ntStats.percent}%</span>
           </div>
           <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden my-2">
             <div
               className="bg-[#0083e3] h-full rounded-full transition-all duration-500"
-              style={{ width: `${user.ntProgress}%` }}
+              style={{ width: `${ntStats.percent}%` }}
             />
           </div>
-          <p className="text-[11px] text-slate-400">110 / 260장 완료 (약 42일 소요)</p>
+          <p className="text-[11px] text-slate-400">
+            {ntStats.completedCount} / {ntStats.totalCount}장 완료
+          </p>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-soft">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
             <span className="font-semibold">구약 성경 통독</span>
-            <span className="font-bold text-amber-600">18%</span>
+            <span className="font-bold text-amber-600">{otStats.percent}%</span>
           </div>
           <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden my-2">
             <div
               className="bg-amber-500 h-full rounded-full transition-all duration-500"
-              style={{ width: `18%` }}
+              style={{ width: `${otStats.percent}%` }}
             />
           </div>
-          <p className="text-[11px] text-slate-400">168 / 929장 완료</p>
+          <p className="text-[11px] text-slate-400">
+            {otStats.completedCount} / {otStats.totalCount}장 완료
+          </p>
         </div>
       </div>
 

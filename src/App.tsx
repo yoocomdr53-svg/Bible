@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { User, ActiveModal, BibleVerse, ReadingDayPlan, UserRecording } from './types';
-import { TODAY_VERSE, INITIAL_READING_PLANS, INITIAL_RECORDINGS } from './data/bibleData';
+import { TODAY_VERSE, INITIAL_READING_PLANS, INITIAL_RECORDINGS, addTodayReadChapter } from './data/bibleData';
 import { LoginView } from './components/LoginView';
 import { BibleDashboard } from './components/BibleDashboard';
 import { HelpModals } from './components/HelpModals';
@@ -81,9 +81,9 @@ const DEFAULT_CONNECTED_ADMIN_USER: User = {
   schoolName: '로고스 수퍼바이블 공동체',
   department: '교목실 & 성경통독 총괄관리부',
   consecutiveDays: 30,
-  ntProgress: 100,
-  todayVersesRead: 10,
-  recordingsCount: 25,
+  ntProgress: 0,
+  todayVersesRead: 0,
+  recordingsCount: 3,
 };
 
 function getSavedUser(): User {
@@ -110,7 +110,16 @@ export default function App() {
   const [user, setUser] = useState<User>(getSavedUser);
 
   const [readingPlans, setReadingPlans] = useState<ReadingDayPlan[]>(INITIAL_READING_PLANS);
-  const [recordings, setRecordings] = useState<UserRecording[]>(INITIAL_RECORDINGS);
+  const [recordings, setRecordings] = useState<UserRecording[]>(() => {
+    try {
+      const raw = localStorage.getItem('superbible_user_recordings_v2');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return INITIAL_RECORDINGS;
+  });
   const [verseForCard, setVerseForCard] = useState<BibleVerse>(TODAY_VERSE);
   const [verseForRecorder, setVerseForRecorder] = useState<BibleVerse>(TODAY_VERSE);
 
@@ -176,19 +185,40 @@ export default function App() {
 
   // Save new audio recording
   const handleSaveRecording = (newRec: UserRecording) => {
-    setRecordings((prev) => [newRec, ...prev]);
+    setRecordings((prev) => {
+      const updated = [newRec, ...prev];
+      try {
+        localStorage.setItem('superbible_user_recordings_v2', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
     setUser((u) => {
       const nextUser = { ...u, recordingsCount: u.recordingsCount + 1 };
       saveActiveSession(nextUser);
       return nextUser;
     });
+    // Extract book and chapter from newRec.verseRef to add to today's read/recited scriptures
+    try {
+      const match = newRec.verseRef.match(/^([^\d]+)\s*(\d+)/);
+      if (match) {
+        const book = match[1].trim();
+        const ch = parseInt(match[2], 10);
+        addTodayReadChapter(book, ch);
+      }
+    } catch (e) {}
     // Sync recording to Admin Inspection List in real-time
     addMemberRecordingToAdmin(user, newRec);
   };
 
   // Delete recording
   const handleDeleteRecording = (id: string) => {
-    setRecordings((prev) => prev.filter((r) => r.id !== id));
+    setRecordings((prev) => {
+      const updated = prev.filter((r) => r.id !== id);
+      try {
+        localStorage.setItem('superbible_user_recordings_v2', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
     setUser((u) => ({ ...u, recordingsCount: Math.max(0, u.recordingsCount - 1) }));
   };
 

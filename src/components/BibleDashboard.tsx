@@ -24,6 +24,8 @@ import {
   getBibleAbbreviation,
   getCurrentReadingLocation,
   saveCurrentReadingLocation,
+  getNewTestamentStats,
+  getTodayReadCount,
 } from '../data/bibleData';
 import { BibleReaderView } from './BibleReaderView';
 import { StatsView } from './StatsView';
@@ -79,6 +81,25 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
       verse: 1,
     };
   });
+
+  // Real-time actual reading & recitation progress
+  const [ntStats, setNtStats] = useState(getNewTestamentStats);
+  const [todayReadCount, setTodayReadCount] = useState(getTodayReadCount);
+
+  useEffect(() => {
+    const handleProgressSync = () => {
+      setNtStats(getNewTestamentStats());
+      setTodayReadCount(getTodayReadCount());
+    };
+    window.addEventListener('superbible_verse_read_changed', handleProgressSync);
+    window.addEventListener('superbible_today_read_changed', handleProgressSync);
+    window.addEventListener('superbible_reading_location_changed', handleProgressSync);
+    return () => {
+      window.removeEventListener('superbible_verse_read_changed', handleProgressSync);
+      window.removeEventListener('superbible_today_read_changed', handleProgressSync);
+      window.removeEventListener('superbible_reading_location_changed', handleProgressSync);
+    };
+  }, []);
 
   // Today's Verse (오늘의 말씀 - 날짜별 자동 수정/갱신 및 순환 관리)
   const [todayVerse, setTodayVerse] = useState<BibleVerse>(() => {
@@ -511,11 +532,11 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
               <div className="grid grid-cols-3 gap-2 pt-3 text-center">
                 <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
                   <p className="text-[10px] text-slate-500 font-medium">신약 통독</p>
-                  <p className="text-sm font-black text-slate-900 mt-0.5">{user.ntProgress}%</p>
+                  <p className="text-sm font-black text-slate-900 mt-0.5">{ntStats.percent}%</p>
                   <div className="w-full bg-slate-200 h-1 rounded-full mt-1.5 overflow-hidden">
                     <div
-                      className="bg-[#0083e3] h-full rounded-full"
-                      style={{ width: `${user.ntProgress}%` }}
+                      className="bg-[#0083e3] h-full rounded-full transition-all duration-300"
+                      style={{ width: `${ntStats.percent}%` }}
                     />
                   </div>
                 </div>
@@ -523,10 +544,16 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                 <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
                   <p className="text-[10px] text-slate-500 font-medium">오늘 읽은 말씀</p>
                   <p className="text-sm font-black text-slate-900 mt-0.5">
-                    {user.todayVersesRead}
+                    {todayReadCount}
                     <span className="text-xs font-semibold text-slate-600">장</span>
                   </p>
-                  <span className="text-[9px] text-emerald-600 font-bold mt-1 block">목표 달성</span>
+                  <span
+                    className={`text-[9px] font-bold mt-1 block ${
+                      todayReadCount > 0 ? 'text-emerald-600' : 'text-slate-400'
+                    }`}
+                  >
+                    {todayReadCount > 0 ? '목표 달성' : '말씀 읽기 전'}
+                  </span>
                 </div>
 
                 <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">

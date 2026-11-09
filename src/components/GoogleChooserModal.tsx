@@ -30,9 +30,9 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
       schoolName: '로고스 수퍼바이블 공동체',
       department: '교목실 & 성경통독 총괄관리부',
       consecutiveDays: 30,
-      ntProgress: 100,
-      todayVersesRead: 10,
-      recordingsCount: 25,
+      ntProgress: 0,
+      todayVersesRead: 0,
+      recordingsCount: 3,
     });
   };
 

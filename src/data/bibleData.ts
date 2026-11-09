@@ -655,6 +655,105 @@ export const COMPLETED_CHAPTERS_STORAGE_KEY = 'superbible_completed_chapters_v2'
 export const CURRENT_READING_BOOK_KEY = 'superbible_current_reading_book';
 export const CURRENT_READING_CHAPTER_KEY = 'superbible_current_reading_chapter';
 export const IN_PROGRESS_CHAPTERS_KEY = 'superbible_reading_in_progress_v1';
+export const TODAY_READ_STORAGE_KEY = 'superbible_today_read_data_v2';
+
+// 오늘 날짜 문자열 반환 (한국 시간 기준 YYYY-MM-DD)
+export function getTodayDateString(): string {
+  try {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+// 오늘 읽은/낭독한 장 목록 가져오기 (매일 자정에 0으로 자동 갱신)
+export function getTodayReadChapters(): Set<string> {
+  try {
+    const raw = localStorage.getItem(TODAY_READ_STORAGE_KEY);
+    const today = getTodayDateString();
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.date === today && Array.isArray(parsed.chapters)) {
+        return new Set<string>(parsed.chapters);
+      }
+    }
+  } catch (e) {
+    console.error('Failed to get today read chapters:', e);
+  }
+  return new Set<string>();
+}
+
+export function getTodayReadCount(): number {
+  return getTodayReadChapters().size;
+}
+
+// 오늘 낭독 또는 완독한 장 기록
+export function addTodayReadChapter(book: string, chapter: number): number {
+  try {
+    const today = getTodayDateString();
+    const set = getTodayReadChapters();
+    set.add(`${book}-${chapter}`);
+    const data = {
+      date: today,
+      chapters: Array.from(set),
+      count: set.size,
+    };
+    localStorage.setItem(TODAY_READ_STORAGE_KEY, JSON.stringify(data));
+    window.dispatchEvent(
+      new CustomEvent('superbible_today_read_changed', {
+        detail: { count: set.size, chapters: data.chapters },
+      })
+    );
+    return set.size;
+  } catch (e) {
+    console.error('Failed to add today read chapter:', e);
+    return 0;
+  }
+}
+
+// 신약 통독(27권, 총 260장) 실시간 실제 진행률 계산
+export function getNewTestamentStats(): { completedCount: number; totalCount: number; percent: number } {
+  const currentVerses = getCompletedVerses();
+  const currentChapters = getCompletedChapters();
+  const ntBooks = BIBLE_BOOKS.filter((b) => b.testament === 'NT');
+  const totalCount = 260; // 27권 신약 전체 260장
+  let completedCount = 0;
+
+  for (const b of ntBooks) {
+    for (let ch = 1; ch <= b.chaptersCount; ch++) {
+      if (currentChapters.has(`${b.name}-${ch}`) || isChapterFullyRead(b.name, ch, currentVerses)) {
+        completedCount++;
+      }
+    }
+  }
+
+  const percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  return { completedCount, totalCount, percent };
+}
+
+// 구약 통독(39권, 총 929장) 실시간 실제 진행률 계산
+export function getOldTestamentStats(): { completedCount: number; totalCount: number; percent: number } {
+  const currentVerses = getCompletedVerses();
+  const currentChapters = getCompletedChapters();
+  const otBooks = BIBLE_BOOKS.filter((b) => b.testament === 'OT');
+  const totalCount = 929; // 39권 구약 전체 929장
+  let completedCount = 0;
+
+  for (const b of otBooks) {
+    for (let ch = 1; ch <= b.chaptersCount; ch++) {
+      if (currentChapters.has(`${b.name}-${ch}`) || isChapterFullyRead(b.name, ch, currentVerses)) {
+        completedCount++;
+      }
+    }
+  }
+
+  const percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  return { completedCount, totalCount, percent };
+}
 
 // 현재 읽는 중인 위치 (책, 장) - 기본값: 출애굽기 24장
 export function getCurrentReadingLocation(): { book: string; chapter: number } {
@@ -889,6 +988,9 @@ export function toggleChapterVersesCompleted(book: string, chapter: number, tota
         localStorage.setItem(IN_PROGRESS_CHAPTERS_KEY, JSON.stringify(Array.from(inProg)));
       }
     } catch (e) {}
+    try {
+      addTodayReadChapter(book, chapter);
+    } catch (e) {}
   }
 
   saveCompletedVerses(currentVerses);
@@ -928,6 +1030,9 @@ export function toggleChapterDirect(book: string, chapter: number): boolean {
         inProg.delete(chapterKey);
         localStorage.setItem(IN_PROGRESS_CHAPTERS_KEY, JSON.stringify(Array.from(inProg)));
       }
+    } catch (e) {}
+    try {
+      addTodayReadChapter(book, chapter);
     } catch (e) {}
   }
 
@@ -973,6 +1078,9 @@ export function markChapterRangeCompleted(
       for (let v = 1; v <= total; v++) {
         currentVerses.add(`${book}-${ch}-${v}`);
       }
+      try {
+        addTodayReadChapter(book, ch);
+      } catch (e) {}
     } else {
       currentChapters.delete(chapterKey);
       for (let v = 1; v <= total; v++) {

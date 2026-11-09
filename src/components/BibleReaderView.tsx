@@ -31,6 +31,7 @@ import {
   markChapterVersesCompleted,
   markChapterRangeCompleted,
   saveCurrentReadingLocation,
+  addTodayReadChapter,
 } from '../data/bibleData';
 import { BibleVerse } from '../types';
 import { BibleSelectorModal } from './BibleSelectorModal';
@@ -1083,6 +1084,9 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
         }
       );
     }
+    try {
+      addTodayReadChapter(selectedBook, selectedChapter);
+    } catch (e) {}
     alert(`${selectedBook} ${selectedChapter}장 낭독 녹음이 안전하게 저장되었습니다.`);
     setIsRecordingMode(false);
   };

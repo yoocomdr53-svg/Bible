@@ -34,8 +34,8 @@ const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
       schoolName: '로고스 수퍼바이블 공동체',
       department: '교목실 & 성경통독 총괄관리부',
       consecutiveDays: 30,
-      ntProgress: 100,
-      todayVersesRead: 10,
+      ntProgress: 0,
+      todayVersesRead: 0,
       recordingsCount: 0,
     },
     createdAt: '2026-01-01',
@@ -53,8 +53,8 @@ const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
       schoolName: '로고스 수퍼바이블 공동체',
       department: '교목실 & 성경통독 총괄관리부',
       consecutiveDays: 30,
-      ntProgress: 100,
-      todayVersesRead: 10,
+      ntProgress: 0,
+      todayVersesRead: 0,
       recordingsCount: 0,
     },
     createdAt: '2026-01-01',
@@ -477,8 +477,8 @@ export function loginUser(
       schoolName: '로고스 수퍼바이블 공동체',
       department: '교목실 & 성경통독 총괄관리부',
       consecutiveDays: 30,
-      ntProgress: 100,
-      todayVersesRead: 10,
+      ntProgress: 0,
+      todayVersesRead: 0,
       recordingsCount: 0,
     };
     if (rememberMe) saveRememberedId(loginId);
@@ -546,7 +546,10 @@ export function getActiveSession(): User | null {
     if (raw) {
       const data = JSON.parse(raw);
       if (data && data.isLoggedIn && data.user && data.user.id) {
-        return data.user;
+        const u = data.user;
+        if (u.ntProgress === 100) u.ntProgress = 0;
+        if (u.todayVersesRead === 10) u.todayVersesRead = 0;
+        return u;
       }
     }
   } catch (e) {
