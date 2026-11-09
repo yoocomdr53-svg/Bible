@@ -253,20 +253,49 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
   const [showNotificationBanner, setShowNotificationBanner] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
 
-  // Total Bible Chapters: 1,189
+  // 1. Total Bible Chapters: 1,189장 (성경 66권 전체) & 12독 목표 (14,268장)
   const TOTAL_CHAPTERS = 1189;
-  const readChaptersCount = completedChapters.size;
-  const matrixProgressPercent = Math.round((readChaptersCount / TOTAL_CHAPTERS) * 100);
+  const targetGoalReads = 12; // 12독 목표 기준
+  const TOTAL_GOAL12_CHAPTERS = TOTAL_CHAPTERS * targetGoalReads; // 14,268장
 
-  // Genesis Plan progress (50 chapters, each chapter is 2%)
-  const genesisReadChapters = Array.from({ length: 50 }, (_, i) => i + 1).filter((ch) =>
-    isChapterFullyRead('창세기', ch, completedVerses)
-  ).length;
-  const planProgressPercent = Math.min(100, Math.round((genesisReadChapters / 50) * 100));
+  // 66권 전체 1,189장 중 현재 일독 진행 중 완독한 장 수
+  const totalReadChAll = React.useMemo(() => {
+    let count = 0;
+    for (const b of BIBLE_BOOKS) {
+      for (let ch = 1; ch <= b.chaptersCount; ch++) {
+        if (isChapterFullyRead(b.name, ch, completedVerses)) {
+          count++;
+        }
+      }
+    }
+    return count;
+  }, [completedVerses, completedChapters]);
+
+  // 첫 번째 미완독 장 찾기 (일독 이어읽기)
+  const nextUnreadChapter = React.useMemo(() => {
+    for (const b of BIBLE_BOOKS) {
+      for (let ch = 1; ch <= b.chaptersCount; ch++) {
+        if (!isChapterFullyRead(b.name, ch, completedVerses)) {
+          return { book: b.name, chapter: ch };
+        }
+      }
+    }
+    return { book: '창세기', chapter: 1 };
+  }, [completedVerses, completedChapters]);
+
+  // 일독 진행률 (1,189장 기준, 1,189장 완독 시 100%)
+  const singleReadPercent = React.useMemo(() => {
+    if (totalReadChAll >= TOTAL_CHAPTERS) return 100;
+    if (totalReadChAll <= 0) return 0;
+    const raw = (totalReadChAll / TOTAL_CHAPTERS) * 100;
+    return raw < 10 ? Number(raw.toFixed(1)) : Math.round(raw);
+  }, [totalReadChAll]);
+
+  // Matrix 진행률도 일독 진행률과 100% 일치
+  const matrixProgressPercent = singleReadPercent;
 
   // 상세 진도표 2가지 메뉴 모드: 'single' (일독상세표) vs 'goal' (목표상세표)
   const [progressDetailMode, setProgressDetailMode] = useState<'single' | 'goal'>('single');
-  const targetGoalReads = 12; // 12독 목표 기준
 
   // Completed Bible Readings count (통독 수) - 1독 완료 시마다 배지 1개씩 추가, 12독 목표 달성 시 축하 모달 표시
   const [completedReadingsCount, setCompletedReadingsCount] = useState<number>(() => {
@@ -278,24 +307,19 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
     }
   });
 
-  // 66권 전체 1,189장 중 현재 읽은 장 수
-  const totalReadChAll = React.useMemo(() => {
-    let count = 0;
-    for (const b of BIBLE_BOOKS) {
-      for (let ch = 1; ch <= b.chaptersCount; ch++) {
-        if (isChapterFullyRead(b.name, ch, completedVerses)) {
-          count++;
-        }
-      }
-    }
-    return count;
-  }, [completedVerses]);
-
   // 12독 목표 기준 전체 누적 읽은 장 수 (총 14,268장)
   const totalCumChAll = Math.min(
-    1189 * targetGoalReads,
-    completedReadingsCount * 1189 + totalReadChAll
+    TOTAL_GOAL12_CHAPTERS,
+    completedReadingsCount * TOTAL_CHAPTERS + totalReadChAll
   );
+
+  // 12독 목표 진행률 (14,268장 기준, 14,268장 완독 시 100%)
+  const goal12ProgressPercent = React.useMemo(() => {
+    if (totalCumChAll >= TOTAL_GOAL12_CHAPTERS) return 100;
+    if (totalCumChAll <= 0) return 0;
+    const raw = (totalCumChAll / TOTAL_GOAL12_CHAPTERS) * 100;
+    return raw < 10 ? Number(raw.toFixed(1)) : Math.round(raw);
+  }, [totalCumChAll]);
 
   const [showBadgeModal, setShowBadgeModal] = useState(false);
   const [showCelebrationModal, setShowCelebrationModal] = useState(false);
@@ -831,14 +855,14 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               <>
                 <span className="text-[#10b981]">●</span>
                 <span className="whitespace-nowrap">
-                  일독 진도: 총 1,189장 중 <strong className="text-emerald-600 font-black">{totalReadChAll}장</strong> 완독 ({Math.round((totalReadChAll / 1189) * 100)}%)
+                  일독 진도: 총 1,189장 중 <strong className="text-emerald-600 font-black">{totalReadChAll}장</strong> 완독 ({singleReadPercent}%)
                 </span>
               </>
             ) : (
               <>
                 <span className="text-[#1b64b9]">●</span>
                 <span className="whitespace-nowrap">
-                  12독 목표: 총 14,268장 중 <strong className="text-[#1b64b9] font-black">{totalCumChAll}장</strong> 완독 ({Math.round((totalCumChAll / 14268) * 100)}%)
+                  12독 목표: 총 14,268장 중 <strong className="text-[#1b64b9] font-black">{totalCumChAll.toLocaleString()}장</strong> 완독 ({goal12ProgressPercent}%)
                 </span>
               </>
             )}
@@ -1601,9 +1625,9 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </div>
 
             <div className="flex items-center justify-between text-[11px] sm:text-xs text-slate-300 pt-1 font-semibold">
-              <span>진행률</span>
+              <span>일독 진행률</span>
               <span className="font-mono text-white">
-                <span className="text-amber-300 font-bold">{readChaptersCount}</span> / {TOTAL_CHAPTERS.toLocaleString()}장
+                <span className="text-amber-300 font-bold">{totalReadChAll}</span> / {TOTAL_CHAPTERS.toLocaleString()}장
               </span>
             </div>
           </div>
@@ -1767,14 +1791,18 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
 
             <div className="grid grid-cols-3 divide-x divide-slate-100 py-1 text-center">
               <div>
-                <p className="text-xs text-slate-400 font-bold mb-1">진행률</p>
+                <p className="text-xs text-slate-400 font-bold mb-1">12독 진행률</p>
                 <p className="text-xl sm:text-2xl font-black text-slate-900">
-                  {planProgressPercent}%
+                  {goal12ProgressPercent}%
+                </p>
+                <p className="text-[10px] text-slate-400 font-medium">
+                  {totalCumChAll.toLocaleString()} / 14,268장
                 </p>
               </div>
               <div>
-                <p className="text-xs text-slate-400 font-bold mb-1">연속읽기</p>
-                <p className="text-xl sm:text-2xl font-black text-slate-900">2일</p>
+                <p className="text-xs text-slate-400 font-bold mb-1">현재 일독 진도</p>
+                <p className="text-xl sm:text-2xl font-black text-slate-900">{singleReadPercent}%</p>
+                <p className="text-[10px] text-slate-400 font-medium">{totalReadChAll} / 1,189장</p>
               </div>
               <div
                 className="cursor-pointer group hover:bg-blue-50/60 rounded-xl py-0.5 transition"
@@ -1798,7 +1826,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                 <div
                   className="absolute bottom-1 transition-all duration-300"
                   style={{
-                    left: `${Math.max(2, Math.min(96, planProgressPercent))}%`,
+                    left: `${Math.max(2, Math.min(96, goal12ProgressPercent))}%`,
                     transform: 'translateX(-50%)',
                   }}
                 >
@@ -1807,7 +1835,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                     style={{ transform: 'scaleX(-1)' }}
                     role="img"
                     aria-label="runner"
-                    title={`성경읽기 진행률 ${planProgressPercent}% (오른쪽으로 달리는 중)`}
+                    title={`12독 성경통독 진행률 ${goal12ProgressPercent}% (${totalCumChAll.toLocaleString()}/14,268장)`}
                   >
                     🏃
                   </span>
@@ -1817,27 +1845,44 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
                 <div
                   className="bg-[#1b64b9] h-full rounded-full transition-all duration-300"
-                  style={{ width: `${planProgressPercent}%` }}
+                  style={{ width: `${goal12ProgressPercent}%` }}
                 />
               </div>
             </div>
 
-            {/* If current plan reaches 100%, show option to record +1 reading completion */}
-            {planProgressPercent === 100 && (
+            {/* 1) 1독(1,189장) 완독 시 +1독 기록 안내 */}
+            {totalReadChAll >= 1189 && (
               <div className="mt-3.5 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
                 <div className="flex items-center gap-2 text-emerald-800 text-xs sm:text-sm font-bold">
                   <span>🎉</span>
-                  <span>이번 통독 분량을 100% 완독하셨습니다!</span>
+                  <span>성경 66권 1,189장 일독을 완수하셨습니다!</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
                     updateReadingsCount((c) => c + 1);
-                    alert(`축하합니다! 통독 수가 ${completedReadingsCount + 1}독으로 기록되었습니다.`);
+                    alert(`축하합니다! 총 통독 수가 ${completedReadingsCount + 1}독으로 기록되었습니다.`);
                   }}
                   className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black rounded-lg shadow-xs transition cursor-pointer flex-shrink-0 ml-2"
                 >
                   +1독 완독 기록
+                </button>
+              </div>
+            )}
+
+            {/* 2) 12독(14,268장) 전체 완수 시 축하 */}
+            {totalCumChAll >= 14268 && (
+              <div className="mt-3.5 p-3 bg-amber-50 border-2 border-amber-300 rounded-xl flex items-center justify-between shadow-xs">
+                <div className="flex items-center gap-2 text-amber-900 text-xs sm:text-sm font-extrabold">
+                  <span>👑</span>
+                  <span>대단하십니다! 통독 12목표(14,268장)를 100% 완수하셨습니다!</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCelebrationModal(true)}
+                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-black rounded-lg shadow-xs transition cursor-pointer flex-shrink-0 ml-2"
+                >
+                  축하보기
                 </button>
               </div>
             )}
@@ -2064,6 +2109,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
       </div>
 
       <div className="grid grid-cols-2 gap-3 pt-1">
+        {/* Card 1: 로고스 관리자 (일독 1,189장 과정 및 진행률) */}
         <div className="bg-white rounded-[26px] p-4 sm:p-5 shadow-sm border border-slate-100 flex flex-col justify-between">
           <div>
             <div className="flex justify-center mb-3">
@@ -2086,17 +2132,20 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </div>
 
             <h2 className="text-base sm:text-lg font-black text-slate-900 text-center tracking-tight">
-              {user?.name || '성도'}
+              {user?.name || '로고스 관리자'}
             </h2>
 
             <p className="text-sm font-extrabold text-[#0284c7] text-center mt-1">
-              {planProgressPercent}% 진행 중
+              {singleReadPercent}% 진행 중
+            </p>
+            <p className="text-[11px] font-bold text-slate-500 text-center mt-0.5">
+              1독: {totalReadChAll}장 / 1,189장 완독
             </p>
 
             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden my-3">
               <div
                 className="bg-[#1b64b9] h-full rounded-full transition-all duration-300"
-                style={{ width: `${planProgressPercent}%` }}
+                style={{ width: `${singleReadPercent}%` }}
               />
             </div>
           </div>
@@ -2104,8 +2153,9 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           <div className="space-y-2 pt-2">
             <button
               type="button"
-              onClick={() => onNavigateToBible('출애굽기', 18, 1)}
+              onClick={() => onNavigateToBible(nextUnreadChapter.book, nextUnreadChapter.chapter, 1)}
               className="w-full py-2.5 rounded-xl bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm transition shadow-sm cursor-pointer"
+              title={`${nextUnreadChapter.book} ${nextUnreadChapter.chapter}장 이어읽기`}
             >
               읽기 시작
             </button>
@@ -2119,6 +2169,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           </div>
         </div>
 
+        {/* Card 2: 통독12목표 (총 12독 14,268장 과정 및 진행률) */}
         <div className="bg-white rounded-[26px] p-4 sm:p-5 shadow-sm border border-slate-100 flex flex-col justify-between">
           <div>
             <div className="flex justify-center mb-3">
@@ -2145,7 +2196,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </h2>
 
             <p className="text-sm font-extrabold text-[#0284c7] text-center mt-1 flex items-center justify-center gap-1.5 flex-wrap">
-              <span>{planProgressPercent}% 진행 중</span>
+              <span>{goal12ProgressPercent}% 진행 중</span>
               <button
                 type="button"
                 onClick={() => setShowBadgeModal(true)}
@@ -2157,11 +2208,14 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                   : `총통독: ${completedReadingsCount}독 / 12독`}
               </button>
             </p>
+            <p className="text-[11px] font-bold text-slate-500 text-center mt-0.5">
+              12독: {totalCumChAll.toLocaleString()}장 / 14,268장 완독
+            </p>
 
             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden my-3">
               <div
                 className="bg-[#1b64b9] h-full rounded-full transition-all duration-300"
-                style={{ width: `${planProgressPercent}%` }}
+                style={{ width: `${goal12ProgressPercent}%` }}
               />
             </div>
           </div>
@@ -2169,8 +2223,9 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           <div className="space-y-2 pt-2">
             <button
               type="button"
-              onClick={() => openChapterGrid('main', '창세기')}
+              onClick={() => openChapterGrid('main', nextUnreadChapter.book)}
               className="w-full py-2.5 rounded-xl bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm transition shadow-sm cursor-pointer"
+              title={`${nextUnreadChapter.book} 읽기 계획 현황 열기`}
             >
               오늘 읽기
             </button>
