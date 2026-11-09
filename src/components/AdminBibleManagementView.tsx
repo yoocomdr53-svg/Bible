@@ -31,6 +31,8 @@ import {
   Mail,
   Shield,
   Layers,
+  Save,
+  Link,
 } from 'lucide-react';
 import { User } from '../types';
 import { BIBLE_BOOKS } from '../data/bibleData';
@@ -48,6 +50,9 @@ import {
   syncBidirectionalWithGoogleSheets,
   generateAppsScriptCode,
   getSheetSyncLogs,
+  getPendingSyncQueue,
+  flushPendingSyncQueue,
+  PendingSyncItem,
   GoogleSheetConfig,
   SheetSyncLog,
 } from '../services/googleSheetsSync';
@@ -75,6 +80,9 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
 
   // Google Sheets Sync state (yoocomdr57@gmail.com 계정 연동)
   const [sheetConfig, setSheetConfig] = useState<GoogleSheetConfig>(() => getGoogleSheetConfig());
+  const [scriptUrlInput, setScriptUrlInput] = useState<string>(() => getGoogleSheetConfig().scriptUrl || '');
+  const [pendingQueue, setPendingQueue] = useState<PendingSyncItem[]>(() => getPendingSyncQueue());
+  const [isFlushingQueue, setIsFlushingQueue] = useState(false);
   const [syncLogs, setSyncLogs] = useState<SheetSyncLog[]>(() => getSheetSyncLogs());
   const [isSyncing, setIsSyncing] = useState(false);
   const [copiedScript, setCopiedScript] = useState(false);
@@ -422,6 +430,41 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     }
   };
 
+  // Save Google Apps Script Web App URL for yoocomdr57@gmail.com
+  const handleSaveScriptUrl = () => {
+    const url = scriptUrlInput.trim();
+    const updated: GoogleSheetConfig = {
+      ...sheetConfig,
+      scriptUrl: url,
+      lastSyncMessage: url
+        ? 'Google Apps Script Web App URL 등록 완료 (실시간 동기화 준비)'
+        : 'Web App URL 미입력',
+    };
+    saveGoogleSheetConfig(updated);
+    setSheetConfig(updated);
+    showToast(url ? 'Apps Script Web App URL이 저장되었습니다! 💾' : 'URL이 초기화되었습니다.');
+  };
+
+  // Flush pending sync queue
+  const handleFlushPendingQueue = async () => {
+    if (!sheetConfig.scriptUrl) {
+      showToast('구글 Apps Script Web App URL을 먼저 등록해주세요.');
+      return;
+    }
+    setIsFlushingQueue(true);
+    try {
+      const res = await flushPendingSyncQueue();
+      setPendingQueue(getPendingSyncQueue());
+      setSyncLogs(getSheetSyncLogs());
+      setSheetConfig(getGoogleSheetConfig());
+      showToast(`대기열 ${res.flushedCount}건이 구글 시트로 즉시 전송되었습니다! 🚀`);
+    } catch (e) {
+      showToast('대기열 전송 중 오류가 발생했습니다.');
+    } finally {
+      setIsFlushingQueue(false);
+    }
+  };
+
   // Trigger real-time bidirectional sync
   const handleTriggerSheetSync = async () => {
     setIsSyncing(true);
@@ -429,6 +472,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
       const res = await syncBidirectionalWithGoogleSheets(members, recordings, campaigns);
       setSheetConfig(getGoogleSheetConfig());
       setSyncLogs(getSheetSyncLogs());
+      setPendingQueue(getPendingSyncQueue());
       showToast(res.message);
     } catch (e) {
       showToast('구글 스프레드시트 동기화 중 오류가 발생했습니다.');
@@ -1662,6 +1706,74 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                   <span className="font-bold text-white text-[11px] block truncate">{sheetConfig.lastSynced || '실시간 자동 동기화'}</span>
                 </div>
               </div>
+            </div>
+
+            {/* 1.5. Web App URL Input & Connection Card */}
+            <div className="bg-white rounded-3xl p-4 sm:p-5 border-2 border-emerald-500/50 shadow-md space-y-3.5">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-xl shadow-xs flex-shrink-0">
+                    🔗
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="text-base font-black text-slate-900 tracking-tight">
+                        구글 웹 앱(Web App) 배포 URL 설정
+                      </h4>
+                      {sheetConfig.scriptUrl ? (
+                        <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                          실시간 연동 가동중
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                          ⚠️ Web App URL 등록 대기
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Apps Script 배포 URL (<code className="text-emerald-700 font-semibold font-mono">https://script.google.com/macros/s/.../exec</code>)을 입력하면 회원가입·진도·음원이 <strong className="text-slate-800">yoocomdr57@gmail.com</strong> 시트에 즉시 실시간 저장됩니다.
+                    </p>
+                  </div>
+                </div>
+
+                {pendingQueue.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleFlushPendingQueue}
+                    disabled={isFlushingQueue}
+                    className="px-3.5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-black shadow-md flex items-center gap-1.5 cursor-pointer flex-shrink-0"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isFlushingQueue ? 'animate-spin' : ''}`} />
+                    <span>대기열 {pendingQueue.length}건 지금 전송</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                <input
+                  type="url"
+                  value={scriptUrlInput}
+                  onChange={(e) => setScriptUrlInput(e.target.value)}
+                  placeholder="https://script.google.com/macros/s/AKfycb.../exec (Apps Script 배포 URL 붙여넣기)"
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono bg-slate-50 focus:bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveScriptUrl}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-md transition cursor-pointer flex items-center justify-center gap-1.5 flex-shrink-0"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>💾 URL 저장 및 실시간 연동</span>
+                </button>
+              </div>
+
+              {sheetConfig.lastSyncMessage && (
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px] text-slate-600 flex items-center gap-2">
+                  <span className="font-bold text-slate-700">상태:</span>
+                  <span>{sheetConfig.lastSyncMessage}</span>
+                </div>
+              )}
             </div>
 
             {/* 2. Google Apps Script One-Click Integration Setup (Placed Prominently at Top) */}

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Mic, Square, Play, Pause, Save, Check, RefreshCw } from 'lucide-react';
 import { UserRecording, BibleVerse } from '../types';
+import { addMemberRecordingToAdmin, getActiveSession } from '../services/authService';
 
 interface AudioRecordingModalProps {
   isOpen: boolean;
@@ -70,9 +71,31 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
       title: `${verse.book} ${verse.chapter}:${verse.verse} 낭독`,
       verseRef: `${verse.book} ${verse.chapter}:${verse.verse}`,
       duration: formatTime(recordedSeconds || 15),
-      date: '2026.09.13',
+      date: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
     };
     onSaveRecording(newRec);
+
+    const session = getActiveSession();
+    if (session) {
+      addMemberRecordingToAdmin(
+        {
+          id: session.id,
+          name: session.name,
+          email: session.email,
+          role: session.role,
+          avatarText: session.avatarText,
+          provider: session.provider,
+          schoolName: session.schoolName,
+          department: session.department,
+          consecutiveDays: session.consecutiveDays,
+          ntProgress: session.ntProgress,
+          todayVersesRead: session.todayVersesRead,
+          recordingsCount: session.recordingsCount,
+        },
+        newRec
+      );
+    }
+
     setSavedSuccess(true);
     setTimeout(() => {
       onClose();

@@ -1,5 +1,10 @@
 import { User } from '../types';
 import { MemberReadingProfile, MemberRecordingItem, INITIAL_MEMBERS } from '../data/adminData';
+import {
+  syncMemberRegistrationToGoogleSheet,
+  syncProgressToGoogleSheet,
+  syncRecordingToGoogleSheet,
+} from './googleSheetsSync';
 
 export const SESSION_KEY = 'superbible_auth_session_v3';
 export const REGISTRY_KEY = 'superbible_user_registry_v2';
@@ -184,48 +189,78 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
 }
 
 // Append new member to Admin Member Roster (ADMIN_MEMBERS_KEY)
-export function syncMemberToAdminRoster(user: User, loginId: string): void {
+export function syncMemberToAdminRoster(user: User, loginId: string): MemberReadingProfile {
   try {
     const currentMembers = getOrSyncAdminMembers();
-    const exists = currentMembers.some(
+    const existing = currentMembers.find(
       (m) => m.email.toLowerCase() === user.email.toLowerCase() || m.name === user.name
     );
-    if (!exists) {
-      const isMasterAdmin =
-        loginId.toLowerCase().includes('yoocomdr') || loginId.toLowerCase() === 'admin';
-
-      const newMember: MemberReadingProfile = {
-        id: `M-${String(currentMembers.length + 1).padStart(2, '0')}`,
-        name: user.name,
-        department: user.department || '새가족 성경통독부',
-        role: isMasterAdmin ? '관리자' : '성도',
-        phone: '010-미등록',
-        email: user.email,
-        registeredDate: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
-        birthdate: '1995.01.01',
-        baptismStatus: '원입',
-        smallGroup: '새가족 1구역',
-        accountRole: isMasterAdmin ? 'admin' : 'member',
-        accountStatus: 'active',
-        avatarColor: isMasterAdmin ? 'bg-amber-500' : 'bg-blue-500',
-        avatarText: user.avatarText,
-        currentReadingRound: 1,
-        targetRounds: 12,
-        currentBook: '창세기',
-        currentChapter: 1,
-        totalReadChapters: 0,
-        recordingsCount: 0,
-        lastActive: '방금 가입',
-        status: 'active',
-        consecutiveDays: 1,
-        featuredCount: 0,
-        memo: `웹 간편가입 회원 (아이디: ${loginId})`,
-      };
-      const updatedMembers = [...currentMembers, newMember];
-      localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(updatedMembers));
+    if (existing) {
+      return existing;
     }
+
+    const isMasterAdmin =
+      loginId.toLowerCase().includes('yoocomdr') || loginId.toLowerCase() === 'admin';
+
+    const newMember: MemberReadingProfile = {
+      id: `M-${String(currentMembers.length + 1).padStart(2, '0')}`,
+      name: user.name,
+      department: user.department || '새가족 성경통독부',
+      role: isMasterAdmin ? '관리자' : '성도',
+      phone: '010-미등록',
+      email: user.email,
+      registeredDate: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
+      birthdate: '1995.01.01',
+      baptismStatus: '원입',
+      smallGroup: '새가족 1구역',
+      accountRole: isMasterAdmin ? 'admin' : 'member',
+      accountStatus: 'active',
+      avatarColor: isMasterAdmin ? 'bg-amber-500' : 'bg-blue-500',
+      avatarText: user.avatarText,
+      currentReadingRound: 1,
+      targetRounds: 12,
+      currentBook: '창세기',
+      currentChapter: 1,
+      totalReadChapters: 0,
+      recordingsCount: 0,
+      lastActive: '방금 가입',
+      status: 'active',
+      consecutiveDays: 1,
+      featuredCount: 0,
+      memo: `웹 간편가입 회원 (아이디: ${loginId})`,
+    };
+    const updatedMembers = [...currentMembers, newMember];
+    localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(updatedMembers));
+    return newMember;
   } catch (e) {
     console.error('Failed to sync to admin roster:', e);
+    return {
+      id: `M-${Date.now()}`,
+      name: user.name,
+      department: user.department || '새가족 성경통독부',
+      role: '성도',
+      phone: '010-미등록',
+      email: user.email,
+      registeredDate: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
+      birthdate: '1995.01.01',
+      baptismStatus: '원입',
+      smallGroup: '새가족 1구역',
+      accountRole: 'member',
+      accountStatus: 'active',
+      avatarColor: 'bg-blue-500',
+      avatarText: user.avatarText,
+      currentReadingRound: 1,
+      targetRounds: 12,
+      currentBook: '창세기',
+      currentChapter: 1,
+      totalReadChapters: 0,
+      recordingsCount: 0,
+      lastActive: '방금 가입',
+      status: 'active',
+      consecutiveDays: 1,
+      featuredCount: 0,
+      memo: `웹 간편가입 회원 (아이디: ${loginId})`,
+    };
   }
 }
 
@@ -240,14 +275,18 @@ export function updateMemberReadingProgress(
     const idx = members.findIndex(
       (m) => m.email.toLowerCase() === userEmail.toLowerCase()
     );
+    let totalRead = 1;
     if (idx !== -1) {
       members[idx].currentBook = bookName;
       members[idx].currentChapter = chapterNumber;
       members[idx].totalReadChapters = (members[idx].totalReadChapters || 0) + 1;
       members[idx].lastActive = '방금 통독';
       members[idx].consecutiveDays = (members[idx].consecutiveDays || 0) + 1;
+      totalRead = members[idx].totalReadChapters;
       localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(members));
     }
+    // Realtime sync to Google Sheet (yoocomdr57@gmail.com)
+    syncProgressToGoogleSheet(userEmail, bookName, chapterNumber, totalRead).catch(console.error);
   } catch (e) {
     console.error('Failed to update member reading progress:', e);
   }
@@ -287,6 +326,9 @@ export function addMemberRecordingToAdmin(
       members[mIdx].lastActive = '방금 낭독';
       localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(members));
     }
+
+    // Realtime sync to Google Sheet (yoocomdr57@gmail.com)
+    syncRecordingToGoogleSheet(newRecItem).catch(console.error);
   } catch (e) {
     console.error('Failed to add recording to admin:', e);
   }
@@ -353,7 +395,10 @@ export function registerUser(
   saveRegisteredAccounts(updatedAccounts);
 
   // Sync to Admin Member Management Roster so admin can manage details
-  syncMemberToAdminRoster(newUser, loginId);
+  const newMemberProfile = syncMemberToAdminRoster(newUser, loginId);
+
+  // Auto-sync new member registration directly to Google Sheet (yoocomdr57@gmail.com)
+  syncMemberRegistrationToGoogleSheet(newMemberProfile, loginId).catch(console.error);
 
   // Auto-login & persist session
   saveActiveSession(newUser, loginId);

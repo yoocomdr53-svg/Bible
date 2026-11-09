@@ -30,7 +30,11 @@ import {
 } from '../data/bibleData';
 import { BibleVerse } from '../types';
 import { BibleSelectorModal } from './BibleSelectorModal';
-import { updateMemberReadingProgress, getActiveSession } from '../services/authService';
+import {
+  updateMemberReadingProgress,
+  getActiveSession,
+  addMemberRecordingToAdmin,
+} from '../services/authService';
 
 interface BibleReaderViewProps {
   onOpenVerseCard: (verse: BibleVerse) => void;
@@ -944,6 +948,32 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
 
   const handleCompleteRecording = () => {
     setIsRecordingNow(false);
+    const session = getActiveSession();
+    if (session) {
+      addMemberRecordingToAdmin(
+        {
+          id: session.id,
+          name: session.name,
+          email: session.email,
+          role: session.role,
+          avatarText: session.avatarText,
+          provider: session.provider,
+          schoolName: session.schoolName,
+          department: session.department,
+          consecutiveDays: session.consecutiveDays,
+          ntProgress: session.ntProgress,
+          todayVersesRead: session.todayVersesRead,
+          recordingsCount: session.recordingsCount,
+        },
+        {
+          id: `rec-${Date.now()}`,
+          title: `${selectedBook} ${selectedChapter}장 낭독 녹음`,
+          verseRef: `${selectedBook} ${selectedChapter}:${activeRecordVerse}절`,
+          duration: `${recordedVerses.length * 15 || 45}초`,
+          date: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
+        }
+      );
+    }
     alert(`${selectedBook} ${selectedChapter}장 낭독 녹음이 안전하게 저장되었습니다.`);
     setIsRecordingMode(false);
   };
