@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ChevronLeft,
   Users,
@@ -77,6 +77,54 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
 }) => {
   // Navigation Sub-tabs: 'overview' | 'roster' | 'members' | 'recordings' | 'campaigns' | 'reports' | 'sheets'
   const [adminTab, setAdminTab] = useState<'overview' | 'roster' | 'members' | 'recordings' | 'campaigns' | 'reports' | 'sheets'>('overview');
+
+  // Navigation scroll management for PC mouse wheel and left/right arrows
+  const navRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
+  const checkNavScroll = () => {
+    if (navRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = navRef.current;
+      setCanScrollLeft(scrollLeft > 5);
+      setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 5);
+    }
+  };
+
+  useEffect(() => {
+    checkNavScroll();
+    window.addEventListener('resize', checkNavScroll);
+    return () => window.removeEventListener('resize', checkNavScroll);
+  }, []);
+
+  // When active tab changes, scroll it into view smoothly
+  useEffect(() => {
+    if (adminTab === 'sheets' && navRef.current) {
+      navRef.current.scrollTo({ left: navRef.current.scrollWidth, behavior: 'smooth' });
+    }
+    setTimeout(checkNavScroll, 200);
+  }, [adminTab]);
+
+  const handleNavWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (navRef.current && e.deltaY !== 0) {
+      navRef.current.scrollLeft += e.deltaY;
+      checkNavScroll();
+    }
+  };
+
+  const scrollNavLeft = () => {
+    if (navRef.current) {
+      navRef.current.scrollBy({ left: -220, behavior: 'smooth' });
+      setTimeout(checkNavScroll, 250);
+    }
+  };
+
+  const scrollNavRight = () => {
+    if (navRef.current) {
+      navRef.current.scrollBy({ left: 220, behavior: 'smooth' });
+      setTimeout(checkNavScroll, 250);
+    }
+  };
 
   // Google Sheets Sync state (yoocomdr57@gmail.com 계정 연동)
   const [sheetConfig, setSheetConfig] = useState<GoogleSheetConfig>(() => getGoogleSheetConfig());
@@ -582,7 +630,20 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          <button
+            type="button"
+            onClick={() => setAdminTab('sheets')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md transition cursor-pointer active:scale-95 flex-shrink-0 ${
+              adminTab === 'sheets'
+                ? 'bg-emerald-400 text-slate-950 ring-2 ring-emerald-300 font-black'
+                : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+            }`}
+            title="구글 스프레드시트 연동 관리 화면 바로가기"
+          >
+            <span>📊</span>
+            <span>구글 시트 연동</span>
+          </button>
           <button
             type="button"
             onClick={handleCopyAppsScript}
@@ -622,99 +683,136 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
         </div>
       </header>
 
-      {/* 2. Admin 7-Tab Navigation Bar */}
-      <nav className="bg-white border-b border-slate-200 px-2 py-1.5 flex items-center justify-start overflow-x-auto no-scrollbar flex-shrink-0 z-20 gap-1.5">
-        <button
-          type="button"
-          onClick={() => setAdminTab('overview')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-            adminTab === 'overview'
-              ? 'bg-[#1b64b9] text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <span>📊</span>
-          <span>대시보드</span>
-        </button>
+      {/* 2. Admin 7-Tab Navigation Bar with Mouse Wheel Scroll & Left/Right Arrows */}
+      <div className="bg-white border-b border-slate-200 relative flex items-center flex-shrink-0 z-20 select-none">
+        {/* Left Scroll Arrow Button */}
+        {canScrollLeft && (
+          <button
+            type="button"
+            onClick={scrollNavLeft}
+            className="absolute left-0 top-0 bottom-0 z-30 px-2 bg-gradient-to-r from-white via-white/95 to-transparent flex items-center justify-center text-slate-700 hover:text-black hover:bg-slate-100/50 transition cursor-pointer shadow-xs"
+            title="왼쪽 메뉴 보기 (마우스 휠 스크롤 가능)"
+          >
+            <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={() => setAdminTab('roster')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-            adminTab === 'roster'
-              ? 'bg-[#0284c7] text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
+        {/* Scrollable Nav Container */}
+        <nav
+          ref={navRef}
+          onWheel={handleNavWheel}
+          onScroll={checkNavScroll}
+          className="w-full px-2 py-1.5 flex items-center justify-start overflow-x-auto gap-1.5 scrollbar-thin scrollbar-thumb-slate-300 hover:scrollbar-thumb-slate-400 scroll-smooth lg:justify-between"
+          title="마우스 휠을 굴려 좌우로 스크롤할 수 있습니다"
         >
-          <span>📇</span>
-          <span>회원 관리 명부 ({members.length})</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => setAdminTab('overview')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
+              adminTab === 'overview'
+                ? 'bg-[#1b64b9] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <span>📊</span>
+            <span>대시보드</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setAdminTab('members')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-            adminTab === 'members'
-              ? 'bg-[#1b64b9] text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <span>📖</span>
-          <span>낭독 진도 관리</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => setAdminTab('roster')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
+              adminTab === 'roster'
+                ? 'bg-[#0284c7] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <span>📇</span>
+            <span>회원 관리 명부 ({members.length})</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setAdminTab('recordings')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-            adminTab === 'recordings'
-              ? 'bg-[#1b64b9] text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <span>🎙️</span>
-          <span>낭독 음원 검수</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => setAdminTab('members')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
+              adminTab === 'members'
+                ? 'bg-[#1b64b9] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <span>📖</span>
+            <span>낭독 진도 관리</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setAdminTab('campaigns')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-            adminTab === 'campaigns'
-              ? 'bg-[#1b64b9] text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <span>🎯</span>
-          <span>통독 캠페인</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => setAdminTab('recordings')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
+              adminTab === 'recordings'
+                ? 'bg-[#1b64b9] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <span>🎙️</span>
+            <span>낭독 음원 검수</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setAdminTab('reports')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-            adminTab === 'reports'
-              ? 'bg-[#1b64b9] text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <span>📜</span>
-          <span>수료증 & 보고서</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => setAdminTab('campaigns')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
+              adminTab === 'campaigns'
+                ? 'bg-[#1b64b9] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <span>🎯</span>
+            <span>통독 캠페인</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setAdminTab('sheets')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-            adminTab === 'sheets'
-              ? 'bg-emerald-600 text-white shadow-xs'
-              : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200'
-          }`}
-        >
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>구글 시트 연동</span>
-        </button>
-      </nav>
+          <button
+            type="button"
+            onClick={() => setAdminTab('reports')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
+              adminTab === 'reports'
+                ? 'bg-[#1b64b9] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <span>📜</span>
+            <span>수료증 & 보고서</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAdminTab('sheets')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
+              adminTab === 'sheets'
+                ? 'bg-emerald-600 text-white shadow-md ring-2 ring-emerald-300'
+                : 'text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300'
+            }`}
+            title="구글 스프레드시트 실시간 연동 관리"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>📊 구글 시트 연동</span>
+          </button>
+        </nav>
+
+        {/* Right Scroll Arrow Button */}
+        {canScrollRight && (
+          <button
+            type="button"
+            onClick={scrollNavRight}
+            className="absolute right-0 top-0 bottom-0 z-30 px-2 bg-gradient-to-l from-white via-white/95 to-transparent flex items-center justify-center text-slate-700 hover:text-black hover:bg-slate-100/50 transition cursor-pointer shadow-xs group"
+            title="오른쪽 메뉴 보기 (구글 시트 연동)"
+          >
+            <div className="flex items-center gap-1 text-[11px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 shadow-2xs group-hover:bg-emerald-200">
+              <span className="hidden sm:inline">구글시트 연동</span>
+              <ChevronRight className="w-4 h-4 stroke-[2.5] text-emerald-700 animate-pulse" />
+            </div>
+          </button>
+        )}
+      </div>
 
       {/* Main Body */}
       <div className="flex-1 overflow-y-auto no-scrollbar p-3.5 sm:p-4 pb-24 space-y-4">
@@ -772,6 +870,36 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                 </div>
                 <span className="text-[10px] text-amber-600 font-bold mt-1 inline-block">영광의 면류관 수여</span>
               </div>
+            </div>
+
+            {/* Google Sheets Live Sync Card in Overview */}
+            <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-900 text-white rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-md border border-emerald-500/30">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-white text-emerald-800 flex items-center justify-center font-black text-xl shadow-xs flex-shrink-0">
+                  📊
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-sm sm:text-base font-black text-white">
+                      구글 스프레드시트 실시간 연동
+                    </h4>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-400 text-slate-950">
+                      yoocomdr57@gmail.com
+                    </span>
+                  </div>
+                  <p className="text-xs text-emerald-200 mt-0.5 truncate">
+                    회원가입 명부, 낭독 진도, 음원 검수 데이터가 구글 시트에 실시간 반영됩니다.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAdminTab('sheets')}
+                className="px-3.5 py-2 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 text-xs font-black shadow-md transition cursor-pointer flex items-center justify-center gap-1.5 flex-shrink-0 active:scale-95"
+              >
+                <span>구글 시트 연동 메뉴 바로가기</span>
+                <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />
+              </button>
             </div>
 
             {/* Quick Alert Banner for Slack Members */}
