@@ -59,6 +59,7 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
   const [showConfig, setShowConfig] = useState(false);
   const [scriptUrlInput, setScriptUrlInput] = useState(() => getGoogleSheetConfig().scriptUrl || '');
   const [copiedScript, setCopiedScript] = useState(false);
+  const [customPassageName, setCustomPassageName] = useState<string>('');
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -69,8 +70,17 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
 
   const displayDate = data?.date || new Date().toISOString().slice(0, 10).replace(/-/g, '.');
   const displayDuration = data?.duration || '00:15';
-  const bibleRecName = (data?.verseRef || data?.title || '성경낭독').trim();
-  const targetFileName = `${bibleRecName}.webm`;
+
+  useEffect(() => {
+    if (data?.verseRef) {
+      setCustomPassageName(data.verseRef);
+    } else if (data?.title) {
+      setCustomPassageName(data.title.replace(/ 낭독 녹음$/, ''));
+    }
+  }, [data]);
+
+  const effectivePassageName = (customPassageName || data?.verseRef || data?.title || '성경낭독').trim();
+  const targetFileName = `${effectivePassageName}.webm`;
 
   const getAudioFile = (): File | null => {
     if (!data) return null;
@@ -108,11 +118,11 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
     const res = await uploadAudioToDrive({
       audioBlob: data.audioBlob,
       fileName: targetFileName,
-      bibleName: bibleRecName,
+      bibleName: effectivePassageName,
       memberName: effectiveUserName,
       loginId: effectiveLoginId,
       teamName: selectedTeam,
-      verseRef: bibleRecName,
+      verseRef: effectivePassageName,
       book: data.book,
       chapter: data.chapter,
       duration: displayDuration,
@@ -145,7 +155,7 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
         // No web links, no text preview cards!
         await navigator.share({
           files: [file],
-          title: `[${selectedTeam}] ${effectiveUserName} 낭독 과제`,
+          title: `[${selectedTeam}] ${effectiveUserName} 낭독 과제 (${effectivePassageName})`,
         });
         setTelegramNotice(`텔레그램 ${selectedTeam} 과제제출방으로 음원 파일이 전송되었습니다!`);
         setTimeout(() => setTelegramNotice(null), 3500);
@@ -246,7 +256,7 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
                 텔레그램 과제방 전송
               </h3>
               <p className="text-[11px] text-slate-400">
-                {bibleRecName} · {effectiveUserName} 성도
+                {effectivePassageName} · {effectiveUserName} 성도
               </p>
             </div>
           </div>
@@ -286,24 +296,37 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
           </div>
         </div>
 
-        {/* 2. Audio Preview Player */}
-        <div className="p-2.5 bg-slate-50 rounded-2xl border border-slate-200/80 flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2 truncate">
-            <button
-              type="button"
-              onClick={togglePlayAudio}
-              className="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center transition active:scale-95 cursor-pointer shadow-xs flex-shrink-0"
-              title="녹음 미리듣기"
-            >
-              {isPlayingAudio ? (
-                <Pause className="w-3.5 h-3.5 fill-current" />
-              ) : (
-                <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
-              )}
-            </button>
-            <div className="truncate">
-              <p className="font-bold text-slate-800 text-[12px] truncate">{targetFileName}</p>
-              <p className="text-[10px] text-slate-400 font-mono">녹음 시간: {displayDuration}</p>
+        {/* 2. Audio Preview Player & Passage Name */}
+        <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2 text-xs">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">📜 낭독 본문:</span>
+            <input
+              type="text"
+              value={customPassageName}
+              onChange={(e) => setCustomPassageName(e.target.value)}
+              placeholder="예: 말라기 1~5장"
+              className="flex-1 text-right text-xs font-black text-blue-700 bg-white px-2.5 py-1 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
+            />
+          </div>
+
+          <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+            <div className="flex items-center gap-2 truncate">
+              <button
+                type="button"
+                onClick={togglePlayAudio}
+                className="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center transition active:scale-95 cursor-pointer shadow-xs flex-shrink-0"
+                title="녹음 미리듣기"
+              >
+                {isPlayingAudio ? (
+                  <Pause className="w-3.5 h-3.5 fill-current" />
+                ) : (
+                  <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                )}
+              </button>
+              <div className="truncate">
+                <p className="font-black text-slate-900 text-[12px] truncate">{targetFileName}</p>
+                <p className="text-[10px] text-slate-400 font-mono">녹음 시간: {displayDuration}</p>
+              </div>
             </div>
           </div>
         </div>

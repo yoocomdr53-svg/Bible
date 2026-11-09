@@ -24,6 +24,19 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [shareData, setShareData] = useState<AudioShareData | null>(null);
 
+  // 낭독한 장 범위 (시작 장 ~ 마지막 낭독한 장, 예: 말라기 1~5장)
+  const [recordStartChapter, setRecordStartChapter] = useState(verse.chapter);
+  const [recordEndChapter, setRecordEndChapter] = useState(verse.chapter);
+
+  useEffect(() => {
+    setRecordStartChapter(verse.chapter);
+    setRecordEndChapter(verse.chapter);
+  }, [verse]);
+
+  const minCh = Math.min(recordStartChapter, recordEndChapter);
+  const maxCh = Math.max(recordStartChapter, recordEndChapter);
+  const chapterRangeText = minCh === maxCh ? `${verse.book} ${minCh}장` : `${verse.book} ${minCh}~${maxCh}장`;
+
   // Real Audio Recording state & refs
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
@@ -167,8 +180,8 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
   const handleSave = () => {
     const newRec: UserRecording = {
       id: `rec-${Date.now()}`,
-      title: `${verse.book} ${verse.chapter}:${verse.verse} 낭독`,
-      verseRef: `${verse.book} ${verse.chapter}:${verse.verse}`,
+      title: `${chapterRangeText} 낭독 녹음`,
+      verseRef: chapterRangeText,
       duration: formatTime(recordedSeconds || 15),
       date: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
     };
@@ -195,23 +208,20 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
       );
     }
 
-    const teamName = session?.department || '지벳팀';
-    const userName = session?.name || '성도';
-    const bibleName = `${verse.book} ${verse.chapter}장 ${verse.verse}절`;
-    const fileName = `${bibleName}.webm`;
+    const fileName = `${chapterRangeText}.webm`;
     const audioFile = recordedBlob ? new File([recordedBlob], fileName, { type: recordedBlob.type || 'audio/webm' }) : null;
 
     setSavedSuccess(true);
     setShareData({
       title: newRec.title,
-      verseRef: newRec.verseRef,
+      verseRef: chapterRangeText,
       duration: newRec.duration,
       date: newRec.date,
       audioBlob: recordedBlob,
       audioUrl: recordedUrl,
       audioFile: audioFile,
       book: verse.book,
-      chapter: verse.chapter,
+      chapter: maxCh,
     });
   };
 
@@ -238,27 +248,104 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
         </div>
 
         {/* Verse to Recite */}
-        <div className="my-4 p-4 rounded-2xl bg-blue-50/70 border border-blue-100">
+        <div className="my-3 p-3.5 rounded-2xl bg-blue-50/70 border border-blue-100">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-xs font-bold text-blue-700">낭독할 말씀</span>
             <span className="text-[11px] font-semibold text-blue-600">
               {verse.book} {verse.chapter}:{verse.verse}
             </span>
           </div>
-          <p className="text-[14px] text-slate-800 leading-relaxed font-medium">
+          <p className="text-[13px] text-slate-800 leading-relaxed font-medium">
             "{verse.text}"
           </p>
         </div>
 
+        {/* 낭독 장 범위 (마지막 낭독한 장 설정, 예: 말라기 1~5장) */}
+        <div className="mb-3 p-2.5 rounded-xl bg-amber-50/90 border border-amber-200/80 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-1 font-bold text-amber-950">
+            <span className="text-amber-800 font-extrabold text-[11px]">📜 낭독 본문:</span>
+            <span className="bg-amber-600 text-white px-2 py-0.5 rounded-full text-[11px] font-black">
+              {chapterRangeText}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5 bg-white border border-amber-300 rounded-lg px-1.5 py-0.5 shadow-2xs">
+              <span className="text-[9px] text-slate-400">시작</span>
+              <button
+                type="button"
+                onClick={() => setRecordStartChapter((p) => Math.max(1, p - 1))}
+                className="w-3.5 h-3.5 flex items-center justify-center font-black text-slate-700"
+              >
+                -
+              </button>
+              <span className="font-black text-amber-900 text-[11px] min-w-[14px] text-center">{recordStartChapter}</span>
+              <button
+                type="button"
+                onClick={() => setRecordStartChapter((p) => Math.min(recordEndChapter, p + 1))}
+                className="w-3.5 h-3.5 flex items-center justify-center font-black text-slate-700"
+              >
+                +
+              </button>
+            </div>
+            <span className="text-amber-800 font-bold">~</span>
+            <div className="flex items-center gap-0.5 bg-white border border-amber-300 rounded-lg px-1.5 py-0.5 shadow-2xs">
+              <span className="text-[9px] text-slate-400">마지막</span>
+              <button
+                type="button"
+                onClick={() => setRecordEndChapter((p) => Math.max(recordStartChapter, p - 1))}
+                className="w-3.5 h-3.5 flex items-center justify-center font-black text-slate-700"
+              >
+                -
+              </button>
+              <span className="font-black text-amber-900 text-[11px] min-w-[14px] text-center">{recordEndChapter}</span>
+              <button
+                type="button"
+                onClick={() => setRecordEndChapter((p) => p + 1)}
+                className="w-3.5 h-3.5 flex items-center justify-center font-black text-slate-700"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Recording Visualizer & Controls */}
-        <div className="py-5 flex flex-col items-center justify-center text-center">
-          <div className="text-3xl font-black text-slate-900 tracking-wider mb-4 font-mono">
+        <div className="py-3 flex flex-col items-center justify-center text-center">
+          <div className="text-3xl font-black text-slate-900 tracking-wider mb-2 font-mono">
             {formatTime(recordedSeconds)}
           </div>
 
+          {/* Smooth Progress Timeline */}
+          {(() => {
+            const totalChapters = Math.max(1, Math.abs(recordEndChapter - recordStartChapter) + 1);
+            const targetSec = Math.max(300, totalChapters * 240);
+            const currentTargetSec = Math.max(targetSec, recordedSeconds + 180);
+            const pct = Math.min(100, (recordedSeconds / currentTargetSec) * 100);
+
+            return (
+              <div className="w-full px-2 mb-4 space-y-1">
+                <div className="w-full h-2 bg-slate-200/90 rounded-full overflow-hidden p-0.5">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ease-out ${
+                      isRecording
+                        ? 'bg-linear-to-r from-red-500 to-amber-500'
+                        : 'bg-linear-to-r from-emerald-500 to-sky-500'
+                    }`}
+                    style={{ width: `${Math.max(2, pct)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] font-mono font-bold text-slate-400 px-0.5">
+                  <span className="text-slate-700">{formatTime(recordedSeconds)}</span>
+                  <span>권장 {formatTime(currentTargetSec)}</span>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Sound Wave Animation when recording */}
           {isRecording ? (
-            <div className="flex items-center gap-1.5 h-12 mb-5">
+            <div className="flex items-center gap-1.5 h-10 mb-4">
               {[40, 75, 55, 90, 65, 80, 45, 95, 70, 50, 85, 60].map((h, i) => (
                 <div
                   key={i}
@@ -271,7 +358,7 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
               ))}
             </div>
           ) : (
-            <div className="h-12 mb-5 flex items-center justify-center text-xs text-slate-400">
+            <div className="h-8 mb-4 flex items-center justify-center text-xs text-slate-400">
               {hasRecorded ? '녹음 완료! 들어보고 저장하세요' : '마이크 버튼을 눌러 낭독을 시작하세요'}
             </div>
           )}

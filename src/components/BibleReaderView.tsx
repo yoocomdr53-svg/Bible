@@ -425,6 +425,32 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   const [showShareModal, setShowShareModal] = useState(false);
   const [activeShareData, setActiveShareData] = useState<AudioShareData | null>(null);
 
+  // 낭독한 장 범위 (시작 장 ~ 마지막 낭독한 장, 예: 말라기 1~5장)
+  const [recordStartChapter, setRecordStartChapter] = useState<number>(initialChapter);
+  const [recordEndChapter, setRecordEndChapter] = useState<number>(initialChapter);
+
+  // When selectedChapter changes, update recordEndChapter if newly visited is higher
+  useEffect(() => {
+    setRecordEndChapter((prev) => Math.max(prev, selectedChapter));
+  }, [selectedChapter]);
+
+  // When selectedBook changes, reset start & end chapter to selectedChapter
+  useEffect(() => {
+    setRecordStartChapter(selectedChapter);
+    setRecordEndChapter(selectedChapter);
+  }, [selectedBook]);
+
+  const getBookMaxChapters = (bookName: string): number => {
+    const found = BIBLE_BOOKS.find((b) => b.name === bookName);
+    return found ? found.chaptersCount : 50;
+  };
+
+  const getFormattedPassage = (book: string, startCh: number, endCh: number): string => {
+    const min = Math.min(startCh, endCh);
+    const max = Math.max(startCh, endCh);
+    return min === max ? `${book} ${min}장` : `${book} ${min}~${max}장`;
+  };
+
   // Real Audio Capture for Recording Mode (MediaRecorder)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -1136,10 +1162,16 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     const session = getActiveSession();
     const durationStr = recordDurationSec > 0 ? formatHMS(recordDurationSec) : `${recordedVerses.length * 15 || 45}초`;
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
+
+    // 낭독한 장 범위 계산 (예: 말라기 1~5장 또는 말라기 1장)
+    const minCh = Math.min(recordStartChapter, recordEndChapter);
+    const maxCh = Math.max(recordStartChapter, recordEndChapter);
+    const chapterRangeText = getFormattedPassage(selectedBook, minCh, maxCh);
+
     const newRecItem = {
       id: `rec-${Date.now()}`,
-      title: `${selectedBook} ${selectedChapter}장 낭독 녹음`,
-      verseRef: `${selectedBook} ${selectedChapter}:${activeRecordVerse}절`,
+      title: `${chapterRangeText} 낭독 녹음`,
+      verseRef: chapterRangeText,
       duration: durationStr,
       date: dateStr,
     };
@@ -1162,30 +1194,33 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
         newRecItem
       );
     }
+
+    // 낭독한 장 범위의 모든 장을 완독 및 오늘 읽은 말씀으로 등록
     try {
-      addTodayReadChapter(selectedBook, selectedChapter);
+      markChapterRangeCompleted(selectedBook, minCh, maxCh, true);
+      for (let ch = minCh; ch <= maxCh; ch++) {
+        addTodayReadChapter(selectedBook, ch);
+      }
+      setCompletedChapters(getCompletedChapters());
     } catch (e) {}
 
-    // Prepare recorded audio blob & file
+    // Prepare recorded audio blob & file (파일명: 말라기 1~5장.webm)
     const finalBlob = recordedBlobRef.current || (audioChunksRef.current.length > 0 ? new Blob(audioChunksRef.current, { type: 'audio/webm' }) : null);
     const finalUrl = recordedUrlRef.current || (finalBlob ? URL.createObjectURL(finalBlob) : null);
-    const teamName = session?.department || '지벳팀';
-    const userName = session?.name || '성도';
-    const bibleName = `${selectedBook} ${selectedChapter}장 ${activeRecordVerse}절`;
-    const fileName = `${bibleName}.webm`;
+    const fileName = `${chapterRangeText}.webm`;
     const audioFile = finalBlob ? new File([finalBlob], fileName, { type: finalBlob.type || 'audio/webm' }) : null;
 
     // Open Share Modal immediately for seamless Telegram / Team 과제제출방 sharing
     setActiveShareData({
       title: newRecItem.title,
-      verseRef: newRecItem.verseRef,
+      verseRef: chapterRangeText,
       duration: newRecItem.duration,
       date: newRecItem.date,
       audioBlob: finalBlob,
       audioUrl: finalUrl,
       audioFile: audioFile,
       book: selectedBook,
-      chapter: selectedChapter,
+      chapter: maxCh,
     });
   };
 
@@ -1275,14 +1310,81 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           </div>
         </header>
 
-        {/* 2. Top Notice Banner: "성경낭독녹음 기능을 이용하고 계십니다" */}
-        <div className="bg-[#f8faf9] border-b border-slate-200/90 px-4 py-2 flex items-center gap-2.5 z-20 flex-shrink-0">
-          <div className="w-6 h-6 rounded-full bg-[#8c6d58] text-white flex items-center justify-center flex-shrink-0 shadow-2xs">
-            <Mic className="w-3.5 h-3.5" />
+        {/* 2. Top Notice Banner: "성경낭독녹음 기능을 이용하고 계십니다" & 낭독 본문 뱃지 */}
+        <div className="bg-[#f8faf9] border-b border-slate-200/90 px-4 py-2 flex items-center justify-between z-20 flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-6 h-6 rounded-full bg-[#8c6d58] text-white flex items-center justify-center flex-shrink-0 shadow-2xs">
+              <Mic className="w-3.5 h-3.5" />
+            </div>
+            <span className="text-xs sm:text-sm font-bold text-slate-800">
+              성경낭독녹음 기능을 이용하고 계십니다
+            </span>
           </div>
-          <span className="text-xs sm:text-sm font-bold text-slate-800">
-            성경낭독녹음 기능을 이용하고 계십니다
+
+          <span className="bg-amber-600 text-white px-2.5 py-0.5 rounded-full text-xs font-black shadow-2xs">
+            {getFormattedPassage(selectedBook, recordStartChapter, recordEndChapter)}
           </span>
+        </div>
+
+        {/* 2-1. 낭독 장 범위 (마지막 낭독한 장 표시 및 조정 바) */}
+        <div className="bg-amber-50/95 border-b border-amber-200/90 px-3.5 py-2 flex items-center justify-between z-20 flex-shrink-0 text-xs">
+          <div className="flex items-center gap-1.5 font-bold text-amber-950">
+            <span className="text-amber-800 font-extrabold text-[12px]">📜 낭독 본문:</span>
+            <span className="font-black text-amber-900 bg-amber-200/70 px-2 py-0.5 rounded text-[12px]">
+              {getFormattedPassage(selectedBook, recordStartChapter, recordEndChapter)}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* 시작 장 */}
+            <div className="flex items-center gap-1 bg-white border border-amber-300 rounded-lg px-2 py-0.5 shadow-2xs">
+              <span className="text-[10px] text-slate-500 font-medium">시작</span>
+              <button
+                type="button"
+                onClick={() => setRecordStartChapter((p) => Math.max(1, p - 1))}
+                className="w-4 h-4 flex items-center justify-center text-slate-700 hover:text-slate-900 font-black cursor-pointer"
+                title="시작 장 -1"
+              >
+                -
+              </button>
+              <span className="font-black text-amber-900 min-w-[18px] text-center">{recordStartChapter}장</span>
+              <button
+                type="button"
+                onClick={() => setRecordStartChapter((p) => Math.min(recordEndChapter, p + 1))}
+                className="w-4 h-4 flex items-center justify-center text-slate-700 hover:text-slate-900 font-black cursor-pointer"
+                title="시작 장 +1"
+              >
+                +
+              </button>
+            </div>
+
+            <span className="text-amber-700 font-extrabold text-sm">~</span>
+
+            {/* 마지막 낭독한 장 */}
+            <div className="flex items-center gap-1 bg-white border border-amber-300 rounded-lg px-2 py-0.5 shadow-2xs">
+              <span className="text-[10px] text-slate-500 font-medium">마지막 낭독</span>
+              <button
+                type="button"
+                onClick={() => setRecordEndChapter((p) => Math.max(recordStartChapter, p - 1))}
+                className="w-4 h-4 flex items-center justify-center text-slate-700 hover:text-slate-900 font-black cursor-pointer"
+                title="마지막 장 -1"
+              >
+                -
+              </button>
+              <span className="font-black text-amber-900 min-w-[18px] text-center">{recordEndChapter}장</span>
+              <button
+                type="button"
+                onClick={() => {
+                  const maxCh = getBookMaxChapters(selectedBook);
+                  setRecordEndChapter((p) => Math.min(maxCh, p + 1));
+                }}
+                className="w-4 h-4 flex items-center justify-center text-slate-700 hover:text-slate-900 font-black cursor-pointer"
+                title="마지막 장 +1"
+              >
+                +
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* 3. Sub-toolbar: < > | 녹음현황·공유 ➦ | 연속 녹음 ON */}
@@ -1311,10 +1413,15 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           <button
             type="button"
             onClick={() => {
+              const minCh = Math.min(recordStartChapter, recordEndChapter);
+              const maxCh = Math.max(recordStartChapter, recordEndChapter);
+              const chapterRangeText = getFormattedPassage(selectedBook, minCh, maxCh);
               setActiveShareData({
-                title: `${selectedBook} ${selectedChapter}장 낭독 녹음`,
-                verseRef: `${selectedBook} ${selectedChapter}장 (${recordedVerses.length}구절 녹음)`,
-                duration: `${recordedVerses.length * 15 || 45}초`,
+                title: `${chapterRangeText} 낭독 녹음`,
+                verseRef: chapterRangeText,
+                duration: `${recordDurationSec > 0 ? formatHMS(recordDurationSec) : (recordedVerses.length * 15 || 45) + '초'}`,
+                book: selectedBook,
+                chapter: maxCh,
               });
             }}
             className="flex items-center gap-1 px-3 py-1 rounded-full border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-[11px] transition shadow-2xs cursor-pointer"
@@ -1412,23 +1519,54 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
 
         {/* 5. Audio Recording Bottom Control Bar (Matching User Screenshot) */}
         <div className="bg-[#fcfdfc] border-t border-slate-200 px-4 pt-2.5 pb-3 z-20 flex-shrink-0 shadow-lg">
-          {/* Progress Timeline with Timestamps 00:00:00 */}
-          <div className="space-y-1">
-            <div className="relative w-full flex items-center">
-              <input
-                type="range"
-                min={0}
-                max={Math.max(60, recordDurationSec + 30)}
-                value={recordDurationSec}
-                onChange={() => {}}
-                className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0284c7]"
-              />
-            </div>
-            <div className="flex items-center justify-between text-xs font-mono font-bold text-slate-700">
-              <span>{formatHMS(recordDurationSec)}</span>
-              <span>{formatHMS(0)}</span>
-            </div>
-          </div>
+          {/* Progress Timeline with Calm, Slow, Smooth Movement (장 분량에 맞춘 서서히 자연스러운 진행) */}
+          {(() => {
+            const totalChaptersCount = Math.max(1, Math.abs(recordEndChapter - recordStartChapter) + 1);
+            // 낭독 속도에 맞춘 여유 있는 권장/목표 시간: 최소 5분(300초), 장당 4분(240초) 기준
+            // 녹음 시간이 길어지더라도 현재시간 + 180초로 넉넉하게 확장되어 서서히 자연스럽게 진행
+            const baselineTargetSec = Math.max(300, totalChaptersCount * 240);
+            const targetRecordDuration = Math.max(baselineTargetSec, recordDurationSec + 180);
+            const recordingProgressPercent = Math.min(100, (recordDurationSec / targetRecordDuration) * 100);
+
+            return (
+              <div className="space-y-1.5 py-1">
+                {/* Visual Progress Track with Smooth CSS Animation */}
+                <div className="relative w-full h-2.5 bg-slate-200/90 rounded-full overflow-hidden p-0.5 shadow-inner">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ease-out ${
+                      isRecordingNow
+                        ? 'bg-linear-to-r from-red-500 via-rose-500 to-amber-500 shadow-sm'
+                        : 'bg-linear-to-r from-emerald-500 via-teal-500 to-sky-500'
+                    }`}
+                    style={{
+                      width: `${Math.max(1.5, recordingProgressPercent)}%`,
+                    }}
+                  />
+                </div>
+
+                {/* Timestamps & Chapter Range Info */}
+                <div className="flex items-center justify-between text-xs font-mono font-bold text-slate-700 px-0.5">
+                  <span className="flex items-center gap-1.5 text-slate-800">
+                    {isRecordingNow && (
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600" />
+                      </span>
+                    )}
+                    <span>{formatHMS(recordDurationSec)}</span>
+                  </span>
+
+                  <span className="text-[11px] font-sans font-black text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-full">
+                    {getFormattedPassage(selectedBook, recordStartChapter, recordEndChapter)} ({totalChaptersCount}개 장)
+                  </span>
+
+                  <span className="text-slate-400 font-medium">
+                    권장 {formatHMS(targetRecordDuration)}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Floating Tooltip: "녹음 버튼을 누르시면 N절이 녹음됩니다" */}
           <div className="flex justify-center my-2">
