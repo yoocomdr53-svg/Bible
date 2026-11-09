@@ -1,27 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ChevronLeft,
   Search,
   Music,
   Star,
-  Play,
-  Pause,
-  RotateCcw,
-  Volume2,
-  VolumeX,
   BookOpen,
-  ArrowRight,
-  List,
-  Sparkles,
-  Sliders,
   X,
   ChevronRight,
   ZoomIn,
   ZoomOut,
   Maximize2,
-  Minimize2,
   RefreshCw,
   FileText,
+  ExternalLink,
 } from 'lucide-react';
 import {
   Hymn,
@@ -74,13 +65,6 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
   // Lyrics font size
   const [fontSizePt, setFontSizePt] = useState<number>(17);
 
-  // Audio Melody Player State
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [currentNoteIdx, setCurrentNoteIdx] = useState<number>(-1);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const isPlayingRef = useRef<boolean>(false);
-  const timeoutsRef = useRef<number[]>([]);
-
   // Update favorites list
   const handleToggleFav = (num: number, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -96,105 +80,7 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
     setScoreZoom(1.0);
     addRecentHymn(h.number);
     setRecentHymns(getRecentHymns());
-    stopAudio();
   };
-
-  // Web Audio Synthesizer: Smooth Church Organ / Chime Melody
-  const stopAudio = () => {
-    timeoutsRef.current.forEach((t) => clearTimeout(t));
-    timeoutsRef.current = [];
-    isPlayingRef.current = false;
-    setIsPlaying(false);
-    setCurrentNoteIdx(-1);
-    if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
-      try {
-        audioCtxRef.current.close();
-      } catch (e) {}
-      audioCtxRef.current = null;
-    }
-  };
-
-  const playHymnMelody = (h: Hymn) => {
-    stopAudio();
-
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) {
-        alert('현재 브라우저에서 오디오 반주 재생을 지원하지 않습니다.');
-        return;
-      }
-
-      const ctx = new AudioCtx();
-      audioCtxRef.current = ctx;
-      isPlayingRef.current = true;
-      setIsPlaying(true);
-
-      const notes = h.notes && h.notes.length > 0 ? h.notes : [60, 64, 67, 72, 67, 64, 60];
-      const noteDuration = 0.5; // seconds per note
-
-      notes.forEach((midi, idx) => {
-        const timeDelay = idx * noteDuration * 1000;
-        const timerId = window.setTimeout(() => {
-          if (!isPlayingRef.current || !ctx || ctx.state === 'closed') return;
-          setCurrentNoteIdx(idx);
-
-          // MIDI to Frequency: 440 * 2^((midi - 69) / 12)
-          const freq = 440 * Math.pow(2, (midi - 69) / 12);
-
-          // 1. Fundamental tone (Sine wave)
-          const osc1 = ctx.createOscillator();
-          const gain1 = ctx.createGain();
-          osc1.type = 'sine';
-          osc1.frequency.setValueAtTime(freq, ctx.currentTime);
-
-          // 2. Harmonic warm organ tone (Triangle wave)
-          const osc2 = ctx.createOscillator();
-          const gain2 = ctx.createGain();
-          osc2.type = 'triangle';
-          osc2.frequency.setValueAtTime(freq, ctx.currentTime);
-
-          // Master Envelope
-          gain1.gain.setValueAtTime(0.001, ctx.currentTime);
-          gain1.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.05);
-          gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + noteDuration - 0.02);
-
-          gain2.gain.setValueAtTime(0.001, ctx.currentTime);
-          gain2.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.05);
-          gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + noteDuration - 0.02);
-
-          osc1.connect(gain1);
-          osc2.connect(gain2);
-          gain1.connect(ctx.destination);
-          gain2.connect(ctx.destination);
-
-          osc1.start(ctx.currentTime);
-          osc2.start(ctx.currentTime);
-          osc1.stop(ctx.currentTime + noteDuration);
-          osc2.stop(ctx.currentTime + noteDuration);
-
-          if (idx === notes.length - 1) {
-            window.setTimeout(() => {
-              if (isPlayingRef.current) {
-                // Loop melody smoothly
-                playHymnMelody(h);
-              }
-            }, noteDuration * 1000);
-          }
-        }, timeDelay);
-
-        timeoutsRef.current.push(timerId);
-      });
-    } catch (e) {
-      console.error('Audio playback error:', e);
-      setIsPlaying(false);
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      stopAudio();
-    };
-  }, []);
 
   // Filtered Hymn List
   const filteredHymns = ALL_HYMNS.filter((h) => {
@@ -222,14 +108,24 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
     if (!selectedHymn) return;
     const prevNum = selectedHymn.number > 1 ? selectedHymn.number - 1 : 645;
     const prev = ALL_HYMNS.find((h) => h.number === prevNum);
-    if (prev) handleSelectHymn(prev);
+    if (prev) {
+      setIsScoreLoading(true);
+      setScoreLoadError(false);
+      setScoreZoom(1.0);
+      handleSelectHymn(prev);
+    }
   };
 
   const handleNextHymn = () => {
     if (!selectedHymn) return;
     const nextNum = selectedHymn.number < 645 ? selectedHymn.number + 1 : 1;
     const next = ALL_HYMNS.find((h) => h.number === nextNum);
-    if (next) handleSelectHymn(next);
+    if (next) {
+      setIsScoreLoading(true);
+      setScoreLoadError(false);
+      setScoreZoom(1.0);
+      handleSelectHymn(next);
+    }
   };
 
   return (
@@ -240,10 +136,7 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
           {selectedHymn ? (
             <button
               type="button"
-              onClick={() => {
-                stopAudio();
-                setSelectedHymn(null);
-              }}
+              onClick={() => setSelectedHymn(null)}
               className="p-1 hover:bg-white/15 rounded-lg transition cursor-pointer"
               title="찬송가 목록으로"
             >
@@ -298,14 +191,14 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
       </header>
 
       {/* ========================================================= */}
-      {/* 2. HYMN DETAIL VIEW (정식 악보 & 가사 뷰어 및 멜로디 반주) */}
+      {/* 2. HYMN DETAIL VIEW (정식 악보 & 가사 뷰어) */}
       {/* ========================================================= */}
       {selectedHymn ? (
         <div className="flex-1 flex flex-col overflow-hidden bg-white">
           {/* Sub Header / Info Bar */}
-          <div className="bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex items-center justify-between">
+          <div className="bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex items-center justify-between flex-wrap gap-2">
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="px-2 py-0.5 rounded-md bg-[#1b64b9] text-white text-xs font-black">
                   {selectedHymn.number}장
                 </span>
@@ -317,20 +210,30 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
                 <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                   {selectedHymn.category}
                 </span>
+                {selectedHymn.scripture && (
+                  <span className="text-xs font-bold text-[#1b64b9] bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100">
+                    {selectedHymn.scripture}
+                  </span>
+                )}
               </div>
               <h2 className="text-lg sm:text-xl font-black text-slate-900 mt-1">
                 {selectedHymn.title}
               </h2>
             </div>
 
-            {selectedHymn.scripture && (
-              <div className="text-right">
-                <span className="text-[11px] font-bold text-slate-400 block">관련 말씀</span>
-                <span className="text-xs font-black text-[#1b64b9] bg-blue-50 px-2 py-1 rounded-lg border border-blue-100 inline-block">
-                  {selectedHymn.scripture}
-                </span>
-              </div>
-            )}
+            {/* YouTube Real Performance Audio Link */}
+            <div className="flex items-center gap-2">
+              <a
+                href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`새찬송가 ${selectedHymn.number}장 ${selectedHymn.title}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-black flex items-center gap-1.5 transition cursor-pointer shadow-xs active:scale-95"
+                title="유튜브에서 성가대/찬양단 실제 고음질 찬양 감상"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>실제 찬양 듣기</span>
+              </a>
+            </div>
           </div>
 
           {/* View Mode Toggle: 🎼 악보 보기 vs 📝 가사 보기 */}
@@ -419,45 +322,6 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
                   A+
                 </button>
               </div>
-            )}
-          </div>
-
-          {/* Melody Accompaniment Banner */}
-          <div className="bg-emerald-50/80 border-b border-emerald-100 px-4 py-2.5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => (isPlaying ? stopAudio() : playHymnMelody(selectedHymn))}
-                className={`w-9 h-9 rounded-full flex items-center justify-center text-white shadow-sm transition cursor-pointer active:scale-95 ${
-                  isPlaying ? 'bg-amber-600 hover:bg-amber-700' : 'bg-[#05c46b] hover:bg-[#04b05f]'
-                }`}
-                title={isPlaying ? '반주 정지' : '오르간 멜로디 반주 재생'}
-              >
-                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
-              </button>
-              <div>
-                <p className="text-xs font-black text-emerald-950 flex items-center gap-1">
-                  <span>🎶 멜로디 오르간 반주</span>
-                  {isPlaying && (
-                    <span className="text-[10px] text-emerald-600 font-bold animate-pulse">
-                      (연주 중...)
-                    </span>
-                  )}
-                </p>
-                <p className="text-[11px] text-emerald-800">
-                  {isPlaying ? '찬송가 멜로디 반주가 울려 퍼집니다' : '재생을 누르면 멜로디 반주가 시작됩니다 (악보와 함께 감상)'}
-                </p>
-              </div>
-            </div>
-
-            {isPlaying && (
-              <button
-                type="button"
-                onClick={stopAudio}
-                className="px-2.5 py-1 rounded-lg bg-white text-slate-600 hover:bg-slate-100 text-xs font-bold border border-slate-200 transition cursor-pointer"
-              >
-                정지
-              </button>
             )}
           </div>
 
@@ -586,17 +450,15 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => (isPlaying ? stopAudio() : playHymnMelody(selectedHymn))}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 text-white transition cursor-pointer shadow-xs active:scale-95 ${
-                      isPlaying ? 'bg-amber-600 hover:bg-amber-700' : 'bg-[#05c46b] hover:bg-emerald-600'
-                    }`}
-                    title={isPlaying ? '반주 정지' : '오르간 멜로디 반주 재생'}
+                  <a
+                    href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`새찬송가 ${selectedHymn.number}장 ${selectedHymn.title}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white transition cursor-pointer shadow-xs active:scale-95"
                   >
-                    {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
-                    <span>{isPlaying ? '반주 정지' : '멜로디 반주'}</span>
-                  </button>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>실제 찬양 듣기</span>
+                  </a>
                   <button
                     type="button"
                     onClick={() => setIsFullScreenScore(false)}
@@ -655,10 +517,7 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
 
             <button
               type="button"
-              onClick={() => {
-                stopAudio();
-                setSelectedHymn(null);
-              }}
+              onClick={() => setSelectedHymn(null)}
               className="text-xs font-black text-[#1b64b9] hover:underline cursor-pointer"
             >
               전체 목록 보기
