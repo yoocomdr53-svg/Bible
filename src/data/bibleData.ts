@@ -656,7 +656,7 @@ export const CURRENT_READING_BOOK_KEY = 'superbible_current_reading_book';
 export const CURRENT_READING_CHAPTER_KEY = 'superbible_current_reading_chapter';
 export const IN_PROGRESS_CHAPTERS_KEY = 'superbible_reading_in_progress_v1';
 
-// 현재 읽는 중인 위치 (책, 장) - 기본값: 출애굽기 18장
+// 현재 읽는 중인 위치 (책, 장) - 기본값: 출애굽기 24장
 export function getCurrentReadingLocation(): { book: string; chapter: number } {
   try {
     const savedBook = localStorage.getItem(CURRENT_READING_BOOK_KEY);
@@ -670,7 +670,7 @@ export function getCurrentReadingLocation(): { book: string; chapter: number } {
   } catch (e) {
     console.error('Failed to get reading location:', e);
   }
-  return { book: '출애굽기', chapter: 18 };
+  return { book: '출애굽기', chapter: 24 };
 }
 
 export function saveCurrentReadingLocation(book: string, chapter: number): void {
@@ -697,8 +697,40 @@ export function getInProgressChapters(): Set<string> {
   } catch (e) {
     console.error('Failed to load in-progress chapters:', e);
   }
-  // 기본값으로 출애굽기 18장 포함
-  return new Set<string>(['출애굽기-18']);
+  // 기본값으로 출애굽기 24장 포함
+  return new Set<string>(['출애굽기-24']);
+}
+
+// 1회성 자동 진도 동기화 (출애굽기 1~23장 완독 처리 및 24장 읽는 중 설정)
+try {
+  const SYNC_KEY_V24 = 'superbible_sync_exo_23done_24reading_v2';
+  if (typeof window !== 'undefined' && !localStorage.getItem(SYNC_KEY_V24)) {
+    const rawCh = localStorage.getItem(COMPLETED_CHAPTERS_STORAGE_KEY);
+    const rawVs = localStorage.getItem(READ_VERSES_STORAGE_KEY);
+    const chapters = rawCh ? new Set<string>(JSON.parse(rawCh)) : new Set<string>();
+    const verses = rawVs ? new Set<string>(JSON.parse(rawVs)) : new Set<string>();
+
+    // 1~23장 전체 완독 동기화 (18장 및 23장 완독 반영)
+    for (let ch = 1; ch <= 23; ch++) {
+      chapters.add(`출애굽기-${ch}`);
+      const total = getChapterVerseCount('출애굽기', ch);
+      for (let v = 1; v <= total; v++) {
+        verses.add(`출애굽기-${ch}-${v}`);
+      }
+    }
+
+    // 24장을 읽는 중으로 지정
+    const inProgress = new Set<string>(['출애굽기-24']);
+
+    localStorage.setItem(COMPLETED_CHAPTERS_STORAGE_KEY, JSON.stringify(Array.from(chapters)));
+    localStorage.setItem(READ_VERSES_STORAGE_KEY, JSON.stringify(Array.from(verses)));
+    localStorage.setItem(IN_PROGRESS_CHAPTERS_KEY, JSON.stringify(Array.from(inProgress)));
+    localStorage.setItem(CURRENT_READING_BOOK_KEY, '출애굽기');
+    localStorage.setItem(CURRENT_READING_CHAPTER_KEY, '24');
+    localStorage.setItem(SYNC_KEY_V24, 'true');
+  }
+} catch (e) {
+  console.error('Initial reading sync failed:', e);
 }
 
 export function setChapterInProgress(book: string, chapter: number, inProgress: boolean = true): void {

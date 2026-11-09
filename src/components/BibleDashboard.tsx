@@ -75,7 +75,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
     const loc = getCurrentReadingLocation();
     return {
       book: loc.book || '출애굽기',
-      chapter: loc.chapter || 18,
+      chapter: loc.chapter || 24,
       verse: 1,
     };
   });

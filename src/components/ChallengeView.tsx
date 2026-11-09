@@ -307,8 +307,13 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
     return count;
   }, [completedVerses, completedChapters]);
 
-  // 첫 번째 미완독 장 찾기 (일독 이어읽기)
+  // 첫 번째 미완독 장 찾기 (일독 이어읽기: 현재 통독 중인 말씀 우선)
   const nextUnreadChapter = React.useMemo(() => {
+    if (readingLocation && readingLocation.book && readingLocation.chapter) {
+      if (!isChapterFullyRead(readingLocation.book, readingLocation.chapter, completedVerses)) {
+        return { book: readingLocation.book, chapter: readingLocation.chapter };
+      }
+    }
     for (const b of BIBLE_BOOKS) {
       for (let ch = 1; ch <= b.chaptersCount; ch++) {
         if (!isChapterFullyRead(b.name, ch, completedVerses)) {
@@ -317,7 +322,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
       }
     }
     return { book: '창세기', chapter: 1 };
-  }, [completedVerses, completedChapters]);
+  }, [completedVerses, completedChapters, readingLocation]);
 
   // 일독 진행률 (1,189장 기준, 1,189장 완독 시 100%)
   const singleReadPercent = React.useMemo(() => {
