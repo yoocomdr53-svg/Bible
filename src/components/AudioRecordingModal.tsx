@@ -196,8 +196,9 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
     }
 
     const teamName = session?.department || '지벳팀';
-    const userName = session?.name || '로고스 관리자';
-    const fileName = `[${teamName}]_${userName}_${verse.book}${verse.chapter}장_${verse.verse}절.webm`;
+    const userName = session?.name || '성도';
+    const bibleName = `${verse.book} ${verse.chapter}장 ${verse.verse}절`;
+    const fileName = `${bibleName}.webm`;
     const audioFile = recordedBlob ? new File([recordedBlob], fileName, { type: recordedBlob.type || 'audio/webm' }) : null;
 
     setSavedSuccess(true);
@@ -209,6 +210,8 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
       audioBlob: recordedBlob,
       audioUrl: recordedUrl,
       audioFile: audioFile,
+      book: verse.book,
+      chapter: verse.chapter,
     });
   };
 

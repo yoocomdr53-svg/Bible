@@ -241,26 +241,46 @@ export async function syncRecordingToGoogleSheet(
 }
 
 /**
- * Upload Audio Recording File to Google Drive [성경낭독녹음] folder
+ * Upload Audio Recording File to Google Drive [성경낭독녹음] > [사용자이름_아이디] folder
  * Target: yoocomdr57@gmail.com Google Drive
  * Retention: 10 days auto-retention
+ * Auto-syncs to Google Sheets [낭독_음원검수] and [회원_낭독진도]
  */
 export async function uploadAudioToDrive(params: {
   audioBlob: Blob;
   fileName?: string;
+  bibleName?: string;
   memberName?: string;
+  loginId?: string;
   teamName?: string;
   verseRef?: string;
+  book?: string;
+  chapter?: number;
   duration?: string;
   customScriptUrl?: string;
-}): Promise<{ success: boolean; message: string; fileUrl?: string; fileId?: string }> {
+}): Promise<{
+  success: boolean;
+  message: string;
+  fileUrl?: string;
+  fileId?: string;
+  userFolderName?: string;
+  fileName?: string;
+}> {
   const config = getGoogleSheetConfig();
   const scriptUrl = params.customScriptUrl || config.scriptUrl;
+
+  const cleanName = (params.memberName || '성도').replace(/ 성도$/, '').replace(/ 관리자$/, '').trim();
+  const cleanId = (params.loginId || 'user').replace(/@.*$/, '').trim();
+  const userFolderName = `${cleanName}_${cleanId}`;
+  const cleanBibleName = (params.bibleName || params.verseRef || params.fileName || '성경낭독').trim();
+  const fileName = cleanBibleName.endsWith('.webm') ? cleanBibleName : `${cleanBibleName}.webm`;
 
   if (!scriptUrl || !scriptUrl.startsWith('http')) {
     return {
       success: false,
       message: 'Google Apps Script Web App URL이 설정되지 않았습니다. Web App URL을 먼저 등록해 주세요.',
+      userFolderName,
+      fileName,
     };
   }
 
@@ -276,17 +296,20 @@ export async function uploadAudioToDrive(params: {
     });
 
     const nowStr = new Date().toLocaleString('ko-KR');
-    const defaultFileName = `[${params.teamName || '지벳팀'}]_${params.memberName || '로고스관리자'}_${params.verseRef || '성경낭독'}.webm`;
-    const fileName = params.fileName || defaultFileName;
 
     const payload = {
       action: 'uploadAudio',
       fileName,
+      bibleName: cleanBibleName,
+      userFolderName,
       base64Audio,
       mimeType: params.audioBlob.type || 'audio/webm',
-      memberName: params.memberName || '로고스 관리자',
+      memberName: cleanName,
+      loginId: cleanId,
       teamName: params.teamName || '지벳팀',
-      verseRef: params.verseRef || '',
+      verseRef: params.verseRef || cleanBibleName,
+      book: params.book,
+      chapter: params.chapter,
       duration: params.duration || '',
     };
 
@@ -310,22 +333,26 @@ export async function uploadAudioToDrive(params: {
       timestamp: nowStr,
       direction: 'upload',
       status: 'success',
-      summary: `구글 드라이브 음원 업로드 성공: ${fileName}`,
-      details: `${config.adminEmail} 성경낭독녹음 폴더 저장 완료 (10일 보관)`,
+      summary: `구글 드라이브 [${userFolderName}] ${fileName} 업로드 성공`,
+      details: `${config.adminEmail} 성경낭독녹음 폴더 및 스프레드시트 자동 동기화 완료`,
       rowsAffected: 1,
     });
 
     return {
       success: true,
-      message: resJson?.message || '구글 드라이브 [성경낭독녹음] 폴더에 음원이 성공적으로 저장되었습니다! (10일 보관)',
+      message: resJson?.message || `구글 드라이브 [${userFolderName}] 폴더에 ${fileName} 저장이 완료되었습니다!`,
       fileUrl: resJson?.fileUrl,
       fileId: resJson?.fileId,
+      userFolderName,
+      fileName,
     };
   } catch (error: any) {
     console.error('Failed to upload audio to Google Drive:', error);
     return {
       success: false,
       message: error?.message || '구글 드라이브 업로드 중 통신 오류가 발생했습니다.',
+      userFolderName,
+      fileName,
     };
   }
 }
@@ -710,50 +737,59 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // 3-1. 낭독 녹음 음원 파일 구글 드라이브 [성경낭독녹음] 폴더 저장 및 10일 보관
+    // 3-1. 낭독 녹음 음원 파일 구글 드라이브 [성경낭독녹음] > [사용자이름_아이디] 폴더 저장 및 스프레드시트 자동 동기화
     if (data.action === "uploadAudio" || data.action === "upload_audio") {
-      var folderName = "성경낭독녹음";
-      var folder = null;
+      var rootFolderName = "성경낭독녹음";
+      var rootRecFolder = null;
       
-      // 1) "수퍼북바이블" 폴더 안에서 찾거나, 드라이브 루트에서 찾기
+      // 1) "수퍼북바이블" 폴더 안에서 찾거나, 드라이브 루트에서 "성경낭독녹음" 폴더 찾기/생성
       try {
         var parentFolders = DriveApp.getFoldersByName("수퍼북바이블");
         if (parentFolders.hasNext()) {
           var pFolder = parentFolders.next();
-          var subFolders = pFolder.getFoldersByName(folderName);
-          folder = subFolders.hasNext() ? subFolders.next() : pFolder.createFolder(folderName);
+          var subFolders = pFolder.getFoldersByName(rootFolderName);
+          rootRecFolder = subFolders.hasNext() ? subFolders.next() : pFolder.createFolder(rootFolderName);
         }
       } catch (fErr) {}
 
-      if (!folder) {
-        var rootFolders = DriveApp.getFoldersByName(folderName);
-        folder = rootFolders.hasNext() ? rootFolders.next() : DriveApp.createFolder(folderName);
+      if (!rootRecFolder) {
+        var rootFolders = DriveApp.getFoldersByName(rootFolderName);
+        rootRecFolder = rootFolders.hasNext() ? rootFolders.next() : DriveApp.createFolder(rootFolderName);
       }
       
-      // 2) base64 오디오 디코딩 및 파일 생성
+      // 2) 로그인된 사람의 이름으로 하위 폴더 생성 (예: "박기빛_Cmorfbfc2i", "신성환_juandvasieczky", "유원희_yoocomdr", "홍길동_stguest")
+      var rawName = (data.memberName || "").replace(/ 성도$/, "").replace(/ 관리자$/, "").trim();
+      var cleanName = rawName || "성도";
+      var cleanId = (data.loginId || "").replace(/@.*$/, "").trim();
+      var userFolderName = data.userFolderName || (cleanName + (cleanId ? "_" + cleanId : ""));
+      
+      var userFolders = rootRecFolder.getFoldersByName(userFolderName);
+      var targetUserFolder = userFolders.hasNext() ? userFolders.next() : rootRecFolder.createFolder(userFolderName);
+      
+      // 3) 생성폴더안에 낭독한 성경명으로 녹음 파일 저장 (예: "사무엘상 1장.webm" 또는 "사무엘상 1장 1절.webm")
+      var bibleName = (data.bibleName || data.verseRef || data.fileName || "성경낭독").trim();
+      var targetFileName = bibleName.indexOf(".") > -1 ? bibleName : (bibleName + ".webm");
+      
       var base64Data = data.base64Audio || "";
       if (base64Data.indexOf("base64,") > -1) {
         base64Data = base64Data.split("base64,")[1];
       }
       var mimeType = data.mimeType || "audio/webm";
-      var nowStr = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy.MM.dd HH:mm:ss");
-      var fileTimestamp = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyyMMdd_HHmmss");
-      var fileName = data.fileName || ("[" + (data.teamName || "지벳팀") + "]_" + (data.memberName || "성도") + "_" + (data.verseRef || "낭독") + "_" + fileTimestamp + ".webm");
-      
       var decodedBytes = Utilities.base64Decode(base64Data);
-      var blob = Utilities.newBlob(decodedBytes, mimeType, fileName);
-      var file = folder.createFile(blob);
+      var blob = Utilities.newBlob(decodedBytes, mimeType, targetFileName);
+      var file = targetUserFolder.createFile(blob);
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       
       var fileUrl = file.getUrl();
       var fileId = file.getId();
       var downloadUrl = "https://drive.google.com/uc?export=download&id=" + fileId;
+      var nowStr = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy.MM.dd HH:mm:ss");
       
-      // 3) 10일 보관 정책: 10일 지난 녹음 파일 자동 정리 (휴지통 이동)
+      // 4) 10일 보관 정책: 10일 지난 녹음 파일 자동 정리 (휴지통 이동)
       try {
         var tenDaysAgo = new Date();
         tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
-        var filesInFolder = folder.getFiles();
+        var filesInFolder = targetUserFolder.getFiles();
         while (filesInFolder.hasNext()) {
           var oldFile = filesInFolder.next();
           if (oldFile.getDateCreated() < tenDaysAgo) {
@@ -764,7 +800,7 @@ function doPost(e) {
         Logger.log("10-day retention clean error: " + cleanErr);
       }
       
-      // 4) 스프레드시트 [낭독_음원검수] 시트에 자동 기록
+      // 5) 수퍼바이블_회원성경낭독관리 스프레드시트에 자동으로 실시간 동기화
       try {
         var targetSS = null;
         try { targetSS = SpreadsheetApp.getActiveSpreadsheet(); } catch(e) {}
@@ -775,22 +811,65 @@ function doPost(e) {
           }
         }
         if (targetSS) {
+          // (1) [낭독_음원검수] 시트에 자동 기록
           var recSheet = targetSS.getSheetByName("낭독_음원검수") || targetSS.insertSheet("낭독_음원검수");
           recSheet.appendRow([
             "REC-" + new Date().getTime(),
-            data.memberId || "M-001",
-            data.memberName || "로고스 관리자",
-            data.teamName || data.department || "지벳팀",
+            data.memberId || ("M-" + (cleanId || "001")),
+            cleanName,
+            data.department || data.teamName || "지벳팀",
             "성도",
-            data.title || fileName,
-            data.verseRef || "",
+            data.title || (bibleName + " 낭독"),
+            data.verseRef || bibleName,
             fileUrl,
             data.duration || "",
             nowStr,
             "⭐제출완료",
             "검수대기",
-            "구글 드라이브 [성경낭독녹음] 폴더 저장 완료 (10일 보관)"
+            "[" + userFolderName + "] 폴더에 " + targetFileName + " 저장 완료 (10일 보관)"
           ]);
+
+          // (2) [회원_낭독진도] 시트 자동 진도 갱신
+          var progSheet = targetSS.getSheetByName("회원_낭독진도");
+          if (progSheet) {
+            var pValues = progSheet.getDataRange().getValues();
+            var updatedProg = false;
+            var targetIdentifier = (data.loginId || data.email || cleanName).toLowerCase();
+            for (var r = 1; r < pValues.length; r++) {
+              var rowEmail = String(pValues[r][5] || "").toLowerCase();
+              var rowName = String(pValues[r][1] || "").toLowerCase();
+              if (rowEmail === targetIdentifier || rowName === cleanName.toLowerCase()) {
+                if (data.book) progSheet.getRange(r + 1, 8).setValue(data.book);
+                if (data.chapter) progSheet.getRange(r + 1, 9).setValue(data.chapter);
+                var currTotal = Number(pValues[r][9]) || 0;
+                progSheet.getRange(r + 1, 10).setValue(currTotal + 1);
+                var currRecCount = Number(pValues[r][10]) || 0;
+                progSheet.getRange(r + 1, 11).setValue(currRecCount + 1);
+                progSheet.getRange(r + 1, 12).setValue(nowStr);
+                updatedProg = true;
+                break;
+              }
+            }
+            if (!updatedProg) {
+              progSheet.appendRow([
+                "M-" + new Date().getTime().toString().slice(-4),
+                cleanName,
+                data.department || data.teamName || "지벳팀",
+                "성도",
+                data.phone || "",
+                data.email || (data.loginId || ""),
+                1,
+                data.book || bibleName,
+                data.chapter || 1,
+                1,
+                1,
+                nowStr,
+                "active",
+                1,
+                "성경낭독 시트 자동 동기화"
+              ]);
+            }
+          }
         }
       } catch (ssErr) {
         Logger.log("Spreadsheet recording error: " + ssErr);
@@ -798,12 +877,12 @@ function doPost(e) {
       
       return ContentService.createTextOutput(JSON.stringify({
         status: "success",
-        message: "구글 드라이브 [성경낭독녹음] 폴더에 음원이 성공적으로 저장되었습니다 (10일 보관).",
+        message: "구글 드라이브 [" + userFolderName + "] 폴더에 " + targetFileName + " 음원이 저장되고 스프레드시트에 자동 동기화되었습니다.",
         fileUrl: fileUrl,
         downloadUrl: downloadUrl,
         fileId: fileId,
-        fileName: fileName,
-        folderName: folderName,
+        fileName: targetFileName,
+        userFolderName: userFolderName,
         adminEmail: "${adminEmail}"
       })).setMimeType(ContentService.MimeType.JSON);
     }

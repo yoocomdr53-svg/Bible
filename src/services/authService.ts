@@ -350,10 +350,12 @@ export function addMemberRecordingToAdmin(
 export function registerUser(
   loginIdInput: string,
   passwordInput: string,
+  nameInput?: string,
   phoneInput?: string
 ): { success: boolean; user?: User; message?: string } {
   const loginId = loginIdInput.trim();
   const password = passwordInput.trim();
+  const rawName = (nameInput || '').trim();
   const phone = phoneInput?.trim() || '';
 
   if (!loginId) {
@@ -375,7 +377,9 @@ export function registerUser(
     loginId.toLowerCase().includes('yoocomdr') ||
     loginId.toLowerCase() === 'admin';
 
-  const displayName = isAdmin
+  const displayName = rawName
+    ? rawName
+    : isAdmin
     ? '로고스 관리자'
     : loginId.includes('@')
     ? `${loginId.split('@')[0]} 성도`
@@ -388,7 +392,7 @@ export function registerUser(
     name: displayName,
     email: userEmail,
     phone: phone || undefined,
-    avatarText: loginId.slice(0, 2).toUpperCase(),
+    avatarText: (rawName || loginId).slice(0, 2).toUpperCase(),
     role: isAdmin ? 'admin' : 'saint',
     provider: 'standard',
     schoolName: '로고스 수퍼바이블 공동체',
@@ -554,6 +558,27 @@ export function getActiveSession(): User | null {
     }
   } catch (e) {
     console.error('Failed to read session:', e);
+  }
+  return null;
+}
+
+export function getActiveSessionInfo(): { user: User; loginId: string } | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (data && data.isLoggedIn && data.user && data.user.id) {
+        const u = data.user;
+        if (u.ntProgress === 100) u.ntProgress = 0;
+        if (u.todayVersesRead === 10) u.todayVersesRead = 0;
+        return {
+          user: u,
+          loginId: data.loginId || u.email || 'user',
+        };
+      }
+    }
+  } catch (e) {
+    console.error('Failed to read session info:', e);
   }
   return null;
 }

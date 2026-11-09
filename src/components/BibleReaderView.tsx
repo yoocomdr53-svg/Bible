@@ -1170,8 +1170,9 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     const finalBlob = recordedBlobRef.current || (audioChunksRef.current.length > 0 ? new Blob(audioChunksRef.current, { type: 'audio/webm' }) : null);
     const finalUrl = recordedUrlRef.current || (finalBlob ? URL.createObjectURL(finalBlob) : null);
     const teamName = session?.department || '지벳팀';
-    const userName = session?.name || '로고스 관리자';
-    const fileName = `[${teamName}]_${userName}_${selectedBook}${selectedChapter}장_${activeRecordVerse}절.webm`;
+    const userName = session?.name || '성도';
+    const bibleName = `${selectedBook} ${selectedChapter}장 ${activeRecordVerse}절`;
+    const fileName = `${bibleName}.webm`;
     const audioFile = finalBlob ? new File([finalBlob], fileName, { type: finalBlob.type || 'audio/webm' }) : null;
 
     // Open Share Modal immediately for seamless Telegram / Team 과제제출방 sharing
@@ -1183,6 +1184,8 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
       audioBlob: finalBlob,
       audioUrl: finalUrl,
       audioFile: audioFile,
+      book: selectedBook,
+      chapter: selectedChapter,
     });
   };
 

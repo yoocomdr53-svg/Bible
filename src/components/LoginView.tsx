@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   AlertCircle,
   Sparkles,
+  User as UserIcon,
 } from 'lucide-react';
 import { ActiveModal, User } from '../types';
 import {
@@ -41,7 +42,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
 
-  // Register form state (아이디/이메일 + 비밀번호 + 전화번호)
+  // Register form state (성명/이름 + 아이디/이메일 + 비밀번호 + 전화번호)
+  const [regName, setRegName] = useState('');
   const [regId, setRegId] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
@@ -88,17 +90,22 @@ export const LoginView: React.FC<LoginViewProps> = ({
     }, 400);
   };
 
-  // Handle Register Submit (아이디/이메일 + 비밀번호 + 전화번호)
+  // Handle Register Submit (성명/이름 + 아이디/이메일 + 비밀번호 + 전화번호)
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
 
+    const cleanName = regName.trim();
     const cleanId = regId.trim();
     const cleanPw = regPassword.trim();
     const cleanPwConfirm = regPasswordConfirm.trim();
     const cleanPhone = regPhone.trim();
 
+    if (!cleanName) {
+      setErrorMessage('성명(이름)을 입력해주세요.');
+      return;
+    }
     if (!cleanId) {
       setErrorMessage('아이디 또는 이메일을 입력해주세요.');
       return;
@@ -115,7 +122,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
     setIsLoading(true);
 
     setTimeout(() => {
-      const res = registerUser(cleanId, cleanPw, cleanPhone);
+      const res = registerUser(cleanId, cleanPw, cleanName, cleanPhone);
       setIsLoading(false);
 
       if (res.success && res.user) {
@@ -427,9 +434,33 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 <span>간편 가입 안내</span>
               </div>
               <p className="text-slate-600 leading-tight">
-                아이디와 비밀번호만 입력하면 3초 만에 가입됩니다. 성명, 소속, 직분 등 상세 정보는
+                성명, 아이디, 비밀번호만 입력하면 3초 만에 가입됩니다. 소속 및 직분 등 상세 정보는
                 <strong className="text-blue-700"> 관리자가 회원관리 폼에서 배정 및 조정</strong>합니다.
               </p>
+            </div>
+
+            {/* Field 0: Name (성명/이름) */}
+            <div className="relative">
+              <label
+                htmlFor="regName"
+                className="absolute -top-2 left-3.5 bg-white px-1.5 text-[11px] font-bold text-slate-500 z-10"
+              >
+                성명 (이름) <span className="text-red-500">*</span>
+              </label>
+              <div className="relative flex items-center">
+                <div className="absolute left-3.5 text-slate-400 pointer-events-none flex items-center">
+                  <UserIcon className="w-4 h-4 text-slate-500" />
+                </div>
+                <input
+                  id="regName"
+                  type="text"
+                  value={regName}
+                  onChange={(e) => setRegName(e.target.value)}
+                  placeholder="실명(이름)을 입력하세요 (예: 유원희)"
+                  required
+                  className="w-full h-11 pl-10 pr-3 text-[13px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-600 focus:border-blue-600 transition shadow-xs"
+                />
+              </div>
             </div>
 
             {/* Field 1: ID / Email */}

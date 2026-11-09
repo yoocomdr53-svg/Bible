@@ -536,7 +536,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 text-center">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 pt-3 text-center">
                 {/* 1. 일독 1,189장 진행률 카드 (1,189장 완독 시 100%) */}
                 <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col justify-between">
                   <p className="text-[10.5px] sm:text-xs text-slate-600 font-bold truncate">일독 진행률</p>
@@ -595,26 +595,6 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                     <div
                       className="bg-emerald-500 h-full rounded-full transition-all duration-300"
                       style={{ width: todayReadCount > 0 ? '100%' : '0%' }}
-                    />
-                  </div>
-                </div>
-
-                {/* 4. 나의 녹음 낭독 카드 */}
-                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col justify-between">
-                  <p className="text-[10.5px] sm:text-xs text-slate-600 font-bold truncate">나의 녹음 낭독</p>
-                  <div className="my-1">
-                    <p className="text-base sm:text-lg font-black text-slate-900">
-                      {recordings.length}
-                      <span className="text-xs font-semibold text-slate-600 ml-0.5">편</span>
-                    </p>
-                    <span className="text-[9.5px] text-[#0083e3] font-bold block">
-                      클라우드 백업됨
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-200/40 h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-[#0083e3] h-full rounded-full transition-all duration-300"
-                      style={{ width: recordings.length > 0 ? '100%' : '0%' }}
                     />
                   </div>
                 </div>
