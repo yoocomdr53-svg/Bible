@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Smartphone, Monitor, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { User, ActiveModal, BibleVerse, ReadingDayPlan, UserRecording } from './types';
 import { TODAY_VERSE, INITIAL_READING_PLANS, INITIAL_RECORDINGS } from './data/bibleData';
 import { LoginView } from './components/LoginView';
@@ -105,7 +105,6 @@ function getSavedView(): 'login' | 'dashboard' {
 export default function App() {
   const [currentView, setCurrentView] = useState<'login' | 'dashboard'>(getSavedView);
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
-  const [deviceFrameMode, setDeviceFrameMode] = useState<boolean>(true);
 
   // User session state
   const [user, setUser] = useState<User>(getSavedUser);
@@ -205,48 +204,22 @@ export default function App() {
 
   return (
     <div className="w-full min-h-screen bg-slate-950 flex flex-col items-center justify-center relative select-none">
-      {/* Top Floating Controls Bar */}
-      <div className="fixed top-2.5 right-3 z-50 flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-slate-700/70 shadow-lg text-xs text-slate-300">
-        {/* Role Switcher (일반회원 <-> 관리자 테스트) */}
-        <button
-          onClick={handleToggleRole}
-          className={`px-2.5 py-1 rounded-full text-xs font-black transition cursor-pointer flex items-center gap-1 shadow-xs ${
-            user.role === 'admin'
-              ? 'bg-amber-400 text-slate-950 ring-1 ring-amber-300'
-              : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-          }`}
-          title="권한 전환 (일반회원 / 관리자 모드 즉시 테스트)"
-        >
-          <span>{user.role === 'admin' ? '👑 관리자' : '👤 일반회원'}</span>
-          <span className="text-[10px] opacity-75 font-normal">(전환)</span>
-        </button>
-
+      {/* Top Floating Portal Switcher (관리자 전환 버튼 삭제 완료) */}
+      <div className="fixed top-2.5 right-3 z-50 flex items-center bg-slate-900/85 backdrop-blur-md px-2.5 py-1 rounded-full border border-slate-700/60 shadow-md text-xs text-slate-300">
         <button
           onClick={() => setCurrentView(currentView === 'login' ? 'dashboard' : 'login')}
-          className="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-white font-medium transition cursor-pointer flex items-center gap-1.5"
-          title="화면 전환"
+          className="px-2 py-0.5 rounded-full text-slate-300 hover:text-white font-medium transition cursor-pointer flex items-center gap-1.5"
+          title={currentView === 'login' ? '수퍼바이블 바로보기' : '로그인 포털로'}
         >
           <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
           <span>{currentView === 'login' ? '수퍼바이블 바로보기' : '로그인 포털로'}</span>
         </button>
-
-        <button
-          onClick={() => setDeviceFrameMode(!deviceFrameMode)}
-          className="p-1.5 rounded-full hover:bg-slate-800 text-slate-300 hover:text-white transition cursor-pointer"
-          title={deviceFrameMode ? '전체 화면으로 확장' : '모바일 프레임 모드로 보기'}
-        >
-          {deviceFrameMode ? <Monitor className="w-4 h-4" /> : <Smartphone className="w-4 h-4" />}
-        </button>
       </div>
 
-      {/* Main Viewport Container */}
+      {/* Main Viewport Container: Smartphone / Tablet / Computer Auto-Responsive */}
       <div
         id="appViewport"
-        className={
-          deviceFrameMode
-            ? 'w-full max-w-[430px] h-[100dvh] sm:min-h-[880px] sm:max-h-[920px] sm:rounded-[44px] sm:shadow-2xl sm:border-[9px] sm:border-slate-800/90 relative overflow-hidden bg-slate-900 transition-all duration-300 flex flex-col'
-            : 'w-full h-screen max-w-2xl relative overflow-hidden bg-slate-900 transition-all duration-300 flex flex-col'
-        }
+        className="w-full h-[100dvh] min-h-screen bg-slate-900 flex flex-col relative overflow-hidden transition-all duration-300 md:max-w-5xl lg:max-w-7xl 2xl:max-w-full md:mx-auto md:shadow-2xl md:border-x md:border-slate-800"
       >
         {currentView === 'login' ? (
           <LoginView
