@@ -419,42 +419,42 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
               </div>
             </section>
 
-            {/* Core Feature Grid (4 items) */}
-            <section className="grid grid-cols-4 gap-2.5">
+            {/* Core Feature Grid (5 items) */}
+            <section className="grid grid-cols-5 gap-1.5 sm:gap-2.5">
               {/* 1. 성경 (누르면 성경화면 -> 장화면 -> 절화면 3단계 즉시 시작) */}
               <button
                 type="button"
                 onClick={handleOpenBibleSelector}
-                className="bg-white rounded-xl p-3 flex flex-col items-center justify-center shadow-soft border border-slate-100 hover:border-blue-200 active:scale-95 transition-all cursor-pointer"
+                className="bg-white rounded-xl p-2 sm:p-3 flex flex-col items-center justify-center shadow-soft border border-slate-100 hover:border-blue-200 active:scale-95 transition-all cursor-pointer"
               >
-                <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#0083e3] mb-2">
-                  <BookOpen className="w-6 h-6" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#0083e3] mb-1.5">
+                  <BookOpen className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <span className="text-xs font-bold text-slate-700">성경</span>
+                <span className="text-[11px] sm:text-xs font-bold text-slate-700">성경</span>
               </button>
 
-              {/* 2. 통계 */}
+              {/* 2. 찬송가 (새찬송가 645곡 전곡 뷰어 & 멜로디 반주) */}
               <button
                 type="button"
-                onClick={() => setActiveTab('stats')}
-                className="bg-white rounded-xl p-3 flex flex-col items-center justify-center shadow-soft border border-slate-100 hover:border-blue-200 active:scale-95 transition-all cursor-pointer"
+                onClick={() => setActiveTab('hymn')}
+                className="bg-white rounded-xl p-2 sm:p-3 flex flex-col items-center justify-center shadow-soft border border-slate-100 hover:border-emerald-200 active:scale-95 transition-all cursor-pointer"
               >
-                <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#0083e3] mb-2">
-                  <BarChart2 className="w-6 h-6" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 mb-1.5">
+                  <Music className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <span className="text-xs font-bold text-slate-700">통계</span>
+                <span className="text-[11px] sm:text-xs font-bold text-slate-700">찬송가</span>
               </button>
 
               {/* 3. 도전일독 */}
               <button
                 type="button"
                 onClick={handleOpenChallenge}
-                className="bg-white rounded-xl p-3 flex flex-col items-center justify-center shadow-soft border border-slate-100 hover:border-blue-200 active:scale-95 transition-all cursor-pointer"
+                className="bg-white rounded-xl p-2 sm:p-3 flex flex-col items-center justify-center shadow-soft border border-slate-100 hover:border-blue-200 active:scale-95 transition-all cursor-pointer"
               >
-                <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#0083e3] mb-2">
-                  <CheckSquare className="w-6 h-6" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#0083e3] mb-1.5">
+                  <CheckSquare className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <span className="text-xs font-bold text-slate-700">도전일독</span>
+                <span className="text-[11px] sm:text-xs font-bold text-slate-700">도전일독</span>
               </button>
 
               {/* 4. 낭독녹음 */}
@@ -465,12 +465,24 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                   setBibleSubView('reader');
                   setActiveTab('bible');
                 }}
-                className="bg-white rounded-xl p-3 flex flex-col items-center justify-center shadow-soft border border-slate-100 hover:border-blue-200 active:scale-95 transition-all cursor-pointer"
+                className="bg-white rounded-xl p-2 sm:p-3 flex flex-col items-center justify-center shadow-soft border border-slate-100 hover:border-blue-200 active:scale-95 transition-all cursor-pointer"
               >
-                <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#0083e3] mb-2">
-                  <Mic className="w-6 h-6" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#0083e3] mb-1.5">
+                  <Mic className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <span className="text-xs font-bold text-slate-700">낭독녹음</span>
+                <span className="text-[11px] sm:text-xs font-bold text-slate-700">낭독녹음</span>
+              </button>
+
+              {/* 5. 통계 */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('stats')}
+                className="bg-white rounded-xl p-2 sm:p-3 flex flex-col items-center justify-center shadow-soft border border-slate-100 hover:border-blue-200 active:scale-95 transition-all cursor-pointer"
+              >
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#0083e3] mb-1.5">
+                  <BarChart2 className="w-5 h-5 sm:w-6 sm:h-6" />
+                </div>
+                <span className="text-[11px] sm:text-xs font-bold text-slate-700">통계</span>
               </button>
             </section>
 
