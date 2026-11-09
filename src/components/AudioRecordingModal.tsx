@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Mic, Square, Play, Pause, Save, Check, RefreshCw } from 'lucide-react';
+import { X, Mic, Square, Play, Pause, Save, Check, RefreshCw, Share2 } from 'lucide-react';
 import { UserRecording, BibleVerse } from '../types';
 import { addMemberRecordingToAdmin, getActiveSession } from '../services/authService';
+import { AudioShareModal, AudioShareData } from './AudioShareModal';
 
 interface AudioRecordingModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
   const [hasRecorded, setHasRecorded] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [shareData, setShareData] = useState<AudioShareData | null>(null);
 
   const timerRef = useRef<number | null>(null);
 
@@ -97,9 +99,12 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
     }
 
     setSavedSuccess(true);
-    setTimeout(() => {
-      onClose();
-    }, 1200);
+    setShareData({
+      title: newRec.title,
+      verseRef: newRec.verseRef,
+      duration: newRec.duration,
+      date: newRec.date,
+    });
   };
 
   return (
@@ -228,6 +233,17 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
           녹음된 음성은 계정 클라우드에 자동 동기화되어 언제든 다시 들을 수 있습니다.
         </p>
       </div>
+
+      {/* Audio Share Modal (Telegram / KakaoTalk / Team 과제제출방) */}
+      <AudioShareModal
+        isOpen={shareData !== null}
+        onClose={() => {
+          setShareData(null);
+          onClose();
+        }}
+        data={shareData}
+        userName={getActiveSession()?.name || '로고스 관리자'}
+      />
     </div>
   );
 };

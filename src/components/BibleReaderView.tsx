@@ -35,6 +35,7 @@ import {
 } from '../data/bibleData';
 import { BibleVerse } from '../types';
 import { BibleSelectorModal } from './BibleSelectorModal';
+import { AudioShareModal, AudioShareData } from './AudioShareModal';
 import {
   updateMemberReadingProgress,
   getActiveSession,
@@ -422,6 +423,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   const [isContinuousRecording, setIsContinuousRecording] = useState(true);
   const [recordedVerses, setRecordedVerses] = useState<number[]>([]);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [activeShareData, setActiveShareData] = useState<AudioShareData | null>(null);
 
   // UI Modals
   const [showSelectorModal, setShowSelectorModal] = useState(false);
@@ -1059,6 +1061,15 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   const handleCompleteRecording = () => {
     setIsRecordingNow(false);
     const session = getActiveSession();
+    const durationStr = `${recordedVerses.length * 15 || 45}초`;
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
+    const newRecItem = {
+      id: `rec-${Date.now()}`,
+      title: `${selectedBook} ${selectedChapter}장 낭독 녹음`,
+      verseRef: `${selectedBook} ${selectedChapter}:${activeRecordVerse}절`,
+      duration: durationStr,
+      date: dateStr,
+    };
     if (session) {
       addMemberRecordingToAdmin(
         {
@@ -1075,20 +1086,20 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           todayVersesRead: session.todayVersesRead,
           recordingsCount: session.recordingsCount,
         },
-        {
-          id: `rec-${Date.now()}`,
-          title: `${selectedBook} ${selectedChapter}장 낭독 녹음`,
-          verseRef: `${selectedBook} ${selectedChapter}:${activeRecordVerse}절`,
-          duration: `${recordedVerses.length * 15 || 45}초`,
-          date: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
-        }
+        newRecItem
       );
     }
     try {
       addTodayReadChapter(selectedBook, selectedChapter);
     } catch (e) {}
-    alert(`${selectedBook} ${selectedChapter}장 낭독 녹음이 안전하게 저장되었습니다.`);
-    setIsRecordingMode(false);
+
+    // Open Share Modal immediately for seamless Telegram / Team 과제제출방 sharing
+    setActiveShareData({
+      title: newRecItem.title,
+      verseRef: newRecItem.verseRef,
+      duration: newRecItem.duration,
+      date: newRecItem.date,
+    });
   };
 
   const filteredVerses = searchQuery.trim()
@@ -1212,7 +1223,13 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           {/* Center: 녹음현황·공유 ➦ */}
           <button
             type="button"
-            onClick={() => setShowShareModal(true)}
+            onClick={() => {
+              setActiveShareData({
+                title: `${selectedBook} ${selectedChapter}장 낭독 녹음`,
+                verseRef: `${selectedBook} ${selectedChapter}장 (${recordedVerses.length}구절 녹음)`,
+                duration: `${recordedVerses.length * 15 || 45}초`,
+              });
+            }}
             className="flex items-center gap-1 px-3 py-1 rounded-full border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-[11px] transition shadow-2xs cursor-pointer"
           >
             <span>녹음현황·공유</span>
@@ -1385,49 +1402,16 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           </div>
         </div>
 
-        {/* Share & Recording Status Modal */}
-        {showShareModal && (
-          <div
-            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
-            onClick={(e) => {
-              if (e.target === e.currentTarget) setShowShareModal(false);
-            }}
-          >
-            <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-2xl border text-center">
-              <div className="w-12 h-12 rounded-full bg-blue-100 text-[#0284c7] flex items-center justify-center mx-auto mb-3">
-                <Share2 className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-extrabold text-slate-900 mb-1">녹음 현황 및 공유</h3>
-              <p className="text-xs text-slate-600 mb-3">
-                {selectedBook} {selectedChapter}장 총 {verses.length}절 중{' '}
-                <span className="font-bold text-[#0284c7]">{recordedVerses.length}개 구절</span>이 녹음되었습니다.
-              </p>
-              <div className="p-3 bg-slate-50 rounded-xl border text-xs text-slate-700 text-left mb-4 space-y-1">
-                <p>• 녹음된 구절: {recordedVerses.length > 0 ? recordedVerses.join(', ') + '절' : '아직 녹음된 구절이 없습니다.'}</p>
-                <p>• 저장 위치: 수퍼바이블 클라우드 성도 저장소</p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    alert('낭독 오디오 공유 링크가 복사되었습니다!');
-                    setShowShareModal(false);
-                  }}
-                  className="flex-1 py-2 rounded-xl bg-[#0284c7] text-white text-xs font-bold hover:bg-blue-600 transition"
-                >
-                  공유 링크 복사
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowShareModal(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 transition"
-                >
-                  닫기
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Audio Share Modal (Telegram / KakaoTalk / Team 과제제출방) */}
+        <AudioShareModal
+          isOpen={activeShareData !== null}
+          onClose={() => {
+            setActiveShareData(null);
+            setIsRecordingMode(false);
+          }}
+          data={activeShareData}
+          userName={getActiveSession()?.name || '로고스 관리자'}
+        />
 
         {/* Screen Settings Modal can be opened via 'A 글자' in header */}
         {showScreenSettings && (

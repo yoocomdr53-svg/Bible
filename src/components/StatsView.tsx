@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Pause, Trash2, Award, Calendar, Clock, Flame, BookOpen } from 'lucide-react';
+import { Play, Pause, Trash2, Award, Calendar, Clock, Flame, BookOpen, Share2 } from 'lucide-react';
 import { User, UserRecording } from '../types';
 import { getNewTestamentStats, getOldTestamentStats } from '../data/bibleData';
+import { AudioShareModal, AudioShareData } from './AudioShareModal';
 
 interface StatsViewProps {
   user: User;
@@ -13,6 +14,16 @@ export const StatsView: React.FC<StatsViewProps> = ({ user, recordings, onDelete
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [ntStats, setNtStats] = useState(getNewTestamentStats);
   const [otStats, setOtStats] = useState(getOldTestamentStats);
+  const [shareData, setShareData] = useState<AudioShareData | null>(null);
+
+  const handleOpenShare = (rec: UserRecording) => {
+    setShareData({
+      title: rec.title,
+      verseRef: rec.verseRef,
+      duration: rec.duration,
+      date: rec.date,
+    });
+  };
 
   useEffect(() => {
     const handleUpdate = () => {
@@ -153,19 +164,36 @@ export const StatsView: React.FC<StatsViewProps> = ({ user, recordings, onDelete
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => onDeleteRecording(rec.id)}
-                    className="p-1.5 text-slate-400 hover:text-red-600 transition cursor-pointer"
-                    title="삭제"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleOpenShare(rec)}
+                      className="p-1.5 text-blue-600 hover:bg-blue-100/60 rounded-lg transition cursor-pointer"
+                      title="텔레그램 / 과제제출방 공유"
+                    >
+                      <Share2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => onDeleteRecording(rec.id)}
+                      className="p-1.5 text-slate-400 hover:text-red-600 transition cursor-pointer"
+                      title="삭제"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
       </div>
+
+      {/* Audio Share Modal (Telegram / KakaoTalk / Team 과제제출방) */}
+      <AudioShareModal
+        isOpen={shareData !== null}
+        onClose={() => setShareData(null)}
+        data={shareData}
+        userName={user?.name || '로고스 관리자'}
+      />
     </div>
   );
 };
