@@ -730,6 +730,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
             initialRecordingMode={openInRecordingMode}
             onBack={handleBackFromReader}
             onBackToHome={() => setActiveTab('home')}
+            onGoToChallenge={() => setActiveTab('challenge')}
             onBackToSelector={() => {
               setBibleSelectorStep('book');
               setBibleSubView('selector');

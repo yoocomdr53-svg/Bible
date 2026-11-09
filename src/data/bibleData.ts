@@ -833,6 +833,52 @@ export function markChapterVersesCompleted(book: string, chapter: number, totalV
   toggleChapterVersesCompleted(book, chapter, totalVerses);
 }
 
+/**
+ * 1-N장 등 여러 장을 한 번에 일괄 완독/해제 처리
+ * 읽기표(내 전체 읽기표, 통독계획현황 등)에 즉시 반영됨
+ */
+export function markChapterRangeCompleted(
+  book: string,
+  startChapter: number,
+  endChapter: number,
+  isCompleted: boolean = true
+): { completedCount: number; chapters: number[] } {
+  const currentVerses = getCompletedVerses();
+  const currentChapters = getCompletedChapters();
+  const start = Math.max(1, Math.min(startChapter, endChapter));
+  const end = Math.max(startChapter, endChapter);
+  const processedChapters: number[] = [];
+
+  for (let ch = start; ch <= end; ch++) {
+    const chapterKey = `${book}-${ch}`;
+    const total = getChapterVerseCount(book, ch);
+    processedChapters.push(ch);
+
+    if (isCompleted) {
+      currentChapters.add(chapterKey);
+      for (let v = 1; v <= total; v++) {
+        currentVerses.add(`${book}-${ch}-${v}`);
+      }
+    } else {
+      currentChapters.delete(chapterKey);
+      for (let v = 1; v <= total; v++) {
+        currentVerses.delete(`${book}-${ch}-${v}`);
+      }
+    }
+  }
+
+  saveCompletedVerses(currentVerses);
+  saveCompletedChapters(currentChapters);
+
+  window.dispatchEvent(
+    new CustomEvent('superbible_verse_read_changed', {
+      detail: { book, startChapter: start, endChapter: end, isRange: true, isDone: isCompleted },
+    })
+  );
+
+  return { completedCount: processedChapters.length, chapters: processedChapters };
+}
+
 export function resetAllReadingProgress(): void {
   try {
     localStorage.removeItem(READ_VERSES_STORAGE_KEY);

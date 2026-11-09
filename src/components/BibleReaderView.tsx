@@ -27,6 +27,7 @@ import {
   toggleVerseCompleted,
   toggleChapterVersesCompleted,
   markChapterVersesCompleted,
+  markChapterRangeCompleted,
 } from '../data/bibleData';
 import { BibleVerse } from '../types';
 import { BibleSelectorModal } from './BibleSelectorModal';
@@ -45,6 +46,7 @@ interface BibleReaderViewProps {
   initialRecordingMode?: boolean;
   onBack?: () => void;
   onBackToHome?: () => void;
+  onGoToChallenge?: () => void;
   onBackToSelector?: () => void;
 }
 
@@ -290,6 +292,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   initialRecordingMode = false,
   onBack,
   onBackToHome,
+  onGoToChallenge,
   onBackToSelector,
 }) => {
   const [selectedBook, setSelectedBook] = useState(initialBook);
@@ -485,6 +488,219 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   const chapterReadVersesCount = verses.filter((v) =>
     completedVerses.has(`${selectedBook}-${selectedChapter}-${v.verse}`)
   ).length;
+
+  // Range Chapter Completion State (1-5장 등 읽은 장수 한번에 완독)
+  const currentBookObj = BIBLE_BOOKS.find((b) => b.name === selectedBook);
+  const maxChapters = currentBookObj?.chaptersCount || 50;
+  const [rangeStart, setRangeStart] = useState<number>(1);
+  const [rangeEnd, setRangeEnd] = useState<number>(initialChapter || 1);
+  const [rangeToast, setRangeToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    setRangeStart(1);
+    setRangeEnd(selectedChapter);
+  }, [selectedBook, selectedChapter]);
+
+  const handleRangeComplete = (isCompleted: boolean = true) => {
+    const start = Math.max(1, Math.min(rangeStart, rangeEnd));
+    const end = Math.min(maxChapters, Math.max(rangeStart, rangeEnd));
+    const res = markChapterRangeCompleted(selectedBook, start, end, isCompleted);
+    setCompletedVerses(getCompletedVerses());
+
+    const session = getActiveSession();
+    if (session && session.email) {
+      updateMemberReadingProgress(session.email, selectedBook, end, res.completedCount);
+    }
+
+    if (isCompleted) {
+      setRangeToast(`📖 ${selectedBook} ${start}장 ~ ${end}장 (총 ${res.completedCount}개 장) 완독 완료! 내 전체 읽기표에 한번에 표시되었습니다.`);
+    } else {
+      setRangeToast(`↩️ ${selectedBook} ${start}장 ~ ${end}장 완독 표시가 해제되었습니다.`);
+    }
+
+    setTimeout(() => {
+      setRangeToast(null);
+    }, 4500);
+  };
+
+  const renderRangeCompletionCard = (position: 'top' | 'bottom') => {
+    const isCurrentChapterDone = chapterReadVersesCount === verses.length && verses.length > 0;
+    const startCh = Math.min(rangeStart, rangeEnd);
+    const endCh = Math.max(rangeStart, rangeEnd);
+    const count = Math.abs(rangeEnd - rangeStart) + 1;
+
+    return (
+      <div
+        key={`range-card-${position}`}
+        className={`p-3.5 sm:p-4 rounded-2xl border shadow-xs transition-all ${
+          position === 'bottom' ? 'mt-4 mb-2' : 'my-2'
+        } ${
+          isInverted
+            ? 'bg-slate-900/95 border-emerald-900/70 text-slate-100'
+            : 'bg-emerald-50/70 border-emerald-200/90 text-emerald-950'
+        }`}
+      >
+        {/* Row 1: 현재 장 완독 상태 및 단일 완독 버튼 */}
+        <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-emerald-200/60 dark:border-emerald-900/50">
+          <div className="flex items-center gap-2">
+            <span
+              className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-black shadow-xs ${
+                isCurrentChapterDone
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-slate-300 dark:bg-slate-700 text-slate-700 dark:text-slate-200'
+              }`}
+            >
+              ✓
+            </span>
+            <span className={`${isInverted ? 'text-emerald-100' : 'text-emerald-950'} text-xs sm:text-sm font-black`}>
+              {selectedBook} {selectedChapter}장 읽기 완료:{' '}
+              <strong className="text-emerald-600 dark:text-emerald-400 font-black">
+                {chapterReadVersesCount}
+              </strong>{' '}
+              / {verses.length}절
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleToggleCompleteAllChapterVerses}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shadow-xs active:scale-95 flex items-center gap-1 flex-shrink-0 ${
+              isCurrentChapterDone
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-300'
+                : isInverted
+                ? 'bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-700'
+                : 'bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300'
+            }`}
+            title="현재 장만 체크/해제"
+          >
+            <span>{isCurrentChapterDone ? '✓ 현재 장 완독됨' : '현재 장만 완독'}</span>
+          </button>
+        </div>
+
+        {/* Row 2: 읽은 장수 구간 일괄 완독 (1~5장 등) - 사용자 핵심 요청 */}
+        <div className="pt-2.5 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm">📚</span>
+              <span className="text-xs sm:text-sm font-black text-emerald-950 dark:text-emerald-100">
+                장수 완독{' '}
+                <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                  (1~5장 등 읽은 장수 한번에 완독)
+                </span>
+              </span>
+            </div>
+
+            {onGoToChallenge && (
+              <button
+                type="button"
+                onClick={onGoToChallenge}
+                className="text-[11px] font-black text-[#1b64b9] hover:underline flex items-center gap-0.5 cursor-pointer"
+                title="내 전체 읽기표로 이동하여 확인"
+              >
+                <span>내 전체 읽기표 확인</span>
+                <span>&gt;</span>
+              </button>
+            )}
+          </div>
+
+          {/* 장수 구간 선택 및 빠른 프리셋 */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-emerald-200 dark:border-slate-700 shadow-2xs">
+              <span className="text-[11px] font-bold text-slate-500">시작</span>
+              <input
+                type="number"
+                min={1}
+                max={maxChapters}
+                value={rangeStart}
+                onChange={(e) =>
+                  setRangeStart(Math.max(1, Math.min(maxChapters, parseInt(e.target.value) || 1)))
+                }
+                className="w-11 text-center text-xs font-black bg-transparent border-b border-emerald-400 focus:outline-none"
+              />
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">장</span>
+            </div>
+
+            <span className="text-xs font-black text-emerald-700 dark:text-emerald-300">~</span>
+
+            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-emerald-200 dark:border-slate-700 shadow-2xs">
+              <span className="text-[11px] font-bold text-slate-500">종료</span>
+              <input
+                type="number"
+                min={1}
+                max={maxChapters}
+                value={rangeEnd}
+                onChange={(e) =>
+                  setRangeEnd(Math.max(1, Math.min(maxChapters, parseInt(e.target.value) || 1)))
+                }
+                className="w-11 text-center text-xs font-black bg-transparent border-b border-emerald-400 focus:outline-none"
+              />
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">장</span>
+            </div>
+
+            {/* 빠른 선택 버튼들 */}
+            <div className="flex items-center gap-1 flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  setRangeStart(1);
+                  setRangeEnd(selectedChapter);
+                }}
+                className="px-2 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-emerald-800 dark:text-emerald-300 text-[11px] font-black transition cursor-pointer"
+                title={`1장부터 현재 ${selectedChapter}장까지`}
+              >
+                1~{selectedChapter}장
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRangeStart(1);
+                  setRangeEnd(Math.min(5, maxChapters));
+                }}
+                className="px-2 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-emerald-800 dark:text-emerald-300 text-[11px] font-black transition cursor-pointer"
+                title="1장부터 5장까지"
+              >
+                1~5장
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRangeStart(1);
+                  setRangeEnd(Math.min(10, maxChapters));
+                }}
+                className="px-2 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-emerald-800 dark:text-emerald-300 text-[11px] font-black transition cursor-pointer"
+                title="1장부터 10장까지"
+              >
+                1~10장
+              </button>
+            </div>
+          </div>
+
+          {/* 일괄 완독 실행 버튼 */}
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => handleRangeComplete(true)}
+              className="flex-1 py-2 px-3 rounded-xl bg-[#05c46b] hover:bg-[#04b05f] text-white text-xs sm:text-sm font-black shadow-md hover:shadow-lg transition cursor-pointer active:scale-95 flex items-center justify-center gap-1.5"
+            >
+              <span>✓</span>
+              <span>
+                {selectedBook} {startCh}~{endCh}장 장완독 누르기 ({count}개 장 일괄 완독)
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleRangeComplete(false)}
+              className="py-2 px-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition cursor-pointer active:scale-95"
+              title="선택한 구간의 완독 표시 해제"
+            >
+              해제
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // Auto-scroll to selected verse and highlight
   useEffect(() => {
@@ -1433,6 +1649,34 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
         isInverted ? 'bg-[#111827] text-slate-100' : 'bg-white text-slate-800'
       }`}
     >
+      {/* 장완독 일괄 완료 알림 토스트 */}
+      {rangeToast && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] bg-slate-900/95 text-white px-4 py-3 rounded-2xl shadow-2xl border border-emerald-500/80 backdrop-blur-md flex items-center justify-between gap-2 animate-in fade-in slide-in-from-top duration-200">
+          <div className="flex items-center gap-2 text-xs sm:text-sm font-black text-emerald-300">
+            <span className="text-base">✨</span>
+            <span>{rangeToast}</span>
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {onGoToChallenge && (
+              <button
+                type="button"
+                onClick={onGoToChallenge}
+                className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer shadow-xs active:scale-95 transition"
+              >
+                읽기표 확인
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setRangeToast(null)}
+              className="text-slate-400 hover:text-white p-1 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 1. TOP HEADER (Deep Blue Bar #1b64b9) */}
       <header className="bg-[#1b64b9] text-white px-3 py-2 flex items-center justify-between shadow-md z-30 flex-shrink-0">
         {/* Left: Back button & Dropdowns */}
@@ -1666,46 +1910,8 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
             </div>
           )}
 
-          {/* 성경 읽기 완료 현황 및 전체 완독 버튼 */}
-          <div
-            className={`flex items-center justify-between p-2.5 sm:p-3 border rounded-2xl text-xs font-bold shadow-2xs ${
-              isInverted
-                ? 'bg-emerald-950/40 border-emerald-800 text-emerald-200'
-                : 'bg-emerald-50/70 border-emerald-200/90 text-emerald-950'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black shadow-xs">
-                ✓
-              </span>
-              <span className={`${isInverted ? 'text-emerald-100' : 'text-emerald-950'} font-black`}>
-                {selectedBook} {selectedChapter}장 읽기 완료:{' '}
-                <strong className="text-emerald-500 font-black">{chapterReadVersesCount}</strong> / {verses.length}절
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={handleToggleCompleteAllChapterVerses}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shadow-xs active:scale-95 flex items-center gap-1 ${
-                chapterReadVersesCount === verses.length && verses.length > 0
-                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-300'
-                  : isInverted
-                  ? 'bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-700'
-                  : 'bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300'
-              }`}
-              title={
-                chapterReadVersesCount === verses.length && verses.length > 0
-                  ? '클릭 시 이 장 전체 완독 해제'
-                  : '클릭 시 이 장 전체 완독 체크'
-              }
-            >
-              <span>
-                {chapterReadVersesCount === verses.length && verses.length > 0
-                  ? '전체 완독됨 ✓'
-                  : '이 장 전체 완독 ✓'}
-              </span>
-            </button>
-          </div>
+          {/* 성경 읽기 완료 현황 및 장수 완독 (구간 일괄 완독) 카드 */}
+          {renderRangeCompletionCard('top')}
 
           {filteredVerses.map((v) => {
             const isHighlighted = highlightedVerses.includes(v.verse);
@@ -1779,46 +1985,8 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
             );
           })}
 
-          {/* 맨 아래 절 부분 - 성경 읽기 완료 현황 및 전체 완독 버튼 */}
-          <div
-            className={`flex items-center justify-between p-2.5 sm:p-3 border rounded-2xl text-xs font-bold shadow-2xs mt-4 mb-2 ${
-              isInverted
-                ? 'bg-emerald-950/40 border-emerald-800 text-emerald-200'
-                : 'bg-emerald-50/80 border-emerald-200/90 text-emerald-950'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black shadow-xs">
-                ✓
-              </span>
-              <span className={`${isInverted ? 'text-emerald-100' : 'text-emerald-950'} font-black`}>
-                {selectedBook} {selectedChapter}장 읽기 완료:{' '}
-                <strong className="text-emerald-500 font-black">{chapterReadVersesCount}</strong> / {verses.length}절
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={handleToggleCompleteAllChapterVerses}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shadow-xs active:scale-95 flex items-center gap-1 ${
-                chapterReadVersesCount === verses.length && verses.length > 0
-                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-300'
-                  : isInverted
-                  ? 'bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-700'
-                  : 'bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300'
-              }`}
-              title={
-                chapterReadVersesCount === verses.length && verses.length > 0
-                  ? '클릭 시 이 장 전체 완독 해제'
-                  : '클릭 시 이 장 전체 완독 체크'
-              }
-            >
-              <span>
-                {chapterReadVersesCount === verses.length && verses.length > 0
-                  ? '전체 완독됨 ✓'
-                  : '이 장 전체 완독 ✓'}
-              </span>
-            </button>
-          </div>
+          {/* 맨 아래 절 부분 - 성경 읽기 완료 현황 및 장수 완독 (구간 일괄 완독) 카드 */}
+          {renderRangeCompletionCard('bottom')}
         </div>
       </div>
 

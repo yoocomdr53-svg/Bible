@@ -279,7 +279,8 @@ export function syncMemberToAdminRoster(
 export function updateMemberReadingProgress(
   userEmail: string,
   bookName: string,
-  chapterNumber: number
+  chapterNumber: number,
+  deltaChapters: number = 1
 ): void {
   try {
     const members = getOrSyncAdminMembers();
@@ -290,7 +291,7 @@ export function updateMemberReadingProgress(
     if (idx !== -1) {
       members[idx].currentBook = bookName;
       members[idx].currentChapter = chapterNumber;
-      members[idx].totalReadChapters = (members[idx].totalReadChapters || 0) + 1;
+      members[idx].totalReadChapters = (members[idx].totalReadChapters || 0) + deltaChapters;
       members[idx].lastActive = '방금 통독';
       members[idx].consecutiveDays = (members[idx].consecutiveDays || 0) + 1;
       totalRead = members[idx].totalReadChapters;

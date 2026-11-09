@@ -1556,7 +1556,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
 
                 <div className="flex-1 grid grid-cols-10 gap-1 sm:gap-1.5 justify-items-center">
                   {chapters.map((ch) => {
-                    const isRead = completedChapters.has(`${book.name}-${ch}`);
+                    const isRead = completedChapters.has(`${book.name}-${ch}`) || isChapterFullyRead(book.name, ch, completedVerses);
                     return (
                       <button
                         key={ch}
@@ -1583,7 +1583,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           <div className="bg-[#2c333e] text-white rounded-2xl p-3 sm:p-3.5 shadow-2xl border border-slate-700/60 backdrop-blur-md">
             <div className="flex items-center justify-between text-xs sm:text-sm font-bold pb-2">
               <div className="flex items-center gap-1.5 truncate">
-                <span className="truncate">채은성 - 개역개정 | 구약/신약</span>
+                <span className="truncate">{user?.name || '성도'} - 개역개정 | 구약/신약</span>
                 <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[9px] flex-shrink-0">
                   ▽
                 </span>
@@ -2086,7 +2086,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </div>
 
             <h2 className="text-base sm:text-lg font-black text-slate-900 text-center tracking-tight">
-              채은성
+              {user?.name || '성도'}
             </h2>
 
             <p className="text-sm font-extrabold text-[#0284c7] text-center mt-1">
