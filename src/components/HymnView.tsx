@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ChevronLeft,
   Search,
@@ -60,6 +60,18 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
   const [isScoreLoading, setIsScoreLoading] = useState<boolean>(true);
   const [scoreLoadError, setScoreLoadError] = useState<boolean>(false);
   const [isFullScreenScore, setIsFullScreenScore] = useState<boolean>(false);
+
+  // ESC 키로 악보 전체화면 닫기
+  useEffect(() => {
+    if (!isFullScreenScore) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsFullScreenScore(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullScreenScore]);
 
   // Lyrics font size
   const [fontSizePt, setFontSizePt] = useState<number>(17);
@@ -370,12 +382,15 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
                         setIsScoreLoading(false);
                         setScoreLoadError(true);
                       }}
-                      className="w-auto max-w-full md:max-w-2xl rounded-xl shadow-md border border-slate-300/80 bg-white object-contain cursor-zoom-in"
+                      className="w-auto max-w-full md:max-w-2xl rounded-xl shadow-md border border-slate-300/80 bg-white object-contain cursor-zoom-in transition-transform hover:shadow-lg active:scale-[0.99]"
                       onClick={() => setIsFullScreenScore(true)}
-                      title="클릭하면 전체화면으로 크게 볼 수 있습니다"
+                      title="악보를 터치(클릭)하면 전체화면으로 크게 볼 수 있습니다"
                     />
-                    <p className="text-[11px] font-bold text-slate-400 mt-2 text-center pb-4">
-                      💡 악보를 터치(클릭)하면 전체화면으로 더욱 크게 보실 수 있습니다.
+                    <p
+                      className="text-[11px] font-bold text-slate-400 mt-2 text-center pb-4 cursor-pointer hover:text-slate-600 transition"
+                      onClick={() => setIsFullScreenScore(true)}
+                    >
+                      💡 악보를 터치(클릭)하면 전체화면으로 전환되고, 다시 터치하면 원래 크기로 돌아옵니다.
                     </p>
                   </div>
                 </div>
@@ -448,32 +463,41 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
                 </div>
               </div>
 
-              {/* Fullscreen Score Canvas */}
-              <div className="flex-1 overflow-auto p-2 sm:p-6 flex items-center justify-center">
+              {/* Fullscreen Score Canvas (클릭 시 원래 화면으로 원위치 복귀) */}
+              <div
+                className="flex-1 overflow-auto p-2 sm:p-6 flex items-center justify-center cursor-zoom-out"
+                onClick={() => setIsFullScreenScore(false)}
+                title="화면을 터치(클릭)하면 원래 화면으로 돌아갑니다"
+              >
                 <img
                   src={getHymnScoreUrl(selectedHymn.number)}
                   alt={`새찬송가 ${selectedHymn.number}장 악보 전체화면`}
-                  className="max-h-[88vh] max-w-full rounded-xl shadow-2xl object-contain bg-white"
+                  className="max-h-[88vh] max-w-full rounded-xl shadow-2xl object-contain bg-white cursor-zoom-out transition-transform active:scale-[0.99]"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsFullScreenScore(false);
+                  }}
+                  title="악보를 터치(클릭)하면 원래 화면으로 돌아갑니다"
                 />
               </div>
 
               {/* Fullscreen Bottom Bar */}
-              <div className="bg-slate-900/90 border-t border-white/10 px-4 py-2 flex items-center justify-between text-xs text-white/70 flex-shrink-0">
+              <div className="bg-slate-900/90 border-t border-white/10 px-4 py-2.5 flex items-center justify-between text-xs text-white/70 flex-shrink-0">
                 <button
                   type="button"
                   onClick={handlePrevHymn}
-                  className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold flex items-center gap-1 transition cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold flex items-center gap-1 transition cursor-pointer active:scale-95"
                 >
                   <ChevronLeft className="w-4 h-4" />
                   <span>이전 찬송</span>
                 </button>
-                <span className="text-[11px] font-bold text-white/50">
-                  화면을 닫으려면 우측 상단 닫기(X)를 누르세요
+                <span className="text-[11px] font-bold text-white/70 text-center px-2">
+                  💡 악보나 화면을 터치(클릭)하면 원래 화면으로 돌아갑니다
                 </span>
                 <button
                   type="button"
                   onClick={handleNextHymn}
-                  className="px-3 py-1.5 rounded-xl bg-[#1b64b9] hover:bg-blue-600 text-white font-black flex items-center gap-1 transition cursor-pointer shadow-xs"
+                  className="px-3 py-1.5 rounded-xl bg-[#1b64b9] hover:bg-blue-600 text-white font-black flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-xs"
                 >
                   <span>다음 찬송</span>
                   <ChevronRight className="w-4 h-4" />
