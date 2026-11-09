@@ -221,41 +221,43 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
             </div>
           </div>
 
-          {/* View Mode Toggle: 🎼 악보 보기 vs 📝 가사 보기 */}
-          <div className="bg-white border-b border-slate-200 px-3 sm:px-4 py-2 flex items-center justify-between flex-shrink-0">
-            <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
+          {/* View Mode Toggle: 🎼 악보 보기 vs 📝 가사 보기 & 줌 컨트롤 */}
+          <div className="bg-white border-b border-slate-200 px-3 sm:px-4 py-2 flex items-center justify-between gap-2 overflow-x-auto scrollbar-none flex-shrink-0">
+            {/* Left: 악보 / 가사 세그먼트 버튼 (한 줄 유지 및 줄바꿈 완전 방지) */}
+            <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 flex-shrink-0">
               <button
                 type="button"
                 onClick={() => handleSetViewMode('score')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap active:scale-95 ${
                   viewMode === 'score'
                     ? 'bg-[#1b64b9] text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <Music className="w-3.5 h-3.5" />
-                <span>🎼 악보 보기</span>
+                <Music className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="whitespace-nowrap">악보 보기</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleSetViewMode('lyrics')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap active:scale-95 ${
                   viewMode === 'lyrics'
                     ? 'bg-[#1b64b9] text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <FileText className="w-3.5 h-3.5" />
-                <span>📝 가사 보기</span>
+                <FileText className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="whitespace-nowrap">가사 보기</span>
               </button>
             </div>
 
+            {/* Right: 악보 모드일 때 확대/축소/전체화면, 가사 모드일 때 글자 크기 */}
             {viewMode === 'score' ? (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-shrink-0">
                 <button
                   type="button"
                   onClick={() => setScoreZoom((z) => Math.max(0.6, Math.round((z - 0.15) * 100) / 100))}
-                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer active:scale-95"
+                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer active:scale-95 flex-shrink-0"
                   title="악보 축소"
                 >
                   <ZoomOut className="w-4 h-4" />
@@ -263,7 +265,7 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
                 <button
                   type="button"
                   onClick={() => setScoreZoom(1.0)}
-                  className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[11px] font-black text-slate-700 transition cursor-pointer active:scale-95"
+                  className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[11px] font-black text-slate-700 transition cursor-pointer active:scale-95 whitespace-nowrap flex-shrink-0"
                   title="기본 크기 (100%)"
                 >
                   {Math.round(scoreZoom * 100)}%
@@ -271,29 +273,29 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
                 <button
                   type="button"
                   onClick={() => setScoreZoom((z) => Math.min(2.5, Math.round((z + 0.15) * 100) / 100))}
-                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer active:scale-95"
+                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer active:scale-95 flex-shrink-0"
                   title="악보 확대"
                 >
                   <ZoomIn className="w-4 h-4" />
                 </button>
-                <div className="w-[1px] h-4 bg-slate-200 mx-0.5" />
+                <div className="w-[1px] h-4 bg-slate-200 mx-0.5 flex-shrink-0" />
                 <button
                   type="button"
                   onClick={() => setIsFullScreenScore(true)}
-                  className="px-2 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1b64b9] flex items-center gap-1 text-xs font-black transition cursor-pointer active:scale-95 border border-blue-200/60"
+                  className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#1b64b9] flex items-center gap-1 text-xs font-black transition cursor-pointer active:scale-95 border border-blue-200/60 whitespace-nowrap flex-shrink-0"
                   title="전체화면으로 크게 보기"
                 >
-                  <Maximize2 className="w-3.5 h-3.5" />
+                  <Maximize2 className="w-3.5 h-3.5 flex-shrink-0" />
                   <span className="hidden sm:inline">전체화면</span>
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-1">
-                <span className="text-[11px] font-bold text-slate-400 mr-1">글자</span>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <span className="text-[11px] font-bold text-slate-400 mr-1 whitespace-nowrap">글자 크기</span>
                 <button
                   type="button"
                   onClick={() => setFontSizePt((prev) => Math.max(14, prev - 1))}
-                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-bold transition cursor-pointer active:scale-95"
+                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-bold transition cursor-pointer active:scale-95 flex-shrink-0"
                   title="가사 작게"
                 >
                   A-
@@ -301,7 +303,7 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
                 <button
                   type="button"
                   onClick={() => setFontSizePt((prev) => Math.min(26, prev + 1))}
-                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-black transition cursor-pointer active:scale-95"
+                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-black transition cursor-pointer active:scale-95 flex-shrink-0"
                   title="가사 크게"
                 >
                   A+
