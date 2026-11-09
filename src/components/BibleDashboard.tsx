@@ -22,6 +22,8 @@ import {
   DAILY_GRACE_VERSES,
   getAutoDailyVerse,
   getBibleAbbreviation,
+  getCurrentReadingLocation,
+  saveCurrentReadingLocation,
 } from '../data/bibleData';
 import { BibleReaderView } from './BibleReaderView';
 import { StatsView } from './StatsView';
@@ -69,10 +71,13 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
     book: string;
     chapter: number;
     verse: number;
-  }>({
-    book: '창세기',
-    chapter: 1,
-    verse: 1,
+  }>(() => {
+    const loc = getCurrentReadingLocation();
+    return {
+      book: loc.book || '출애굽기',
+      chapter: loc.chapter || 18,
+      verse: 1,
+    };
   });
 
   // Today's Verse (오늘의 말씀 - 날짜별 자동 수정/갱신 및 순환 관리)
@@ -198,9 +203,10 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
   };
 
   const navigateToPortion = (portion: string, chapter?: number, verse?: number) => {
-    const book = portion.split(' ')[0] || '창세기';
+    const book = portion.split(' ')[0] || '출애굽기';
     const ch = chapter || Number(portion.split(' ')[1]) || 1;
     const v = verse || 1;
+    saveCurrentReadingLocation(book, ch);
     pushHistory({
       tab: activeTab,
       bibleSubView,

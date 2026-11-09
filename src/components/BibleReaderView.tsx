@@ -30,6 +30,7 @@ import {
   toggleChapterVersesCompleted,
   markChapterVersesCompleted,
   markChapterRangeCompleted,
+  saveCurrentReadingLocation,
 } from '../data/bibleData';
 import { BibleVerse } from '../types';
 import { BibleSelectorModal } from './BibleSelectorModal';
@@ -457,6 +458,13 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     setSelectedVerse(initialVerse);
     setActiveRecordVerse(initialVerse || 1);
   }, [initialBook, initialChapter, initialVerse]);
+
+  // Save current active reading location in real time
+  useEffect(() => {
+    if (selectedBook && selectedChapter) {
+      saveCurrentReadingLocation(selectedBook, selectedChapter);
+    }
+  }, [selectedBook, selectedChapter]);
 
   // Generate or fetch verses (defined BEFORE any derived counts to prevent temporal dead zone ReferenceError!)
   const key = `${selectedBook}-${selectedChapter}`;
@@ -1942,7 +1950,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
               </span>
             </button>
 
-            {/* 전체완독됨 드롭다운 메뉴 (현재장 완독 / 장 완독 / 전체 완독) */}
+            {/* 완독 관리 드롭다운 메뉴 (현재장 완독 / 장 완독 / 전체 완독) */}
             <div className="relative">
               <button
                 type="button"
@@ -1951,21 +1959,28 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                   isCurrentChapterDone || isRangeDone || isAllBookDone
                     ? 'bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-500 shadow-sm ring-2 ring-emerald-300/60'
                     : isInverted
-                    ? 'bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-700'
-                    : 'bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300'
+                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                    : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-300'
                 }`}
                 title="완독 메뉴 열기 (현재장 완독, 장 완독, 전체 완독)"
               >
-                <span>✓</span>
-                <span>
-                  {isAllBookDone
-                    ? '전체 완독됨'
-                    : isRangeDone
-                    ? '장 완독됨'
-                    : isCurrentChapterDone
-                    ? '현재장 완독됨'
-                    : '전체완독됨'}
-                </span>
+                {isCurrentChapterDone || isRangeDone || isAllBookDone ? (
+                  <>
+                    <span>✓</span>
+                    <span>
+                      {isAllBookDone
+                        ? '전권 완독됨'
+                        : isRangeDone
+                        ? `${selectedChapter}장까지 완독`
+                        : `${selectedChapter}장 완독됨`}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-slate-400 font-bold">○</span>
+                    <span>완독 관리</span>
+                  </>
+                )}
                 <span className="text-[9px] ml-0.5 opacity-80">▾</span>
               </button>
 

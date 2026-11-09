@@ -650,8 +650,76 @@ export const INITIAL_RECORDINGS: UserRecording[] = [
 // ==========================================
 // 성경 읽기 완료된 절 및 완독된 장 (Completed Verses & Chapters) 관리
 // ==========================================
-const READ_VERSES_STORAGE_KEY = 'superbible_completed_verses_v2';
-const COMPLETED_CHAPTERS_STORAGE_KEY = 'superbible_completed_chapters_v2';
+export const READ_VERSES_STORAGE_KEY = 'superbible_completed_verses_v2';
+export const COMPLETED_CHAPTERS_STORAGE_KEY = 'superbible_completed_chapters_v2';
+export const CURRENT_READING_BOOK_KEY = 'superbible_current_reading_book';
+export const CURRENT_READING_CHAPTER_KEY = 'superbible_current_reading_chapter';
+export const IN_PROGRESS_CHAPTERS_KEY = 'superbible_reading_in_progress_v1';
+
+// 현재 읽는 중인 위치 (책, 장) - 기본값: 출애굽기 18장
+export function getCurrentReadingLocation(): { book: string; chapter: number } {
+  try {
+    const savedBook = localStorage.getItem(CURRENT_READING_BOOK_KEY);
+    const savedChapter = localStorage.getItem(CURRENT_READING_CHAPTER_KEY);
+    if (savedBook && savedChapter) {
+      const ch = parseInt(savedChapter, 10);
+      if (!isNaN(ch) && ch >= 1) {
+        return { book: savedBook, chapter: ch };
+      }
+    }
+  } catch (e) {
+    console.error('Failed to get reading location:', e);
+  }
+  return { book: '출애굽기', chapter: 18 };
+}
+
+export function saveCurrentReadingLocation(book: string, chapter: number): void {
+  try {
+    localStorage.setItem(CURRENT_READING_BOOK_KEY, book);
+    localStorage.setItem(CURRENT_READING_CHAPTER_KEY, String(chapter));
+    window.dispatchEvent(
+      new CustomEvent('superbible_reading_location_changed', {
+        detail: { book, chapter },
+      })
+    );
+  } catch (e) {
+    console.error('Failed to save reading location:', e);
+  }
+}
+
+// 읽는 중으로 지정된 장 목록 관리
+export function getInProgressChapters(): Set<string> {
+  try {
+    const raw = localStorage.getItem(IN_PROGRESS_CHAPTERS_KEY);
+    if (raw) {
+      return new Set<string>(JSON.parse(raw));
+    }
+  } catch (e) {
+    console.error('Failed to load in-progress chapters:', e);
+  }
+  // 기본값으로 출애굽기 18장 포함
+  return new Set<string>(['출애굽기-18']);
+}
+
+export function setChapterInProgress(book: string, chapter: number, inProgress: boolean = true): void {
+  try {
+    const set = getInProgressChapters();
+    const key = `${book}-${chapter}`;
+    if (inProgress) {
+      set.add(key);
+    } else {
+      set.delete(key);
+    }
+    localStorage.setItem(IN_PROGRESS_CHAPTERS_KEY, JSON.stringify(Array.from(set)));
+    window.dispatchEvent(
+      new CustomEvent('superbible_reading_location_changed', {
+        detail: { book, chapter, inProgress },
+      })
+    );
+  } catch (e) {
+    console.error('Failed to save in-progress chapters:', e);
+  }
+}
 
 export function getCompletedVerses(): Set<string> {
   try {
@@ -782,6 +850,13 @@ export function toggleChapterVersesCompleted(book: string, chapter: number, tota
     }
     currentChapters.add(chapterKey);
     nextDone = true;
+    try {
+      const inProg = getInProgressChapters();
+      if (inProg.has(chapterKey)) {
+        inProg.delete(chapterKey);
+        localStorage.setItem(IN_PROGRESS_CHAPTERS_KEY, JSON.stringify(Array.from(inProg)));
+      }
+    } catch (e) {}
   }
 
   saveCompletedVerses(currentVerses);
@@ -815,6 +890,13 @@ export function toggleChapterDirect(book: string, chapter: number): boolean {
       currentVerses.add(`${book}-${chapter}-${v}`);
     }
     nextDone = true;
+    try {
+      const inProg = getInProgressChapters();
+      if (inProg.has(chapterKey)) {
+        inProg.delete(chapterKey);
+        localStorage.setItem(IN_PROGRESS_CHAPTERS_KEY, JSON.stringify(Array.from(inProg)));
+      }
+    } catch (e) {}
   }
 
   saveCompletedVerses(currentVerses);
@@ -867,6 +949,23 @@ export function markChapterRangeCompleted(
     }
   }
 
+  if (isCompleted) {
+    try {
+      const inProg = getInProgressChapters();
+      let changed = false;
+      for (let ch = start; ch <= end; ch++) {
+        const k = `${book}-${ch}`;
+        if (inProg.has(k)) {
+          inProg.delete(k);
+          changed = true;
+        }
+      }
+      if (changed) {
+        localStorage.setItem(IN_PROGRESS_CHAPTERS_KEY, JSON.stringify(Array.from(inProg)));
+      }
+    } catch (e) {}
+  }
+
   saveCompletedVerses(currentVerses);
   saveCompletedChapters(currentChapters);
 
@@ -883,6 +982,9 @@ export function resetAllReadingProgress(): void {
   try {
     localStorage.removeItem(READ_VERSES_STORAGE_KEY);
     localStorage.removeItem(COMPLETED_CHAPTERS_STORAGE_KEY);
+    localStorage.removeItem(IN_PROGRESS_CHAPTERS_KEY);
+    localStorage.removeItem(CURRENT_READING_BOOK_KEY);
+    localStorage.removeItem(CURRENT_READING_CHAPTER_KEY);
     // Also clear old legacy keys if present
     localStorage.removeItem('superbible_completed_verses_set');
     localStorage.removeItem('superbible_completed_chapters_set');

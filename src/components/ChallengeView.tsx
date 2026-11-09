@@ -25,6 +25,11 @@ import {
   getChapterVerseCount,
   toggleChapterDirect,
   resetAllReadingProgress,
+  markChapterRangeCompleted,
+  getCurrentReadingLocation,
+  saveCurrentReadingLocation,
+  getInProgressChapters,
+  setChapterInProgress,
 } from '../data/bibleData';
 import { ReadingDayPlan, User } from '../types';
 
@@ -91,8 +96,12 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
     'main' | 'matrix' | 'plan' | 'create-plan' | 'edit-plan' | 'total-progress' | 'chapter-grid'
   >(initialSubScreen);
 
-  // Selected book for '읽기 계획 현황' 6-column chapter grid screen (Default: 창세기)
-  const [selectedStatusBook, setSelectedStatusBook] = useState(initialBook);
+  // Selected book for '읽기 계획 현황' 6-column chapter grid screen (Default: 사용자 현재 통독 성경)
+  const [selectedStatusBook, setSelectedStatusBook] = useState(() => {
+    if (initialBook && initialBook !== '창세기') return initialBook;
+    const loc = getCurrentReadingLocation();
+    return loc.book || initialBook || '출애굽기';
+  });
 
   // Filter for '읽기 계획 현황': 'all' (전체) | 'done' (완독) | 'reading' (읽는 중) | 'unread' (미완료)
   const [statusChapterFilter, setStatusChapterFilter] = useState<'all' | 'done' | 'reading' | 'unread'>('all');
@@ -242,14 +251,36 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
   const [completedVerses, setCompletedVerses] = useState<Set<string>>(() => getCompletedVerses());
   const [completedChapters, setCompletedChapters] = useState<Set<string>>(() => getCompletedChapters());
 
+  // Real-time tracking of current reading location and in-progress chapters
+  const [readingLocation, setReadingLocation] = useState(getCurrentReadingLocation);
+  const [inProgressChapters, setInProgressChapters] = useState(getInProgressChapters);
+  const [activeChapterModalItem, setActiveChapterModalItem] = useState<{
+    ch: number;
+    status: 'done' | 'reading' | 'unread';
+    readVerses: number;
+    totalVerses: number;
+  } | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((prev) => (prev === msg ? null : prev));
+    }, 3200);
+  };
+
   useEffect(() => {
-    const handleVerseChanged = () => {
+    const handleSync = () => {
       setCompletedVerses(getCompletedVerses());
       setCompletedChapters(getCompletedChapters());
+      setReadingLocation(getCurrentReadingLocation());
+      setInProgressChapters(getInProgressChapters());
     };
-    window.addEventListener('superbible_verse_read_changed', handleVerseChanged);
+    window.addEventListener('superbible_verse_read_changed', handleSync);
+    window.addEventListener('superbible_reading_location_changed', handleSync);
     return () => {
-      window.removeEventListener('superbible_verse_read_changed', handleVerseChanged);
+      window.removeEventListener('superbible_verse_read_changed', handleSync);
+      window.removeEventListener('superbible_reading_location_changed', handleSync);
     };
   }, []);
 
@@ -598,6 +629,147 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* 3. 장별 완독 관리 팝업 (Action Modal) */}
+      {activeChapterModalItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-200 w-full max-w-sm flex flex-col animate-in zoom-in-95 duration-150 text-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-[#1b64b9]" />
+                <h3 className="text-base sm:text-lg font-black text-slate-900">
+                  {selectedStatusBook} {activeChapterModalItem.ch}장
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveChapterModalItem(null)}
+                className="p-1 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                title="닫기"
+              >
+                <X className="w-5 h-5 stroke-[2.5]" />
+              </button>
+            </div>
+
+            {/* Current Status Badge */}
+            <div className="my-3.5 p-3 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-500">현재 상태</span>
+              {activeChapterModalItem.status === 'done' ? (
+                <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-black flex items-center gap-1">
+                  <span>✓</span> 완독 완료
+                </span>
+              ) : activeChapterModalItem.status === 'reading' ? (
+                <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-black flex items-center gap-1">
+                  <span>🟡</span> 현재 읽는 중
+                </span>
+              ) : (
+                <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 text-xs font-black flex items-center gap-1">
+                  <span>⚪</span> 미완료
+                </span>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2">
+              {/* 1. 말씀 본문 읽기 */}
+              <button
+                type="button"
+                onClick={() => {
+                  const ch = activeChapterModalItem.ch;
+                  saveCurrentReadingLocation(selectedStatusBook, ch);
+                  setActiveChapterModalItem(null);
+                  onNavigateToBible(selectedStatusBook, ch, 1);
+                }}
+                className="w-full py-2.5 px-3 rounded-xl bg-[#1b64b9] hover:bg-blue-700 active:scale-98 text-white font-black text-xs sm:text-sm transition shadow-sm cursor-pointer flex items-center justify-center gap-2"
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>말씀 본문 읽기</span>
+              </button>
+
+              {/* 2. 단일 장 완독 체크 / 완독 취소 */}
+              <button
+                type="button"
+                onClick={() => {
+                  const ch = activeChapterModalItem.ch;
+                  const nextDone = toggleChapterDirect(selectedStatusBook, ch);
+                  setCompletedVerses(getCompletedVerses());
+                  setCompletedChapters(getCompletedChapters());
+                  if (nextDone) {
+                    setChapterInProgress(selectedStatusBook, ch, false);
+                  }
+                  showToast(
+                    nextDone
+                      ? `✓ ${selectedStatusBook} ${ch}장 완독 체크되었습니다!`
+                      : `↩️ ${selectedStatusBook} ${ch}장 완독이 해제되었습니다.`
+                  );
+                  setActiveChapterModalItem(null);
+                }}
+                className={`w-full py-2.5 px-3 rounded-xl active:scale-98 font-black text-xs sm:text-sm transition shadow-xs cursor-pointer flex items-center justify-center gap-2 border ${
+                  activeChapterModalItem.status === 'done'
+                    ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                    : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+                }`}
+              >
+                <Check className="w-4 h-4 stroke-[2.5]" />
+                <span>
+                  {activeChapterModalItem.status === 'done'
+                    ? '이 장 완독 취소(해제)'
+                    : '이 장 완독 완료 체크'}
+                </span>
+              </button>
+
+              {/* 3. 읽는 중으로 지정 */}
+              <button
+                type="button"
+                onClick={() => {
+                  const ch = activeChapterModalItem.ch;
+                  const willBeReading = activeChapterModalItem.status !== 'reading';
+                  saveCurrentReadingLocation(selectedStatusBook, ch);
+                  setChapterInProgress(selectedStatusBook, ch, willBeReading);
+                  showToast(
+                    willBeReading
+                      ? `🟡 ${selectedStatusBook} ${ch}장이 '읽는 중'으로 설정되었습니다.`
+                      : `${selectedStatusBook} ${ch}장 '읽는 중'이 해제되었습니다.`
+                  );
+                  setActiveChapterModalItem(null);
+                }}
+                className="w-full py-2.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 active:scale-98 text-amber-900 font-black text-xs sm:text-sm transition cursor-pointer flex items-center justify-center gap-2"
+              >
+                <span>🟡</span>
+                <span>
+                  {activeChapterModalItem.status === 'reading'
+                    ? '읽는 중 해제'
+                    : '현재 읽는 중으로 지정'}
+                </span>
+              </button>
+
+              {/* 4. 1장 ~ 현재 장까지 일괄 완독 (동기화 해결 핵심) */}
+              <button
+                type="button"
+                onClick={() => {
+                  const ch = activeChapterModalItem.ch;
+                  const res = markChapterRangeCompleted(selectedStatusBook, 1, ch, true);
+                  setCompletedVerses(getCompletedVerses());
+                  setCompletedChapters(getCompletedChapters());
+                  showToast(`📚 ${selectedStatusBook} 1~${ch}장 (${res.completedCount}개 장) 일괄 완독 완료!`);
+                  setActiveChapterModalItem(null);
+                }}
+                className="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-98 text-slate-800 font-bold text-xs sm:text-sm transition cursor-pointer flex items-center justify-center gap-2"
+              >
+                <span>📚</span>
+                <span>1장 ~ {activeChapterModalItem.ch}장까지 일괄 완독</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl bg-slate-900/90 backdrop-blur-xs text-white text-xs sm:text-sm font-black shadow-2xl border border-slate-700 animate-in fade-in slide-in-from-top duration-200 pointer-events-none">
+          {toastMessage}
+        </div>
+      )}
     </>
   );
 
@@ -650,13 +822,22 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
       const isDone = isChapterFullyRead(selectedStatusBook, ch, completedVerses);
       const readVerses = getChapterReadVersesCount(selectedStatusBook, ch);
       const totalVerses = getChapterVerseCount(selectedStatusBook, ch);
+      const chapterKey = `${selectedStatusBook}-${ch}`;
+      const isCurrentActive =
+        readingLocation.book === selectedStatusBook && readingLocation.chapter === ch;
+      const isInProgress = inProgressChapters.has(chapterKey);
 
       if (isDone) {
         doneCount++;
         list.push({ ch, status: 'done', readVerses: totalVerses, totalVerses });
-      } else if (readVerses > 0) {
+      } else if (readVerses > 0 || isCurrentActive || isInProgress) {
         readingCount++;
-        list.push({ ch, status: 'reading', readVerses, totalVerses });
+        list.push({
+          ch,
+          status: 'reading',
+          readVerses: readVerses > 0 ? readVerses : 1,
+          totalVerses,
+        });
       } else {
         unreadCount++;
         list.push({ ch, status: 'unread', readVerses: 0, totalVerses });
@@ -666,7 +847,14 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
     const percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
 
     return { total, doneCount, readingCount, unreadCount, percent, list };
-  }, [selectedStatusBook, currentStatusBookObj, completedVerses, completedChapters]);
+  }, [
+    selectedStatusBook,
+    currentStatusBookObj,
+    completedVerses,
+    completedChapters,
+    readingLocation,
+    inProgressChapters,
+  ]);
 
   // Filtered chapters according to statusChapterFilter
   const filteredStatusChapters = React.useMemo(() => {
@@ -681,7 +869,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
       return {
         ch: inProgress.ch,
         title: `${selectedStatusBook} ${inProgress.ch}장`,
-        desc: `📖 ${inProgress.readVerses}/${inProgress.totalVerses}절 읽는 중 (이어서 읽기)`,
+        desc: `📖 ${selectedStatusBook} ${inProgress.ch}장 읽는 중 (이어서 읽기)`,
         actionText: '이어서 읽기 >',
       };
     }
@@ -1203,6 +1391,28 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               </button>
             </div>
 
+            {/* 현재 읽는 중인 장 안내 배너 */}
+            {statusBookStats.readingCount > 0 && (
+              <div className="mb-3.5 p-2.5 sm:p-3 rounded-2xl bg-amber-50/90 border border-amber-200/90 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 min-w-0 pr-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />
+                  <div className="truncate">
+                    <span className="text-[11px] font-bold text-amber-700">현재 통독 진행 중:</span>{' '}
+                    <strong className="font-black text-amber-950 text-xs sm:text-sm">
+                      {selectedStatusBook} {smartStatusResume.ch}장
+                    </strong>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onNavigateToBible(selectedStatusBook, smartStatusResume.ch, 1)}
+                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-black text-xs transition shadow-2xs flex-shrink-0 cursor-pointer"
+                >
+                  본문 읽기 &gt;
+                </button>
+              </div>
+            )}
+
             {/* 4. 6-Column Chapter Number Circle Grid */}
             {filteredStatusChapters.length === 0 ? (
               <div className="py-10 text-center text-slate-400">
@@ -1230,25 +1440,25 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                       key={item.ch}
                       type="button"
                       onClick={() => {
-                        onNavigateToBible(selectedStatusBook, item.ch, 1);
+                        setActiveChapterModalItem(item);
                       }}
                       className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex flex-col items-center justify-center text-sm sm:text-base font-extrabold transition-all cursor-pointer active:scale-90 relative ${
                         isDone
                           ? 'bg-[#05c46b] text-white font-black shadow-xs ring-2 ring-emerald-300'
                           : isReading
-                          ? 'bg-[#fff9db] border-2 border-[#fcc419] text-slate-900 font-black shadow-2xs'
+                          ? 'bg-[#fff9db] border-2 border-[#fcc419] text-slate-900 font-black shadow-xs ring-2 ring-amber-200'
                           : 'bg-[#f1f4f9] hover:bg-slate-200 text-slate-800 font-bold'
                       }`}
-                      title={`${selectedStatusBook} ${item.ch}장 본문 이동 (${
-                        isDone ? '완독' : isReading ? `${item.readVerses}/${item.totalVerses}절 읽는 중` : '미완료'
-                      })`}
+                      title={`${selectedStatusBook} ${item.ch}장 (${
+                        isDone ? '완독 완료' : isReading ? '현재 읽는 중' : '미완료'
+                      }) - 터치하여 완독 관리`}
                     >
                       <span className={isReading ? 'text-xs sm:text-sm font-black -mt-0.5' : ''}>
                         {item.ch}
                       </span>
                       {isReading && (
-                        <span className="text-[9px] font-black text-amber-700 leading-none">
-                          {item.readVerses}절
+                        <span className="text-[8px] sm:text-[9px] font-black text-amber-800 leading-none">
+                          읽는중
                         </span>
                       )}
                       {isDone && (
@@ -1301,7 +1511,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               </div>
 
               <span className="text-[11px] font-black text-[#1b64b9]">
-                장 터치 시 본문 이동
+                장 터치 시 완독 관리
               </span>
             </div>
           </div>
@@ -2290,10 +2500,15 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               <div className="p-4 space-y-3.5">
                 {/* Header: 통독 계획 현황 > & 통독 분량 전체보기 버튼 */}
                 <div className="flex items-center justify-between text-xs font-bold text-slate-600 pb-1">
-                  <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => openChapterGrid('plan', selectedStatusBook)}
+                    className="flex items-center gap-1.5 hover:opacity-80 transition cursor-pointer"
+                    title="통독 계획 현황(장별 그리드) 열기"
+                  >
                     <span className="font-black text-slate-900 text-sm">통독 계획 현황</span>
-                    <span className="text-slate-400 font-bold">&gt;</span>
-                  </div>
+                    <span className="text-[#1b64b9] font-bold">&gt;</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => openTotalProgress('plan')}
@@ -2304,40 +2519,57 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
                   </button>
                 </div>
 
-                {/* 1번 이미지 메인 카드: 창세기 (총 50장) | 터치 시 해당 장으로 이동 */}
+                {/* 메인 카드: {selectedStatusBook} (총 {totalStatusChapters}장) */}
                 <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/90 shadow-xs space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-lg sm:text-xl font-black text-[#1b64b9]">창세기</span>
-                      <span className="text-xs text-slate-400 font-medium">(총 50장)</span>
-                    </div>
-                    <span className="text-xs sm:text-sm font-bold text-blue-600">
-                      터치 시 해당 장으로 이동
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => openChapterGrid('plan', selectedStatusBook)}
+                      className="flex items-center gap-1.5 hover:opacity-80 text-left transition cursor-pointer"
+                    >
+                      <span className="text-lg sm:text-xl font-black text-[#1b64b9]">{selectedStatusBook}</span>
+                      <span className="text-xs text-slate-400 font-medium">(총 {totalStatusChapters}장)</span>
+                      <span className="text-xs font-bold text-blue-600 ml-1">&gt;</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openChapterGrid('plan', selectedStatusBook)}
+                      className="text-xs sm:text-sm font-bold text-blue-600 hover:underline cursor-pointer"
+                    >
+                      계획 현황 관리 &gt;
+                    </button>
                   </div>
 
-                  {/* 6열 50개 전체 장 원형 번호 그리드 (창세기 1~50장 전체 표시) */}
+                  {/* 6열 전체 장 원형 번호 그리드 */}
                   <div className="grid grid-cols-6 gap-2.5 sm:gap-3 justify-items-center py-1">
-                    {Array.from({ length: 50 }, (_, i) => i + 1).map((ch) => {
-                      const isDone = isChapterFullyRead('창세기', ch, completedVerses);
-                      const readCount = getChapterReadVersesCount('창세기', ch);
-                      const isReading = !isDone && readCount > 0;
+                    {Array.from({ length: totalStatusChapters }, (_, i) => i + 1).map((ch) => {
+                      const isDone = isChapterFullyRead(selectedStatusBook, ch, completedVerses);
+                      const isReading =
+                        !isDone &&
+                        ((readingLocation.book === selectedStatusBook && readingLocation.chapter === ch) ||
+                          inProgressChapters.has(`${selectedStatusBook}-${ch}`) ||
+                          getChapterReadVersesCount(selectedStatusBook, ch) > 0);
 
                       return (
                         <button
                           key={ch}
                           type="button"
-                          onClick={() => onNavigateToBible('창세기', ch, 1)}
-                          className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-sm sm:text-base font-extrabold transition cursor-pointer active:scale-90 relative ${
+                          onClick={() => openChapterGrid('plan', selectedStatusBook)}
+                          className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex flex-col items-center justify-center text-sm sm:text-base font-extrabold transition cursor-pointer active:scale-90 relative ${
                             isDone
                               ? 'bg-[#05c46b] text-white font-black shadow-xs ring-2 ring-emerald-300'
                               : isReading
                               ? 'bg-[#fff9db] border-2 border-[#fcc419] text-slate-800 font-black shadow-2xs'
                               : 'bg-white hover:bg-slate-100 text-slate-800 border border-slate-200/90 shadow-2xs'
                           }`}
-                          title={`창세기 ${ch}장 본문으로 이동 (${isDone ? '완독' : isReading ? `${readCount}절 읽는 중` : '미완료'})`}
+                          title={`${selectedStatusBook} ${ch}장 (${isDone ? '완독' : isReading ? '읽는 중' : '미완료'})`}
                         >
-                          <span>{ch}</span>
+                          <span className={isReading ? 'text-xs sm:text-sm font-black -mt-0.5' : ''}>{ch}</span>
+                          {isReading && (
+                            <span className="text-[9px] font-black text-amber-700 leading-none">
+                              읽는중
+                            </span>
+                          )}
                           {isDone && (
                             <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#059669] text-white flex items-center justify-center text-[8px] font-black shadow-xs">
                               ✓
