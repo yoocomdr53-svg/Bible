@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   ChevronLeft,
+  ChevronRight,
   BookOpen,
   Calendar,
   Check,
@@ -92,6 +93,10 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
 
   // Selected book for '읽기 계획 현황' 6-column chapter grid screen (Default: 창세기)
   const [selectedStatusBook, setSelectedStatusBook] = useState(initialBook);
+
+  // Filter for '읽기 계획 현황': 'all' (전체) | 'done' (완독) | 'reading' (읽는 중) | 'unread' (미완료)
+  const [statusChapterFilter, setStatusChapterFilter] = useState<'all' | 'done' | 'reading' | 'unread'>('all');
+  const [showBookSelectorModal, setShowBookSelectorModal] = useState<boolean>(false);
 
   // Source tracking so back buttons go to the exact screen they came from
   const [chapterGridSource, setChapterGridSource] = useState<'plan' | 'total-progress' | 'main'>('plan');
@@ -625,6 +630,77 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
   const currentStatusBookObj =
     BIBLE_BOOKS.find((b) => b.name === selectedStatusBook) || BIBLE_BOOKS[0];
   const totalStatusChapters = currentStatusBookObj.chaptersCount || 50;
+  const currentBookIdx = BIBLE_BOOKS.findIndex((b) => b.name === selectedStatusBook);
+
+  // Statistics & chapter status list for '읽기 계획 현황'
+  const statusBookStats = React.useMemo(() => {
+    const total = currentStatusBookObj.chaptersCount || 50;
+    let doneCount = 0;
+    let readingCount = 0;
+    let unreadCount = 0;
+
+    const list: {
+      ch: number;
+      status: 'done' | 'reading' | 'unread';
+      readVerses: number;
+      totalVerses: number;
+    }[] = [];
+
+    for (let ch = 1; ch <= total; ch++) {
+      const isDone = isChapterFullyRead(selectedStatusBook, ch, completedVerses);
+      const readVerses = getChapterReadVersesCount(selectedStatusBook, ch);
+      const totalVerses = getChapterVerseCount(selectedStatusBook, ch);
+
+      if (isDone) {
+        doneCount++;
+        list.push({ ch, status: 'done', readVerses: totalVerses, totalVerses });
+      } else if (readVerses > 0) {
+        readingCount++;
+        list.push({ ch, status: 'reading', readVerses, totalVerses });
+      } else {
+        unreadCount++;
+        list.push({ ch, status: 'unread', readVerses: 0, totalVerses });
+      }
+    }
+
+    const percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
+    return { total, doneCount, readingCount, unreadCount, percent, list };
+  }, [selectedStatusBook, currentStatusBookObj, completedVerses, completedChapters]);
+
+  // Filtered chapters according to statusChapterFilter
+  const filteredStatusChapters = React.useMemo(() => {
+    if (statusChapterFilter === 'all') return statusBookStats.list;
+    return statusBookStats.list.filter((item) => item.status === statusChapterFilter);
+  }, [statusBookStats, statusChapterFilter]);
+
+  // Smart Resume in '읽기 계획 현황'
+  const smartStatusResume = React.useMemo(() => {
+    const inProgress = statusBookStats.list.find((c) => c.status === 'reading');
+    if (inProgress) {
+      return {
+        ch: inProgress.ch,
+        title: `${selectedStatusBook} ${inProgress.ch}장`,
+        desc: `📖 ${inProgress.readVerses}/${inProgress.totalVerses}절 읽는 중 (이어서 읽기)`,
+        actionText: '이어서 읽기 >',
+      };
+    }
+    const firstUnread = statusBookStats.list.find((c) => c.status === 'unread');
+    if (firstUnread) {
+      return {
+        ch: firstUnread.ch,
+        title: `${selectedStatusBook} ${firstUnread.ch}장`,
+        desc: '⚡ 다음 읽을 말씀',
+        actionText: '읽기 시작 >',
+      };
+    }
+    return {
+      ch: 1,
+      title: `${selectedStatusBook} ${statusBookStats.total}장 전장 완독 달성! 🎉`,
+      desc: '축하합니다! 완독을 완료하셨습니다.',
+      actionText: '다시 읽기 >',
+    };
+  }, [selectedStatusBook, statusBookStats]);
 
   // ==========================================
   // SCREEN A: 통독 분량 전체보기 - 상세 진도표 (사용자 업로드 이미지 화면)
@@ -964,12 +1040,12 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
   }
 
   // ==========================================
-  // SCREEN B: 읽기 계획 현황 (4번 이미지 화면과 100% 동일하게 구현)
+  // SCREEN B: 읽기 계획 현황 (1번 인터랙티브 필터 탭 & 스마트 진도표 적용)
   // ==========================================
   if (subScreen === 'chapter-grid') {
     return (
       <div className="flex-1 flex flex-col h-full bg-[#f4f7fb] relative overflow-hidden select-none text-slate-800">
-        {/* Top Header (Deep Blue #1b64b9 - 4번 이미지) */}
+        {/* Top Header (Deep Blue #1b64b9) */}
         <header className="bg-[#1b64b9] text-white px-3 py-3 flex items-center justify-between shadow-md z-30 flex-shrink-0">
           <button
             type="button"
@@ -979,90 +1055,356 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           >
             <ChevronLeft className="w-6 h-6 text-white stroke-[2.5]" />
           </button>
-          <h1 className="text-base sm:text-lg font-black tracking-tight text-white flex-1 text-center -ml-6">
+          <h1 className="text-base sm:text-lg font-black tracking-tight text-white flex-1 text-center -ml-2">
             읽기 계획 현황
           </h1>
-          <div className="w-6" />
+          <button
+            type="button"
+            onClick={() => setShowBookSelectorModal(true)}
+            className="px-2.5 py-1 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition cursor-pointer flex items-center gap-1 flex-shrink-0"
+            title="66권 성경 선택"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">성경 변경</span>
+          </button>
         </header>
 
         {/* Main Content Area */}
         <div className="flex-1 overflow-y-auto px-4 py-4 pb-28 smooth-scroll">
-          {/* Main White Card (4번 이미지 메인 그리드) */}
+          {/* Main White Card (성경 선택, 진도율, 필터 탭, 챕터 그리드) */}
           <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-100 max-w-md mx-auto">
-            {/* 6-Column Chapter Number Circle Grid (1..50 - 4번 이미지와 100% 동일) */}
-            <div className="grid grid-cols-6 gap-2.5 sm:gap-3 justify-items-center py-2">
-              {Array.from({ length: currentStatusBookObj?.chaptersCount || 50 }, (_, i) => i + 1).map((ch) => {
-                const isDone = isChapterFullyRead(selectedStatusBook, ch, completedVerses);
-                const readCount = getChapterReadVersesCount(selectedStatusBook, ch);
-                const isReading = !isDone && readCount > 0;
+            {/* 1. 성경 책 전환 바 및 진도율 요약 */}
+            <div className="flex items-center justify-between mb-2">
+              <button
+                type="button"
+                disabled={currentBookIdx <= 0}
+                onClick={() => {
+                  if (currentBookIdx > 0) {
+                    setSelectedStatusBook(BIBLE_BOOKS[currentBookIdx - 1].name);
+                    setStatusChapterFilter('all');
+                  }
+                }}
+                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-25 disabled:pointer-events-none text-slate-700 transition cursor-pointer active:scale-95"
+                title="이전 성경으로 이동"
+              >
+                <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
+              </button>
 
-                return (
-                  <button
-                    key={ch}
-                    type="button"
-                    onClick={() => {
-                      onNavigateToBible(selectedStatusBook, ch, 1);
-                    }}
-                    className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-sm sm:text-base font-extrabold transition-all cursor-pointer active:scale-90 relative ${
-                      isDone
-                        ? 'bg-[#05c46b] text-white font-black shadow-xs ring-2 ring-emerald-300'
-                        : isReading
-                        ? 'bg-[#fff9db] border-2 border-[#fcc419] text-slate-800 font-black shadow-2xs'
-                        : 'bg-[#f1f4f9] hover:bg-slate-200 text-slate-800 font-bold'
-                    }`}
-                    title={`${selectedStatusBook} ${ch}장 본문 이동 (${isDone ? '완독' : isReading ? `${readCount}절 읽는 중` : '미완료'})`}
-                  >
-                    <span>{ch}</span>
-                    {isDone && (
-                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#059669] text-white flex items-center justify-center text-[8px] font-black shadow-xs">
-                        ✓
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Read Verses Legend (4번 이미지 하단 범례) */}
-            <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600 font-bold">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#05c46b] inline-block" />
-                  <span className="text-slate-700">완독</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#fcc419] inline-block" />
-                  <span className="text-slate-700">읽는 중</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full border border-slate-400 bg-white inline-block" />
-                  <span className="text-slate-700">미완료</span>
-                </div>
+              <div
+                onClick={() => setShowBookSelectorModal(true)}
+                className="text-center cursor-pointer group hover:opacity-90 transition px-2 py-1 rounded-xl hover:bg-slate-50"
+                title="클릭하여 다른 성경책 선택"
+              >
+                <h2 className="text-lg sm:text-xl font-black text-slate-900 flex items-center justify-center gap-1.5">
+                  <span>{selectedStatusBook}</span>
+                  <span className="text-[11px] font-bold text-slate-400 group-hover:text-[#1b64b9] transition-colors">
+                    ▼
+                  </span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-[#1b64b9] font-black border border-blue-200/60 ml-1">
+                    {currentStatusBookObj.testament === 'OT' ? '구약' : '신약'} {currentStatusBookObj.chaptersCount}장
+                  </span>
+                </h2>
+                <p className="text-xs font-bold text-slate-500 mt-1">
+                  완독 진도: <strong className="text-[#05c46b] font-black">{statusBookStats.doneCount}</strong> / {statusBookStats.total}장 ({statusBookStats.percent}%)
+                </p>
               </div>
 
-              <span className="text-xs font-black text-[#1b64b9]">
+              <button
+                type="button"
+                disabled={currentBookIdx >= BIBLE_BOOKS.length - 1}
+                onClick={() => {
+                  if (currentBookIdx < BIBLE_BOOKS.length - 1) {
+                    setSelectedStatusBook(BIBLE_BOOKS[currentBookIdx + 1].name);
+                    setStatusChapterFilter('all');
+                  }
+                }}
+                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-25 disabled:pointer-events-none text-slate-700 transition cursor-pointer active:scale-95"
+                title="다음 성경으로 이동"
+              >
+                <ChevronRight className="w-5 h-5 stroke-[2.5]" />
+              </button>
+            </div>
+
+            {/* 2. 권별 진도율 프로그레스 바 */}
+            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-4">
+              <div
+                className="bg-[#05c46b] h-full rounded-full transition-all duration-300"
+                style={{ width: `${statusBookStats.percent}%` }}
+              />
+            </div>
+
+            {/* 3. [1번 핵심] 선택형 필터 탭 (전체 | 완독 | 읽는 중 | 미완료) */}
+            <div className="grid grid-cols-4 gap-1.5 p-1 bg-slate-100 rounded-2xl mb-4 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setStatusChapterFilter('all')}
+                className={`py-2 px-1 rounded-xl transition cursor-pointer flex flex-col items-center justify-center active:scale-95 ${
+                  statusChapterFilter === 'all'
+                    ? 'bg-white text-slate-900 font-black shadow-xs ring-1 ring-slate-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>전체</span>
+                <span className="text-[11px] font-black text-slate-800">{statusBookStats.total}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusChapterFilter('done')}
+                className={`py-2 px-1 rounded-xl transition cursor-pointer flex flex-col items-center justify-center active:scale-95 ${
+                  statusChapterFilter === 'done'
+                    ? 'bg-[#05c46b] text-white font-black shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#05c46b] inline-block" />
+                  완독
+                </span>
+                <span className={`text-[11px] font-black ${statusChapterFilter === 'done' ? 'text-white' : 'text-emerald-600'}`}>
+                  {statusBookStats.doneCount}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusChapterFilter('reading')}
+                className={`py-2 px-1 rounded-xl transition cursor-pointer flex flex-col items-center justify-center active:scale-95 ${
+                  statusChapterFilter === 'reading'
+                    ? 'bg-[#f59f00] text-white font-black shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#fcc419] inline-block" />
+                  읽는 중
+                </span>
+                <span className={`text-[11px] font-black ${statusChapterFilter === 'reading' ? 'text-white' : 'text-amber-600'}`}>
+                  {statusBookStats.readingCount}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusChapterFilter('unread')}
+                className={`py-2 px-1 rounded-xl transition cursor-pointer flex flex-col items-center justify-center active:scale-95 ${
+                  statusChapterFilter === 'unread'
+                    ? 'bg-slate-700 text-white font-black shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full border border-slate-400 bg-white inline-block" />
+                  미완료
+                </span>
+                <span className={`text-[11px] font-black ${statusChapterFilter === 'unread' ? 'text-white' : 'text-slate-500'}`}>
+                  {statusBookStats.unreadCount}
+                </span>
+              </button>
+            </div>
+
+            {/* 4. 6-Column Chapter Number Circle Grid */}
+            {filteredStatusChapters.length === 0 ? (
+              <div className="py-10 text-center text-slate-400">
+                <p className="text-xs sm:text-sm font-bold">
+                  {statusChapterFilter === 'done' && '아직 완독한 장이 없습니다.'}
+                  {statusChapterFilter === 'reading' && '현재 읽는 중인 장이 없습니다.'}
+                  {statusChapterFilter === 'unread' && '모든 장을 완독하셨습니다! 🎉'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setStatusChapterFilter('all')}
+                  className="mt-3 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
+                >
+                  전체 보기로 돌아가기
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-6 gap-2.5 sm:gap-3 justify-items-center py-2">
+                {filteredStatusChapters.map((item) => {
+                  const isDone = item.status === 'done';
+                  const isReading = item.status === 'reading';
+
+                  return (
+                    <button
+                      key={item.ch}
+                      type="button"
+                      onClick={() => {
+                        onNavigateToBible(selectedStatusBook, item.ch, 1);
+                      }}
+                      className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex flex-col items-center justify-center text-sm sm:text-base font-extrabold transition-all cursor-pointer active:scale-90 relative ${
+                        isDone
+                          ? 'bg-[#05c46b] text-white font-black shadow-xs ring-2 ring-emerald-300'
+                          : isReading
+                          ? 'bg-[#fff9db] border-2 border-[#fcc419] text-slate-900 font-black shadow-2xs'
+                          : 'bg-[#f1f4f9] hover:bg-slate-200 text-slate-800 font-bold'
+                      }`}
+                      title={`${selectedStatusBook} ${item.ch}장 본문 이동 (${
+                        isDone ? '완독' : isReading ? `${item.readVerses}/${item.totalVerses}절 읽는 중` : '미완료'
+                      })`}
+                    >
+                      <span className={isReading ? 'text-xs sm:text-sm font-black -mt-0.5' : ''}>
+                        {item.ch}
+                      </span>
+                      {isReading && (
+                        <span className="text-[9px] font-black text-amber-700 leading-none">
+                          {item.readVerses}절
+                        </span>
+                      )}
+                      {isDone && (
+                        <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#059669] text-white flex items-center justify-center text-[8px] font-black shadow-xs">
+                          ✓
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 5. Read Verses Legend (하단 범례 - 클릭 시 해당 필터로 즉시 전환) */}
+            <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600 font-bold">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setStatusChapterFilter('done')}
+                  className="flex items-center gap-1.5 hover:opacity-80 cursor-pointer"
+                  title="완독된 장만 필터링"
+                >
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#05c46b] inline-block" />
+                  <span className={statusChapterFilter === 'done' ? 'text-emerald-700 font-black' : 'text-slate-700'}>
+                    완독
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusChapterFilter('reading')}
+                  className="flex items-center gap-1.5 hover:opacity-80 cursor-pointer"
+                  title="읽는 중인 장만 필터링"
+                >
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#fcc419] inline-block" />
+                  <span className={statusChapterFilter === 'reading' ? 'text-amber-700 font-black' : 'text-slate-700'}>
+                    읽는 중
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusChapterFilter('unread')}
+                  className="flex items-center gap-1.5 hover:opacity-80 cursor-pointer"
+                  title="미완료 장만 필터링"
+                >
+                  <span className="w-2.5 h-2.5 rounded-full border border-slate-400 bg-white inline-block" />
+                  <span className={statusChapterFilter === 'unread' ? 'text-slate-900 font-black' : 'text-slate-700'}>
+                    미완료
+                  </span>
+                </button>
+              </div>
+
+              <span className="text-[11px] font-black text-[#1b64b9]">
                 장 터치 시 본문 이동
               </span>
             </div>
           </div>
 
-          {/* Bottom Card: 현재 통독 진행 / 창세기 1장 말씀 읽기 / 읽기 이동 > (4번 이미지 하단 카드) */}
+          {/* 6. Bottom Card: 스마트 맞춤 이어읽기 (읽는 중 우선, 다음 미완료 장 안내) */}
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between mt-3.5 max-w-md mx-auto">
-            <div>
-              <p className="text-xs font-bold text-slate-500">현재 통독 진행</p>
-              <h3 className="text-sm sm:text-base font-black text-slate-900 mt-0.5">
-                {selectedStatusBook} 1장 말씀 읽기
+            <div className="min-w-0 pr-2">
+              <p className="text-xs font-bold text-slate-500">
+                {smartStatusResume.desc}
+              </p>
+              <h3 className="text-sm sm:text-base font-black text-slate-900 mt-0.5 truncate">
+                {smartStatusResume.title}
               </h3>
             </div>
             <button
               type="button"
-              onClick={() => onNavigateToBible(selectedStatusBook, 1, 1)}
-              className="px-4 py-2.5 bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm rounded-xl transition shadow-xs cursor-pointer"
+              onClick={() => onNavigateToBible(selectedStatusBook, smartStatusResume.ch, 1)}
+              className="px-4 py-2.5 bg-[#1b64b9] hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm rounded-xl transition shadow-xs cursor-pointer flex-shrink-0"
             >
-              읽기 이동 &gt;
+              {smartStatusResume.actionText}
             </button>
           </div>
         </div>
+
+        {/* 7. Quick Book Selector Modal (66권 선택 팝업) */}
+        {showBookSelectorModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+            <div className="bg-white rounded-3xl p-5 shadow-2xl border border-slate-200 w-full max-w-md max-h-[85vh] flex flex-col animate-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-1.5">
+                  <BookOpen className="w-5 h-5 text-[#1b64b9]" />
+                  <h3 className="text-base font-black text-slate-900">성경 선택 (66권)</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowBookSelectorModal(false)}
+                  className="p-1 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5 stroke-[2.5]" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto py-3 space-y-4 pr-1">
+                <div>
+                  <h4 className="text-xs font-black text-[#1b64b9] mb-2 px-1 flex items-center justify-between">
+                    <span>구약 (39권)</span>
+                    <span className="text-[10px] text-slate-400 font-semibold">창세기 ~ 말라기</span>
+                  </h4>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {BIBLE_BOOKS.filter((b) => b.testament === 'OT').map((b) => (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedStatusBook(b.name);
+                          setStatusChapterFilter('all');
+                          setShowBookSelectorModal(false);
+                        }}
+                        className={`py-2 px-1 rounded-xl text-xs font-bold transition cursor-pointer truncate ${
+                          selectedStatusBook === b.name
+                            ? 'bg-[#1b64b9] text-white font-black shadow-xs ring-2 ring-blue-300'
+                            : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                        }`}
+                        title={`${b.name} (${b.chaptersCount}장)`}
+                      >
+                        {b.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-black text-emerald-700 mb-2 px-1 flex items-center justify-between">
+                    <span>신약 (27권)</span>
+                    <span className="text-[10px] text-slate-400 font-semibold">마태복음 ~ 요한계시록</span>
+                  </h4>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {BIBLE_BOOKS.filter((b) => b.testament === 'NT').map((b) => (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedStatusBook(b.name);
+                          setStatusChapterFilter('all');
+                          setShowBookSelectorModal(false);
+                        }}
+                        className={`py-2 px-1 rounded-xl text-xs font-bold transition cursor-pointer truncate ${
+                          selectedStatusBook === b.name
+                            ? 'bg-[#1b64b9] text-white font-black shadow-xs ring-2 ring-blue-300'
+                            : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                        }`}
+                        title={`${b.name} (${b.chaptersCount}장)`}
+                      >
+                        {b.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {renderModals()}
       </div>
     );
