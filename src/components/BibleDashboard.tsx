@@ -29,6 +29,7 @@ import { ChallengeView } from './ChallengeView';
 import { SettingsView } from './SettingsView';
 import { BibleSelectorView } from './BibleSelectorView';
 import { AdminBibleManagementView } from './AdminBibleManagementView';
+import { HymnView } from './HymnView';
 
 interface BibleDashboardProps {
   user: User;
@@ -217,7 +218,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
       className="w-full h-full bg-white flex flex-col relative overflow-hidden select-none z-20 text-slate-800"
     >
       {/* Top App Header (Brand Logo, Search, User Avatar) */}
-      {activeTab !== 'bible' && activeTab !== 'admin' && (
+      {activeTab !== 'bible' && activeTab !== 'admin' && activeTab !== 'hymn' && (
         <header className="flex-shrink-0 bg-white border-b border-slate-100 z-30 px-4 pt-2.5 pb-2 flex items-center justify-between">
           {/* Brand: 수퍼바이블 */}
           <button
@@ -741,6 +742,17 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
         )
       )}
 
+      {activeTab === 'hymn' && (
+        <HymnView
+          onBackToHome={() => setActiveTab('home')}
+          onNavigateToBible={(book, chapter, verse) => {
+            setReaderLocation({ book, chapter: chapter || 1, verse: verse || 1 });
+            setBibleSubView('reader');
+            setActiveTab('bible');
+          }}
+        />
+      )}
+
       {activeTab === 'stats' && (
         <StatsView
           user={user}
@@ -842,7 +854,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
       )}
 
       {/* Floating Microphone Button with Badge 'N' */}
-      {activeTab !== 'bible' && activeTab !== 'admin' && (
+      {activeTab !== 'bible' && activeTab !== 'admin' && activeTab !== 'hymn' && (
         <aside className="absolute right-5 bottom-[70px] z-40">
           <div className="relative">
             <button
@@ -894,10 +906,10 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
         {/* Tab 3: 찬송 */}
         <button
           type="button"
-          onClick={() => {
-            alert('찬송가 645곡 전곡 및 새찬송가 묵상 준비 완료');
-          }}
-          className="flex flex-col items-center justify-center py-1 px-3 transition-colors cursor-pointer text-slate-500 hover:text-slate-800"
+          onClick={() => setActiveTab('hymn')}
+          className={`flex flex-col items-center justify-center py-1 px-3 transition-colors cursor-pointer ${
+            activeTab === 'hymn' ? 'text-[#0083e3]' : 'text-slate-500 hover:text-slate-800'
+          }`}
         >
           <Music className="w-5 h-5" />
           <span className="text-[11px] font-medium mt-1 whitespace-nowrap">찬송</span>
