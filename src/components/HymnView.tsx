@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ChevronLeft,
   Search,
   Music,
   Star,
+  Play,
+  Pause,
   BookOpen,
   X,
   ChevronRight,
@@ -13,6 +15,8 @@ import {
   RefreshCw,
   FileText,
   ExternalLink,
+  Upload,
+  Trash2,
 } from 'lucide-react';
 import {
   Hymn,
@@ -24,6 +28,11 @@ import {
   addRecentHymn,
 } from '../data/hymnData';
 import { getHymnScoreUrl } from '../data/hymnScoreUrls';
+import {
+  getHymnAudioBlob,
+  saveHymnAudioFile,
+  deleteHymnAudioFile,
+} from '../utils/hymnAudioStorage';
 
 interface HymnViewProps {
   onBackToHome?: () => void;
@@ -64,6 +73,173 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
 
   // Lyrics font size
   const [fontSizePt, setFontSizePt] = useState<number>(17);
+
+  // Real MP3 Audio Player State
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const currentObjectUrlRef = useRef<string | null>(null);
+
+  const [audioSrc, setAudioSrc] = useState<string | null>(null);
+  const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [duration, setDuration] = useState<number>(0);
+  const [audioSourceType, setAudioSourceType] = useState<'bundled' | 'user' | null>(null);
+  const [hasAudio, setHasAudio] = useState<boolean>(false);
+  const [isAudioLoading, setIsAudioLoading] = useState<boolean>(false);
+
+  // Load audio source when hymn changes
+  const loadAudioForHymn = async (hymn: Hymn) => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    if (currentObjectUrlRef.current) {
+      URL.revokeObjectURL(currentObjectUrlRef.current);
+      currentObjectUrlRef.current = null;
+    }
+
+    setIsPlayingAudio(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setAudioSrc(null);
+    setAudioSourceType(null);
+    setHasAudio(false);
+    setIsAudioLoading(true);
+
+    try {
+      // 1. Check user-saved MP3 from IndexedDB
+      const stored = await getHymnAudioBlob(hymn.number);
+      if (stored && stored.blob) {
+        const objUrl = URL.createObjectURL(stored.blob);
+        currentObjectUrlRef.current = objUrl;
+        setAudioSrc(objUrl);
+        setAudioSourceType('user');
+        setHasAudio(true);
+        setIsAudioLoading(false);
+        return;
+      }
+
+      // 2. Check bundled server MP3 (/hymns/{number}.mp3)
+      if (hymn.number === 1) {
+        const bundledUrl = `/hymns/${hymn.number}.mp3`;
+        setAudioSrc(bundledUrl);
+        setAudioSourceType('bundled');
+        setHasAudio(true);
+        setIsAudioLoading(false);
+        return;
+      }
+
+      // 3. Dynamic check for other bundled hymns
+      try {
+        const res = await fetch(`/hymns/${hymn.number}.mp3`, { method: 'HEAD' });
+        const cType = res.headers.get('content-type') || '';
+        if (res.ok && !cType.includes('text/html')) {
+          setAudioSrc(`/hymns/${hymn.number}.mp3`);
+          setAudioSourceType('bundled');
+          setHasAudio(true);
+          setIsAudioLoading(false);
+          return;
+        }
+      } catch (e) {
+        // Not found
+      }
+
+      setHasAudio(false);
+    } catch (err) {
+      console.warn('Error loading audio:', err);
+      setHasAudio(false);
+    } finally {
+      setIsAudioLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedHymn) {
+      loadAudioForHymn(selectedHymn);
+    } else {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      if (currentObjectUrlRef.current) {
+        URL.revokeObjectURL(currentObjectUrlRef.current);
+        currentObjectUrlRef.current = null;
+      }
+      setIsPlayingAudio(false);
+    }
+  }, [selectedHymn?.number]);
+
+  useEffect(() => {
+    return () => {
+      if (currentObjectUrlRef.current) {
+        URL.revokeObjectURL(currentObjectUrlRef.current);
+      }
+    };
+  }, []);
+
+  const togglePlayAudio = () => {
+    if (!audioRef.current || !audioSrc) return;
+    if (isPlayingAudio) {
+      audioRef.current.pause();
+      setIsPlayingAudio(false);
+    } else {
+      audioRef.current
+        .play()
+        .then(() => setIsPlayingAudio(true))
+        .catch((err) => {
+          console.warn('Playback error:', err);
+        });
+    }
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = parseFloat(e.target.value);
+    setCurrentTime(time);
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    if (isNaN(seconds) || seconds < 0) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedHymn) return;
+
+    try {
+      await saveHymnAudioFile(selectedHymn.number, file);
+      if (currentObjectUrlRef.current) {
+        URL.revokeObjectURL(currentObjectUrlRef.current);
+      }
+      const objUrl = URL.createObjectURL(file);
+      currentObjectUrlRef.current = objUrl;
+      setAudioSrc(objUrl);
+      setAudioSourceType('user');
+      setHasAudio(true);
+      if (audioRef.current) {
+        audioRef.current.src = objUrl;
+        audioRef.current
+          .play()
+          .then(() => setIsPlayingAudio(true))
+          .catch(() => {});
+      }
+    } catch (err) {
+      console.error('Failed to save hymn audio file:', err);
+      alert('음원 파일 등록 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleDeleteUserAudio = async () => {
+    if (!selectedHymn) return;
+    if (window.confirm(`새찬송가 ${selectedHymn.number}장에 등록된 내 MP3 음원을 삭제하시겠습니까?`)) {
+      await deleteHymnAudioFile(selectedHymn.number);
+      loadAudioForHymn(selectedHymn);
+    }
+  };
 
   // Update favorites list
   const handleToggleFav = (num: number, e?: React.MouseEvent) => {
@@ -191,7 +367,7 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
       </header>
 
       {/* ========================================================= */}
-      {/* 2. HYMN DETAIL VIEW (정식 악보 & 가사 뷰어) */}
+      {/* 2. HYMN DETAIL VIEW (정식 악보 & 가사 뷰어 및 실제 MP3 재생기) */}
       {/* ========================================================= */}
       {selectedHymn ? (
         <div className="flex-1 flex flex-col overflow-hidden bg-white">
@@ -220,21 +396,160 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
                 {selectedHymn.title}
               </h2>
             </div>
-
-            {/* YouTube Real Performance Audio Link */}
-            <div className="flex items-center gap-2">
-              <a
-                href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`새찬송가 ${selectedHymn.number}장 ${selectedHymn.title}`)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-black flex items-center gap-1.5 transition cursor-pointer shadow-xs active:scale-95"
-                title="유튜브에서 성가대/찬양단 실제 고음질 찬양 감상"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                <span>실제 찬양 듣기</span>
-              </a>
-            </div>
           </div>
+
+          {/* ========================================================= */}
+          {/* REAL MP3 AUDIO PLAYER BAR */}
+          {/* ========================================================= */}
+          <audio
+            ref={audioRef}
+            src={audioSrc || undefined}
+            onTimeUpdate={() => {
+              if (audioRef.current) setCurrentTime(audioRef.current.currentTime);
+            }}
+            onLoadedMetadata={() => {
+              if (audioRef.current) setDuration(audioRef.current.duration);
+            }}
+            onEnded={() => {
+              setIsPlayingAudio(false);
+              setCurrentTime(0);
+            }}
+            onError={() => {
+              setIsPlayingAudio(false);
+            }}
+          />
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="audio/mp3,audio/*"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+
+          {hasAudio ? (
+            <div className="bg-slate-900 text-white px-3 sm:px-4 py-2.5 flex items-center justify-between border-b border-slate-800 shadow-inner flex-wrap gap-2">
+              {/* Play / Pause button & Track info */}
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={togglePlayAudio}
+                  className="w-10 h-10 rounded-full bg-[#05c46b] hover:bg-emerald-500 text-white flex items-center justify-center shadow-md transition cursor-pointer active:scale-95 flex-shrink-0"
+                  title={isPlayingAudio ? '일시 정지' : '실제 찬송가 음원 재생'}
+                >
+                  {isPlayingAudio ? (
+                    <Pause className="w-5 h-5 fill-white" />
+                  ) : (
+                    <Play className="w-5 h-5 ml-0.5 fill-white" />
+                  )}
+                </button>
+
+                <div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-black text-emerald-300 bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-500/40">
+                      {audioSourceType === 'user' ? '내 MP3 음원' : '고음질 정품 찬양 음원'}
+                    </span>
+                    <span className="text-xs font-bold text-white">
+                      {selectedHymn.title}
+                    </span>
+                  </div>
+                  <div className="text-[11px] font-mono text-slate-400 mt-0.5 flex items-center gap-1">
+                    <span>{formatTime(currentTime)}</span>
+                    <span>/</span>
+                    <span>{formatTime(duration || 0)}</span>
+                    {isPlayingAudio && (
+                      <span className="text-[10px] text-emerald-400 font-bold ml-1.5 animate-pulse">
+                        ● 재생 중
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Seek slider */}
+              <div className="flex-1 min-w-[120px] max-w-xs sm:max-w-md mx-2">
+                <input
+                  type="range"
+                  min={0}
+                  max={duration || 100}
+                  step={0.1}
+                  value={currentTime}
+                  onChange={handleSeek}
+                  className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-[#05c46b]"
+                />
+              </div>
+
+              {/* Action buttons: Replace/Delete & YouTube */}
+              <div className="flex items-center gap-1.5">
+                {audioSourceType === 'user' && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteUserAudio}
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-red-900/60 text-slate-400 hover:text-red-300 transition cursor-pointer"
+                    title="등록된 내 MP3 삭제"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold border border-slate-700 transition cursor-pointer active:scale-95 flex items-center gap-1"
+                  title="다른 MP3 파일로 변경/등록"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">MP3 변경</span>
+                </button>
+                <a
+                  href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`새찬송가 ${selectedHymn.number}장 ${selectedHymn.title}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1.5 rounded-xl bg-red-600/90 hover:bg-red-600 text-white text-xs font-bold transition cursor-pointer active:scale-95 flex items-center gap-1"
+                  title="유튜브에서 다른 찬양 실황 보기"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">유튜브</span>
+                </a>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-slate-900 text-white px-3 sm:px-4 py-2 flex items-center justify-between border-b border-slate-800 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 bg-slate-800 rounded-lg text-slate-400">
+                  <Music className="w-4 h-4" />
+                </span>
+                <div>
+                  <p className="text-xs font-bold text-slate-200">
+                    찬송가 MP3 음원을 직접 연결하여 재생할 수 있습니다
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    소장하고 계신 MP3 파일을 등록하시면 언제든 고음질로 즉시 재생됩니다
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black flex items-center gap-1.5 transition cursor-pointer active:scale-95 shadow-xs"
+                  title="내 컴퓨터/휴대폰의 MP3 파일 등록"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>내 MP3 음원 연결</span>
+                </button>
+                <a
+                  href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`새찬송가 ${selectedHymn.number}장 ${selectedHymn.title}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-black flex items-center gap-1.5 transition cursor-pointer active:scale-95 shadow-xs"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>유튜브 실황 듣기</span>
+                </a>
+              </div>
+            </div>
+          )}
 
           {/* View Mode Toggle: 🎼 악보 보기 vs 📝 가사 보기 */}
           <div className="bg-white border-b border-slate-200 px-3 sm:px-4 py-2 flex items-center justify-between flex-shrink-0">
@@ -450,6 +765,16 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {hasAudio && (
+                    <button
+                      type="button"
+                      onClick={togglePlayAudio}
+                      className="px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 bg-[#05c46b] hover:bg-emerald-500 text-white transition cursor-pointer shadow-xs active:scale-95"
+                    >
+                      {isPlayingAudio ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
+                      <span>{isPlayingAudio ? '일시 정지' : '음원 재생'}</span>
+                    </button>
+                  )}
                   <a
                     href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`새찬송가 ${selectedHymn.number}장 ${selectedHymn.title}`)}`}
                     target="_blank"
@@ -673,6 +998,15 @@ export const HymnView: React.FC<HymnViewProps> = ({ onBackToHome, onNavigateToBi
                             <Music className="w-2.5 h-2.5 text-blue-600" />
                             악보
                           </span>
+                          {hymn.number === 1 && (
+                            <>
+                              <span className="text-slate-300">•</span>
+                              <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-300/60 flex items-center gap-0.5">
+                                <Play className="w-2.5 h-2.5 fill-emerald-600 text-emerald-600" />
+                                MP3 음원 수록
+                              </span>
+                            </>
+                          )}
                           {hymn.scripture && (
                             <>
                               <span className="text-slate-300">•</span>
