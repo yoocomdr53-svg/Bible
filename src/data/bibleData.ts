@@ -757,12 +757,65 @@ export function getOldTestamentStats(): { completedCount: number; totalCount: nu
 
 // 전체 성경 통독(66권, 총 1,189장) 실시간 실제 진행률 계산
 export function getTotalBibleStats(): { completedCount: number; totalCount: number; percent: number } {
-  const nt = getNewTestamentStats();
-  const ot = getOldTestamentStats();
-  const completedCount = nt.completedCount + ot.completedCount;
-  const totalCount = 1189; // 구약 929장 + 신약 260장
-  const percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  return getSingleRoundBibleStats();
+}
+
+export const READINGS_COUNT_KEY = 'superbible_completed_readings_count_v1';
+
+export function getCompletedReadingsCount(): number {
+  try {
+    const raw = localStorage.getItem(READINGS_COUNT_KEY);
+    return raw !== null ? Math.max(0, parseInt(raw, 10)) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+// 1. 일독 1,189장 실시간 진행률 (1,189장 완독 시 100%)
+export function getSingleRoundBibleStats(): { completedCount: number; totalCount: number; percent: number } {
+  const currentVerses = getCompletedVerses();
+  const currentChapters = getCompletedChapters();
+  let completedCount = 0;
+  const totalCount = 1189;
+
+  for (const b of BIBLE_BOOKS) {
+    for (let ch = 1; ch <= b.chaptersCount; ch++) {
+      if (currentChapters.has(`${b.name}-${ch}`) || isChapterFullyRead(b.name, ch, currentVerses)) {
+        completedCount++;
+      }
+    }
+  }
+
+  const raw = (completedCount / totalCount) * 100;
+  const percent =
+    completedCount >= totalCount ? 100 : completedCount <= 0 ? 0 : raw < 10 ? Number(raw.toFixed(1)) : Math.round(raw);
   return { completedCount, totalCount, percent };
+}
+
+// 2. 통독 12목표 전체 진행률 (총 12독 = 14,268장 완독 시 100%)
+export function getGoal12TotalStats(): {
+  completedReadingsCount: number;
+  totalCumChapters: number;
+  totalGoalChapters: number;
+  percent: number;
+} {
+  const single = getSingleRoundBibleStats();
+  const completedReadingsCount = getCompletedReadingsCount();
+  const totalGoalChapters = 14268; // 12독 = 1,189장 * 12
+  const totalCumChapters = Math.min(
+    totalGoalChapters,
+    completedReadingsCount * 1189 + single.completedCount
+  );
+  const raw = (totalCumChapters / totalGoalChapters) * 100;
+  const percent =
+    totalCumChapters >= totalGoalChapters
+      ? 100
+      : totalCumChapters <= 0
+      ? 0
+      : raw < 10
+      ? Number(raw.toFixed(1))
+      : Math.round(raw);
+  return { completedReadingsCount, totalCumChapters, totalGoalChapters, percent };
 }
 
 // 현재 읽는 중인 위치 (책, 장) - 기본값: 출애굽기 24장

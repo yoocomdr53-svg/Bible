@@ -25,9 +25,8 @@ import {
   getBibleAbbreviation,
   getCurrentReadingLocation,
   saveCurrentReadingLocation,
-  getNewTestamentStats,
-  getOldTestamentStats,
-  getTotalBibleStats,
+  getSingleRoundBibleStats,
+  getGoal12TotalStats,
   getTodayReadCount,
 } from '../data/bibleData';
 import { BibleReaderView } from './BibleReaderView';
@@ -86,32 +85,17 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
   });
 
   // Real-time actual reading & recitation progress
-  const [ntStats, setNtStats] = useState(getNewTestamentStats);
-  const [otStats, setOtStats] = useState(getOldTestamentStats);
-  const [totalStats, setTotalStats] = useState(getTotalBibleStats);
+  // 1) 일독 1,189장 실시간 진행률 (1,189장 완독 시 100%)
+  const [singleRoundStats, setSingleRoundStats] = useState(getSingleRoundBibleStats);
+  // 2) 통독 12목표 전체 진행률 (총 12독 = 14,268장 완독 시 100%)
+  const [goal12Stats, setGoal12Stats] = useState(getGoal12TotalStats);
+  // 3) 오늘 읽은/낭독한 말씀 장수
   const [todayReadCount, setTodayReadCount] = useState(getTodayReadCount);
-
-  // Selected view for 통독 진행률: 'OT' (구약) | 'NT' (신약) | 'ALL' (전체)
-  const [testamentMode, setTestamentMode] = useState<'OT' | 'NT' | 'ALL'>(() => {
-    try {
-      const saved = localStorage.getItem('superbible_home_testament_mode');
-      if (saved === 'OT' || saved === 'NT' || saved === 'ALL') return saved;
-    } catch (e) {}
-    return 'OT'; // 기본값: 구약 통독 (현재 출애굽기 24장 읽는 중)
-  });
-
-  const handleTestamentChange = (mode: 'OT' | 'NT' | 'ALL') => {
-    setTestamentMode(mode);
-    try {
-      localStorage.setItem('superbible_home_testament_mode', mode);
-    } catch (e) {}
-  };
 
   useEffect(() => {
     const handleProgressSync = () => {
-      setNtStats(getNewTestamentStats());
-      setOtStats(getOldTestamentStats());
-      setTotalStats(getTotalBibleStats());
+      setSingleRoundStats(getSingleRoundBibleStats());
+      setGoal12Stats(getGoal12TotalStats());
       setTodayReadCount(getTodayReadCount());
     };
     window.addEventListener('superbible_verse_read_changed', handleProgressSync);
@@ -262,25 +246,6 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
     setBibleSubView('reader');
   };
 
-  const activeStat =
-    testamentMode === 'NT'
-      ? {
-          label: '신약 통독',
-          stats: ntStats,
-          color: 'bg-[#0083e3]',
-        }
-      : testamentMode === 'ALL'
-      ? {
-          label: '전체 통독',
-          stats: totalStats,
-          color: 'bg-indigo-600',
-        }
-      : {
-          label: '구약 통독',
-          stats: otStats,
-          color: 'bg-[#0083e3]',
-        };
-
   return (
     <div
       id="dashboardView"
@@ -389,23 +354,23 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                   </div>
                 </div>
 
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-bold text-slate-800 truncate">{user.name}</p>
-                    <span className="inline-block bg-blue-100 text-[#0083e3] text-[10px] font-bold px-1.5 py-0.2 rounded">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-sm font-extrabold text-slate-900 whitespace-nowrap">{user.name}</span>
+                    <span className="inline-flex items-center bg-blue-100 text-[#0083e3] text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap">
                       Google 연동
                     </span>
                     {user.role === 'admin' && (
-                      <span className="inline-block bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-black px-1.5 py-0.2 rounded">
+                      <span className="inline-flex items-center bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-black px-1.5 py-0.5 rounded whitespace-nowrap">
                         👑 관리자
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-slate-500 truncate" id="dashboardUserEmail">
+                  <p className="text-[11px] text-slate-500 truncate mt-0.5" id="dashboardUserEmail">
                     {user.email}
                   </p>
-                  <p className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-0.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping" />
+                  <p className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-0.5 whitespace-nowrap">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping flex-shrink-0" />
                     클라우드 자동 동기화됨 · 방금 동기화
                   </p>
                 </div>
@@ -571,68 +536,87 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                 </span>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 pt-3 text-center">
-                {/* 1. 통독 진행률 드롭다운 카드 (구약 통독 / 신약 통독 / 전체 통독) */}
-                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col justify-between">
-                  <div className="relative inline-flex items-center justify-center mx-auto max-w-full">
-                    <select
-                      value={testamentMode}
-                      onChange={(e) => handleTestamentChange(e.target.value as 'OT' | 'NT' | 'ALL')}
-                      className="text-[10px] sm:text-[11px] font-bold text-slate-700 bg-white hover:bg-slate-100/90 pl-1.5 pr-4 py-0.5 rounded-md border border-slate-200 cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#0083e3] appearance-none text-center transition shadow-2xs"
-                      title="통독 범위 선택 (구약 통독 / 신약 통독 / 전체 통독)"
-                    >
-                      <option value="OT">구약 통독</option>
-                      <option value="NT">신약 통독</option>
-                      <option value="ALL">전체 통독</option>
-                    </select>
-                    <ChevronDown className="w-2.5 h-2.5 text-slate-500 absolute right-1 pointer-events-none" />
-                  </div>
-                  <div className="my-0.5">
-                    <p className="text-sm font-black text-slate-900">{activeStat.stats.percent}%</p>
-                    <span className="text-[9px] text-slate-400 font-medium block">
-                      {activeStat.stats.completedCount}/{activeStat.stats.totalCount}장
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 text-center">
+                {/* 1. 일독 1,189장 진행률 카드 (1,189장 완독 시 100%) */}
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col justify-between">
+                  <p className="text-[10.5px] sm:text-xs text-slate-600 font-bold truncate">일독 진행률</p>
+                  <div className="my-1">
+                    <p className="text-base sm:text-lg font-black text-[#0083e3]">
+                      {singleRoundStats.percent}%
+                    </p>
+                    <span className="text-[9.5px] text-slate-400 font-semibold block">
+                      {singleRoundStats.completedCount} / 1,189장
                     </span>
                   </div>
-                  <div className="w-full bg-slate-200 h-1 rounded-full overflow-hidden">
+                  <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
                     <div
-                      className={`${activeStat.color} h-full rounded-full transition-all duration-300`}
-                      style={{ width: `${activeStat.stats.percent}%` }}
+                      className="bg-[#0083e3] h-full rounded-full transition-all duration-300"
+                      style={{ width: `${Math.min(100, Math.max(0, singleRoundStats.percent))}%` }}
                     />
                   </div>
                 </div>
 
-                {/* 2. 오늘 읽은 말씀 카드 */}
-                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col justify-between">
-                  <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium pt-0.5">오늘 읽은 말씀</p>
-                  <div className="my-0.5">
-                    <p className="text-sm font-black text-slate-900">
+                {/* 2. 목표달성 전체 진행률 (12독 총 14,268장 완독 시 100%) */}
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col justify-between">
+                  <p className="text-[10.5px] sm:text-xs text-slate-600 font-bold truncate">목표달성 전체</p>
+                  <div className="my-1">
+                    <p className="text-base sm:text-lg font-black text-indigo-600">
+                      {goal12Stats.percent}%
+                    </p>
+                    <span className="text-[9.5px] text-slate-400 font-semibold block">
+                      {goal12Stats.totalCumChapters.toLocaleString()} / 14,268장
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                    <div
+                      className="bg-indigo-600 h-full rounded-full transition-all duration-300"
+                      style={{ width: `${Math.min(100, Math.max(0, goal12Stats.percent))}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* 3. 오늘 읽은 말씀 카드 */}
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col justify-between">
+                  <p className="text-[10.5px] sm:text-xs text-slate-600 font-bold truncate">오늘 읽은 말씀</p>
+                  <div className="my-1">
+                    <p className="text-base sm:text-lg font-black text-slate-900">
                       {todayReadCount}
-                      <span className="text-xs font-semibold text-slate-600">장</span>
+                      <span className="text-xs font-semibold text-slate-600 ml-0.5">장</span>
                     </p>
                     <span
-                      className={`text-[9px] font-bold block ${
+                      className={`text-[9.5px] font-bold block ${
                         todayReadCount > 0 ? 'text-emerald-600' : 'text-slate-400'
                       }`}
                     >
                       {todayReadCount > 0 ? '목표 달성' : '말씀 읽기 전'}
                     </span>
                   </div>
-                  <div className="w-full h-1" />
+                  <div className="w-full bg-slate-200/40 h-1.5 rounded-full overflow-hidden">
+                    <div
+                      className="bg-emerald-500 h-full rounded-full transition-all duration-300"
+                      style={{ width: todayReadCount > 0 ? '100%' : '0%' }}
+                    />
+                  </div>
                 </div>
 
-                {/* 3. 나의 녹음 낭독 카드 */}
-                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col justify-between">
-                  <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium pt-0.5">나의 녹음 낭독</p>
-                  <div className="my-0.5">
-                    <p className="text-sm font-black text-slate-900">
+                {/* 4. 나의 녹음 낭독 카드 */}
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col justify-between">
+                  <p className="text-[10.5px] sm:text-xs text-slate-600 font-bold truncate">나의 녹음 낭독</p>
+                  <div className="my-1">
+                    <p className="text-base sm:text-lg font-black text-slate-900">
                       {recordings.length}
-                      <span className="text-xs font-semibold text-slate-600">편</span>
+                      <span className="text-xs font-semibold text-slate-600 ml-0.5">편</span>
                     </p>
-                    <span className="text-[9px] text-[#0083e3] font-bold block">
+                    <span className="text-[9.5px] text-[#0083e3] font-bold block">
                       클라우드 백업됨
                     </span>
                   </div>
-                  <div className="w-full h-1" />
+                  <div className="w-full bg-slate-200/40 h-1.5 rounded-full overflow-hidden">
+                    <div
+                      className="bg-[#0083e3] h-full rounded-full transition-all duration-300"
+                      style={{ width: recordings.length > 0 ? '100%' : '0%' }}
+                    />
+                  </div>
                 </div>
               </div>
             </section>
