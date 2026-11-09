@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, Component, ReactNode, ErrorInfo } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { User, ActiveModal, BibleVerse, ReadingDayPlan, UserRecording } from './types';
 import { TODAY_VERSE, INITIAL_READING_PLANS, INITIAL_RECORDINGS, addTodayReadChapter } from './data/bibleData';
@@ -16,7 +16,7 @@ import {
 } from './services/authService';
 
 interface ErrorBoundaryProps {
-  children: React.ReactNode;
+  children: ReactNode;
   onReset?: () => void;
 }
 
@@ -25,8 +25,8 @@ interface ErrorBoundaryState {
   error?: Error;
 }
 
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
+class ErrorBoundary extends (Component as any) {
+  constructor(props: any) {
     super(props);
     this.state = { hasError: false };
   }
@@ -35,7 +35,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: any) {
     console.error('ErrorBoundary caught error:', error, errorInfo);
   }
 
