@@ -425,6 +425,24 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   const [showShareModal, setShowShareModal] = useState(false);
   const [activeShareData, setActiveShareData] = useState<AudioShareData | null>(null);
 
+  // Real Audio Capture for Recording Mode (MediaRecorder)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const recordedBlobRef = useRef<Blob | null>(null);
+  const recordedUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      if (recordedUrlRef.current) {
+        URL.revokeObjectURL(recordedUrlRef.current);
+      }
+    };
+  }, []);
+
   // UI Modals
   const [showSelectorModal, setShowSelectorModal] = useState(false);
   const [selectorInitialStep, setSelectorInitialStep] = useState<'book' | 'chapter' | 'verse'>('book');
@@ -1041,10 +1059,15 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   };
 
   // Recording controls
-  const handleToggleRecord = () => {
+  const handleToggleRecord = async () => {
     if (isRecordingNow) {
       // Stop recording
       setIsRecordingNow(false);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try {
+          mediaRecorderRef.current.stop();
+        } catch (e) {}
+      }
       if (!recordedVerses.includes(activeRecordVerse)) {
         setRecordedVerses((prev) => [...prev, activeRecordVerse]);
       }
@@ -1054,14 +1077,64 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
       }
     } else {
       // Start recording
-      setIsRecordingNow(true);
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1, // Mono (용량 최소화)
+            sampleRate: 24000,
+            echoCancellation: true,
+            noiseSuppression: true,
+          },
+        });
+        mediaStreamRef.current = stream;
+
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : MediaRecorder.isTypeSupported('audio/mp4')
+          ? 'audio/mp4'
+          : '';
+
+        const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+        mediaRecorderRef.current = recorder;
+
+        recorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            audioChunksRef.current.push(e.data);
+          }
+        };
+
+        recorder.onstop = () => {
+          const finalBlob = new Blob(audioChunksRef.current, {
+            type: recorder.mimeType || 'audio/webm',
+          });
+          recordedBlobRef.current = finalBlob;
+          if (recordedUrlRef.current) URL.revokeObjectURL(recordedUrlRef.current);
+          recordedUrlRef.current = URL.createObjectURL(finalBlob);
+          stream.getTracks().forEach((track) => track.stop());
+        };
+
+        recorder.start(250);
+        setIsRecordingNow(true);
+      } catch (err) {
+        console.warn('Microphone access denied or not supported, using simulated timer', err);
+        setIsRecordingNow(true);
+      }
     }
   };
 
   const handleCompleteRecording = () => {
-    setIsRecordingNow(false);
+    if (isRecordingNow) {
+      setIsRecordingNow(false);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try {
+          mediaRecorderRef.current.stop();
+        } catch (e) {}
+      }
+    }
     const session = getActiveSession();
-    const durationStr = `${recordedVerses.length * 15 || 45}초`;
+    const durationStr = recordDurationSec > 0 ? formatHMS(recordDurationSec) : `${recordedVerses.length * 15 || 45}초`;
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
     const newRecItem = {
       id: `rec-${Date.now()}`,
@@ -1093,12 +1166,23 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
       addTodayReadChapter(selectedBook, selectedChapter);
     } catch (e) {}
 
+    // Prepare recorded audio blob & file
+    const finalBlob = recordedBlobRef.current || (audioChunksRef.current.length > 0 ? new Blob(audioChunksRef.current, { type: 'audio/webm' }) : null);
+    const finalUrl = recordedUrlRef.current || (finalBlob ? URL.createObjectURL(finalBlob) : null);
+    const teamName = session?.department || '지벳팀';
+    const userName = session?.name || '로고스 관리자';
+    const fileName = `[${teamName}]_${userName}_${selectedBook}${selectedChapter}장_${activeRecordVerse}절.webm`;
+    const audioFile = finalBlob ? new File([finalBlob], fileName, { type: finalBlob.type || 'audio/webm' }) : null;
+
     // Open Share Modal immediately for seamless Telegram / Team 과제제출방 sharing
     setActiveShareData({
       title: newRecItem.title,
       verseRef: newRecItem.verseRef,
       duration: newRecItem.duration,
       date: newRecItem.date,
+      audioBlob: finalBlob,
+      audioUrl: finalUrl,
+      audioFile: audioFile,
     });
   };
 

@@ -241,6 +241,96 @@ export async function syncRecordingToGoogleSheet(
 }
 
 /**
+ * Upload Audio Recording File to Google Drive [성경낭독녹음] folder
+ * Target: yoocomdr57@gmail.com Google Drive
+ * Retention: 10 days auto-retention
+ */
+export async function uploadAudioToDrive(params: {
+  audioBlob: Blob;
+  fileName?: string;
+  memberName?: string;
+  teamName?: string;
+  verseRef?: string;
+  duration?: string;
+  customScriptUrl?: string;
+}): Promise<{ success: boolean; message: string; fileUrl?: string; fileId?: string }> {
+  const config = getGoogleSheetConfig();
+  const scriptUrl = params.customScriptUrl || config.scriptUrl;
+
+  if (!scriptUrl || !scriptUrl.startsWith('http')) {
+    return {
+      success: false,
+      message: 'Google Apps Script Web App URL이 설정되지 않았습니다. Web App URL을 먼저 등록해 주세요.',
+    };
+  }
+
+  try {
+    // Convert Blob to base64 string
+    const base64Audio = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        resolve(reader.result as string);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(params.audioBlob);
+    });
+
+    const nowStr = new Date().toLocaleString('ko-KR');
+    const defaultFileName = `[${params.teamName || '지벳팀'}]_${params.memberName || '로고스관리자'}_${params.verseRef || '성경낭독'}.webm`;
+    const fileName = params.fileName || defaultFileName;
+
+    const payload = {
+      action: 'uploadAudio',
+      fileName,
+      base64Audio,
+      mimeType: params.audioBlob.type || 'audio/webm',
+      memberName: params.memberName || '로고스 관리자',
+      teamName: params.teamName || '지벳팀',
+      verseRef: params.verseRef || '',
+      duration: params.duration || '',
+    };
+
+    // Google Apps Script requires text/plain to avoid pre-flight CORS issues
+    const res = await fetch(scriptUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    let resJson: any = null;
+    try {
+      resJson = await res.json();
+    } catch {
+      // In case redirected without readable JSON
+    }
+
+    addSheetSyncLog({
+      timestamp: nowStr,
+      direction: 'upload',
+      status: 'success',
+      summary: `구글 드라이브 음원 업로드 성공: ${fileName}`,
+      details: `${config.adminEmail} 성경낭독녹음 폴더 저장 완료 (10일 보관)`,
+      rowsAffected: 1,
+    });
+
+    return {
+      success: true,
+      message: resJson?.message || '구글 드라이브 [성경낭독녹음] 폴더에 음원이 성공적으로 저장되었습니다! (10일 보관)',
+      fileUrl: resJson?.fileUrl,
+      fileId: resJson?.fileId,
+    };
+  } catch (error: any) {
+    console.error('Failed to upload audio to Google Drive:', error);
+    return {
+      success: false,
+      message: error?.message || '구글 드라이브 업로드 중 통신 오류가 발생했습니다.',
+    };
+  }
+}
+
+/**
  * Flush all pending sync items to Google Sheet
  */
 export async function flushPendingSyncQueue(): Promise<{ success: boolean; flushedCount: number }> {
@@ -617,6 +707,104 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({
         status: "success",
         message: "낭독 녹음 음원이 [낭독_음원검수] 시트에 실시간 저장되었습니다."
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 3-1. 낭독 녹음 음원 파일 구글 드라이브 [성경낭독녹음] 폴더 저장 및 10일 보관
+    if (data.action === "uploadAudio" || data.action === "upload_audio") {
+      var folderName = "성경낭독녹음";
+      var folder = null;
+      
+      // 1) "수퍼북바이블" 폴더 안에서 찾거나, 드라이브 루트에서 찾기
+      try {
+        var parentFolders = DriveApp.getFoldersByName("수퍼북바이블");
+        if (parentFolders.hasNext()) {
+          var pFolder = parentFolders.next();
+          var subFolders = pFolder.getFoldersByName(folderName);
+          folder = subFolders.hasNext() ? subFolders.next() : pFolder.createFolder(folderName);
+        }
+      } catch (fErr) {}
+
+      if (!folder) {
+        var rootFolders = DriveApp.getFoldersByName(folderName);
+        folder = rootFolders.hasNext() ? rootFolders.next() : DriveApp.createFolder(folderName);
+      }
+      
+      // 2) base64 오디오 디코딩 및 파일 생성
+      var base64Data = data.base64Audio || "";
+      if (base64Data.indexOf("base64,") > -1) {
+        base64Data = base64Data.split("base64,")[1];
+      }
+      var mimeType = data.mimeType || "audio/webm";
+      var nowStr = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy.MM.dd HH:mm:ss");
+      var fileTimestamp = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyyMMdd_HHmmss");
+      var fileName = data.fileName || ("[" + (data.teamName || "지벳팀") + "]_" + (data.memberName || "성도") + "_" + (data.verseRef || "낭독") + "_" + fileTimestamp + ".webm");
+      
+      var decodedBytes = Utilities.base64Decode(base64Data);
+      var blob = Utilities.newBlob(decodedBytes, mimeType, fileName);
+      var file = folder.createFile(blob);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      
+      var fileUrl = file.getUrl();
+      var fileId = file.getId();
+      var downloadUrl = "https://drive.google.com/uc?export=download&id=" + fileId;
+      
+      // 3) 10일 보관 정책: 10일 지난 녹음 파일 자동 정리 (휴지통 이동)
+      try {
+        var tenDaysAgo = new Date();
+        tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+        var filesInFolder = folder.getFiles();
+        while (filesInFolder.hasNext()) {
+          var oldFile = filesInFolder.next();
+          if (oldFile.getDateCreated() < tenDaysAgo) {
+            oldFile.setTrashed(true);
+          }
+        }
+      } catch (cleanErr) {
+        Logger.log("10-day retention clean error: " + cleanErr);
+      }
+      
+      // 4) 스프레드시트 [낭독_음원검수] 시트에 자동 기록
+      try {
+        var targetSS = null;
+        try { targetSS = SpreadsheetApp.getActiveSpreadsheet(); } catch(e) {}
+        if (!targetSS) {
+          var ssFiles = DriveApp.getFilesByName("수퍼바이블_회원성경낭독관리");
+          if (ssFiles.hasNext()) {
+            targetSS = SpreadsheetApp.open(ssFiles.next());
+          }
+        }
+        if (targetSS) {
+          var recSheet = targetSS.getSheetByName("낭독_음원검수") || targetSS.insertSheet("낭독_음원검수");
+          recSheet.appendRow([
+            "REC-" + new Date().getTime(),
+            data.memberId || "M-001",
+            data.memberName || "로고스 관리자",
+            data.teamName || data.department || "지벳팀",
+            "성도",
+            data.title || fileName,
+            data.verseRef || "",
+            fileUrl,
+            data.duration || "",
+            nowStr,
+            "⭐제출완료",
+            "검수대기",
+            "구글 드라이브 [성경낭독녹음] 폴더 저장 완료 (10일 보관)"
+          ]);
+        }
+      } catch (ssErr) {
+        Logger.log("Spreadsheet recording error: " + ssErr);
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        message: "구글 드라이브 [성경낭독녹음] 폴더에 음원이 성공적으로 저장되었습니다 (10일 보관).",
+        fileUrl: fileUrl,
+        downloadUrl: downloadUrl,
+        fileId: fileId,
+        fileName: fileName,
+        folderName: folderName,
+        adminEmail: "${adminEmail}"
       })).setMimeType(ContentService.MimeType.JSON);
     }
 

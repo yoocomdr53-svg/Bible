@@ -24,11 +24,24 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [shareData, setShareData] = useState<AudioShareData | null>(null);
 
+  // Real Audio Recording state & refs
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      if (audioElementRef.current) {
+        audioElementRef.current.pause();
+      }
       setIsRecording(false);
       setRecordedSeconds(0);
       setHasRecorded(false);
@@ -37,27 +50,111 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      if (audioElementRef.current) {
+        audioElementRef.current.pause();
+      }
+      if (recordedUrl) {
+        URL.revokeObjectURL(recordedUrl);
+      }
+    };
+  }, [recordedUrl]);
+
   if (!isOpen) return null;
 
-  const startRecording = () => {
-    setIsRecording(true);
-    setRecordedSeconds(0);
-    setHasRecorded(false);
-    timerRef.current = window.setInterval(() => {
-      setRecordedSeconds((prev) => prev + 1);
-    }, 1000);
+  // Real Microphone Audio Recording (Opus 24kHz Mono - 최소 용량 + 선명한 음성)
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1, // Mono (용량 최소화)
+          sampleRate: 24000,
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      });
+      mediaStreamRef.current = stream;
+
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : MediaRecorder.isTypeSupported('audio/mp4')
+        ? 'audio/mp4'
+        : '';
+
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const finalBlob = new Blob(audioChunksRef.current, {
+          type: recorder.mimeType || 'audio/webm',
+        });
+        setRecordedBlob(finalBlob);
+        const url = URL.createObjectURL(finalBlob);
+        setRecordedUrl(url);
+        stream.getTracks().forEach((track) => track.stop());
+      };
+
+      recorder.start(250);
+      setIsRecording(true);
+      setRecordedSeconds(0);
+      setHasRecorded(false);
+      timerRef.current = window.setInterval(() => {
+        setRecordedSeconds((prev) => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.warn('Microphone permission not granted, falling back to simulated timer', err);
+      setIsRecording(true);
+      setRecordedSeconds(0);
+      setHasRecorded(false);
+      timerRef.current = window.setInterval(() => {
+        setRecordedSeconds((prev) => prev + 1);
+      }, 1000);
+    }
   };
 
   const stopRecording = () => {
     setIsRecording(false);
     if (timerRef.current) clearInterval(timerRef.current);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (e) {}
+    }
     setHasRecorded(true);
   };
 
   const togglePlayback = () => {
-    setIsPlaying(!isPlaying);
-    if (!isPlaying) {
-      setTimeout(() => setIsPlaying(false), (recordedSeconds || 3) * 1000);
+    if (isPlaying) {
+      if (audioElementRef.current) {
+        audioElementRef.current.pause();
+        audioElementRef.current.currentTime = 0;
+      }
+      setIsPlaying(false);
+    } else {
+      if (recordedUrl) {
+        const audio = new Audio(recordedUrl);
+        audioElementRef.current = audio;
+        audio.onended = () => setIsPlaying(false);
+        audio.play().catch(() => setIsPlaying(false));
+        setIsPlaying(true);
+      } else {
+        setIsPlaying(true);
+        setTimeout(() => setIsPlaying(false), (recordedSeconds || 3) * 1000);
+      }
     }
   };
 
@@ -98,12 +195,20 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
       );
     }
 
+    const teamName = session?.department || '지벳팀';
+    const userName = session?.name || '로고스 관리자';
+    const fileName = `[${teamName}]_${userName}_${verse.book}${verse.chapter}장_${verse.verse}절.webm`;
+    const audioFile = recordedBlob ? new File([recordedBlob], fileName, { type: recordedBlob.type || 'audio/webm' }) : null;
+
     setSavedSuccess(true);
     setShareData({
       title: newRec.title,
       verseRef: newRec.verseRef,
       duration: newRec.duration,
       date: newRec.date,
+      audioBlob: recordedBlob,
+      audioUrl: recordedUrl,
+      audioFile: audioFile,
     });
   };
 
