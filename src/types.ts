@@ -2,6 +2,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   avatarText: string;
   role: 'faculty' | 'student' | 'admin' | 'saint';
   schoolName: string;

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Mail,
   Lock,
+  Phone,
   Eye,
   EyeOff,
   Settings,
@@ -40,8 +41,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
 
-  // Register form state (아이디/이메일아이디 + 비밀번호 초간단)
+  // Register form state (아이디/이메일 + 비밀번호 + 전화번호)
   const [regId, setRegId] = useState('');
+  const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regPasswordConfirm, setRegPasswordConfirm] = useState('');
   const [showRegPassword, setShowRegPassword] = useState(false);
@@ -86,7 +88,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
     }, 400);
   };
 
-  // Handle Register Submit (아이디/이메일 + 비밀번호)
+  // Handle Register Submit (아이디/이메일 + 비밀번호 + 전화번호)
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -95,6 +97,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
     const cleanId = regId.trim();
     const cleanPw = regPassword.trim();
     const cleanPwConfirm = regPasswordConfirm.trim();
+    const cleanPhone = regPhone.trim();
 
     if (!cleanId) {
       setErrorMessage('아이디 또는 이메일을 입력해주세요.');
@@ -112,7 +115,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
     setIsLoading(true);
 
     setTimeout(() => {
-      const res = registerUser(cleanId, cleanPw);
+      const res = registerUser(cleanId, cleanPw, cleanPhone);
       setIsLoading(false);
 
       if (res.success && res.user) {
@@ -448,6 +451,29 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   onChange={(e) => setRegId(e.target.value)}
                   placeholder="사용할 아이디 또는 이메일 (예: paul2026)"
                   required
+                  className="w-full h-11 pl-10 pr-3 text-[13px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-600 focus:border-blue-600 transition shadow-xs"
+                />
+              </div>
+            </div>
+
+            {/* Field 2: Phone Number (전화번호) */}
+            <div className="relative">
+              <label
+                htmlFor="regPhone"
+                className="absolute -top-2 left-3.5 bg-white px-1.5 text-[11px] font-bold text-slate-500 z-10"
+              >
+                전화번호 (휴대폰 번호)
+              </label>
+              <div className="relative flex items-center">
+                <div className="absolute left-3.5 text-slate-400 pointer-events-none flex items-center">
+                  <Phone className="w-4 h-4 text-slate-500" />
+                </div>
+                <input
+                  id="regPhone"
+                  type="tel"
+                  value={regPhone}
+                  onChange={(e) => setRegPhone(e.target.value)}
+                  placeholder="010-1234-5678 (휴대폰 연락처 입력)"
                   className="w-full h-11 pl-10 pr-3 text-[13px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-600 focus:border-blue-600 transition shadow-xs"
                 />
               </div>

@@ -189,25 +189,35 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
 }
 
 // Append new member to Admin Member Roster (ADMIN_MEMBERS_KEY)
-export function syncMemberToAdminRoster(user: User, loginId: string): MemberReadingProfile {
+export function syncMemberToAdminRoster(
+  user: User,
+  loginId: string,
+  phoneInput?: string
+): MemberReadingProfile {
   try {
     const currentMembers = getOrSyncAdminMembers();
     const existing = currentMembers.find(
       (m) => m.email.toLowerCase() === user.email.toLowerCase() || m.name === user.name
     );
     if (existing) {
+      if (phoneInput && (!existing.phone || existing.phone === '010-미등록')) {
+        existing.phone = phoneInput;
+        localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(currentMembers));
+      }
       return existing;
     }
 
     const isMasterAdmin =
       loginId.toLowerCase().includes('yoocomdr') || loginId.toLowerCase() === 'admin';
 
+    const phoneStr = phoneInput?.trim() || user.phone?.trim() || '010-미등록';
+
     const newMember: MemberReadingProfile = {
       id: `M-${String(currentMembers.length + 1).padStart(2, '0')}`,
       name: user.name,
       department: user.department || '새가족 성경통독부',
       role: isMasterAdmin ? '관리자' : '성도',
-      phone: '010-미등록',
+      phone: phoneStr,
       email: user.email,
       registeredDate: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
       birthdate: '1995.01.01',
@@ -227,19 +237,20 @@ export function syncMemberToAdminRoster(user: User, loginId: string): MemberRead
       status: 'active',
       consecutiveDays: 1,
       featuredCount: 0,
-      memo: `웹 간편가입 회원 (아이디: ${loginId})`,
+      memo: `웹 간편가입 회원 (아이디: ${loginId}, 연락처: ${phoneStr})`,
     };
     const updatedMembers = [...currentMembers, newMember];
     localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(updatedMembers));
     return newMember;
   } catch (e) {
     console.error('Failed to sync to admin roster:', e);
+    const phoneStr = phoneInput?.trim() || user.phone?.trim() || '010-미등록';
     return {
       id: `M-${Date.now()}`,
       name: user.name,
       department: user.department || '새가족 성경통독부',
       role: '성도',
-      phone: '010-미등록',
+      phone: phoneStr,
       email: user.email,
       registeredDate: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
       birthdate: '1995.01.01',
@@ -259,7 +270,7 @@ export function syncMemberToAdminRoster(user: User, loginId: string): MemberRead
       status: 'active',
       consecutiveDays: 1,
       featuredCount: 0,
-      memo: `웹 간편가입 회원 (아이디: ${loginId})`,
+      memo: `웹 간편가입 회원 (아이디: ${loginId}, 연락처: ${phoneStr})`,
     };
   }
 }
@@ -334,13 +345,15 @@ export function addMemberRecordingToAdmin(
   }
 }
 
-// Register new member with simple ID/Email + Password
+// Register new member with simple ID/Email + Password + Phone
 export function registerUser(
   loginIdInput: string,
-  passwordInput: string
+  passwordInput: string,
+  phoneInput?: string
 ): { success: boolean; user?: User; message?: string } {
   const loginId = loginIdInput.trim();
   const password = passwordInput.trim();
+  const phone = phoneInput?.trim() || '';
 
   if (!loginId) {
     return { success: false, message: '아이디 또는 이메일을 입력해주세요.' };
@@ -373,6 +386,7 @@ export function registerUser(
     id: `user-${Date.now()}`,
     name: displayName,
     email: userEmail,
+    phone: phone || undefined,
     avatarText: loginId.slice(0, 2).toUpperCase(),
     role: isAdmin ? 'admin' : 'saint',
     provider: 'standard',
@@ -394,8 +408,8 @@ export function registerUser(
   const updatedAccounts = [...accounts, newAccount];
   saveRegisteredAccounts(updatedAccounts);
 
-  // Sync to Admin Member Management Roster so admin can manage details
-  const newMemberProfile = syncMemberToAdminRoster(newUser, loginId);
+  // Sync to Admin Member Management Roster with phone number
+  const newMemberProfile = syncMemberToAdminRoster(newUser, loginId, phone);
 
   // Auto-sync new member registration directly to Google Sheet (yoocomdr57@gmail.com)
   syncMemberRegistrationToGoogleSheet(newMemberProfile, loginId).catch(console.error);
