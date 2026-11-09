@@ -9,6 +9,7 @@ import {
   Home,
   Settings,
   ChevronRight,
+  ChevronDown,
   Flame,
   Volume2,
   Music,
@@ -25,6 +26,8 @@ import {
   getCurrentReadingLocation,
   saveCurrentReadingLocation,
   getNewTestamentStats,
+  getOldTestamentStats,
+  getTotalBibleStats,
   getTodayReadCount,
 } from '../data/bibleData';
 import { BibleReaderView } from './BibleReaderView';
@@ -84,11 +87,31 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
 
   // Real-time actual reading & recitation progress
   const [ntStats, setNtStats] = useState(getNewTestamentStats);
+  const [otStats, setOtStats] = useState(getOldTestamentStats);
+  const [totalStats, setTotalStats] = useState(getTotalBibleStats);
   const [todayReadCount, setTodayReadCount] = useState(getTodayReadCount);
+
+  // Selected view for 통독 진행률: 'OT' (구약) | 'NT' (신약) | 'ALL' (전체)
+  const [testamentMode, setTestamentMode] = useState<'OT' | 'NT' | 'ALL'>(() => {
+    try {
+      const saved = localStorage.getItem('superbible_home_testament_mode');
+      if (saved === 'OT' || saved === 'NT' || saved === 'ALL') return saved;
+    } catch (e) {}
+    return 'OT'; // 기본값: 구약 통독 (현재 출애굽기 24장 읽는 중)
+  });
+
+  const handleTestamentChange = (mode: 'OT' | 'NT' | 'ALL') => {
+    setTestamentMode(mode);
+    try {
+      localStorage.setItem('superbible_home_testament_mode', mode);
+    } catch (e) {}
+  };
 
   useEffect(() => {
     const handleProgressSync = () => {
       setNtStats(getNewTestamentStats());
+      setOtStats(getOldTestamentStats());
+      setTotalStats(getTotalBibleStats());
       setTodayReadCount(getTodayReadCount());
     };
     window.addEventListener('superbible_verse_read_changed', handleProgressSync);
@@ -238,6 +261,25 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
     setActiveTab('bible');
     setBibleSubView('reader');
   };
+
+  const activeStat =
+    testamentMode === 'NT'
+      ? {
+          label: '신약 통독',
+          stats: ntStats,
+          color: 'bg-[#0083e3]',
+        }
+      : testamentMode === 'ALL'
+      ? {
+          label: '전체 통독',
+          stats: totalStats,
+          color: 'bg-indigo-600',
+        }
+      : {
+          label: '구약 통독',
+          stats: otStats,
+          color: 'bg-[#0083e3]',
+        };
 
   return (
     <div
@@ -530,41 +572,67 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
               </div>
 
               <div className="grid grid-cols-3 gap-2 pt-3 text-center">
-                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                  <p className="text-[10px] text-slate-500 font-medium">신약 통독</p>
-                  <p className="text-sm font-black text-slate-900 mt-0.5">{ntStats.percent}%</p>
-                  <div className="w-full bg-slate-200 h-1 rounded-full mt-1.5 overflow-hidden">
+                {/* 1. 통독 진행률 드롭다운 카드 (구약 통독 / 신약 통독 / 전체 통독) */}
+                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col justify-between">
+                  <div className="relative inline-flex items-center justify-center mx-auto max-w-full">
+                    <select
+                      value={testamentMode}
+                      onChange={(e) => handleTestamentChange(e.target.value as 'OT' | 'NT' | 'ALL')}
+                      className="text-[10px] sm:text-[11px] font-bold text-slate-700 bg-white hover:bg-slate-100/90 pl-1.5 pr-4 py-0.5 rounded-md border border-slate-200 cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#0083e3] appearance-none text-center transition shadow-2xs"
+                      title="통독 범위 선택 (구약 통독 / 신약 통독 / 전체 통독)"
+                    >
+                      <option value="OT">구약 통독</option>
+                      <option value="NT">신약 통독</option>
+                      <option value="ALL">전체 통독</option>
+                    </select>
+                    <ChevronDown className="w-2.5 h-2.5 text-slate-500 absolute right-1 pointer-events-none" />
+                  </div>
+                  <div className="my-0.5">
+                    <p className="text-sm font-black text-slate-900">{activeStat.stats.percent}%</p>
+                    <span className="text-[9px] text-slate-400 font-medium block">
+                      {activeStat.stats.completedCount}/{activeStat.stats.totalCount}장
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-200 h-1 rounded-full overflow-hidden">
                     <div
-                      className="bg-[#0083e3] h-full rounded-full transition-all duration-300"
-                      style={{ width: `${ntStats.percent}%` }}
+                      className={`${activeStat.color} h-full rounded-full transition-all duration-300`}
+                      style={{ width: `${activeStat.stats.percent}%` }}
                     />
                   </div>
                 </div>
 
-                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                  <p className="text-[10px] text-slate-500 font-medium">오늘 읽은 말씀</p>
-                  <p className="text-sm font-black text-slate-900 mt-0.5">
-                    {todayReadCount}
-                    <span className="text-xs font-semibold text-slate-600">장</span>
-                  </p>
-                  <span
-                    className={`text-[9px] font-bold mt-1 block ${
-                      todayReadCount > 0 ? 'text-emerald-600' : 'text-slate-400'
-                    }`}
-                  >
-                    {todayReadCount > 0 ? '목표 달성' : '말씀 읽기 전'}
-                  </span>
+                {/* 2. 오늘 읽은 말씀 카드 */}
+                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col justify-between">
+                  <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium pt-0.5">오늘 읽은 말씀</p>
+                  <div className="my-0.5">
+                    <p className="text-sm font-black text-slate-900">
+                      {todayReadCount}
+                      <span className="text-xs font-semibold text-slate-600">장</span>
+                    </p>
+                    <span
+                      className={`text-[9px] font-bold block ${
+                        todayReadCount > 0 ? 'text-emerald-600' : 'text-slate-400'
+                      }`}
+                    >
+                      {todayReadCount > 0 ? '목표 달성' : '말씀 읽기 전'}
+                    </span>
+                  </div>
+                  <div className="w-full h-1" />
                 </div>
 
-                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                  <p className="text-[10px] text-slate-500 font-medium">나의 녹음 낭독</p>
-                  <p className="text-sm font-black text-slate-900 mt-0.5">
-                    {recordings.length}
-                    <span className="text-xs font-semibold text-slate-600">편</span>
-                  </p>
-                  <span className="text-[9px] text-[#0083e3] font-bold mt-1 block">
-                    클라우드 백업됨
-                  </span>
+                {/* 3. 나의 녹음 낭독 카드 */}
+                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col justify-between">
+                  <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium pt-0.5">나의 녹음 낭독</p>
+                  <div className="my-0.5">
+                    <p className="text-sm font-black text-slate-900">
+                      {recordings.length}
+                      <span className="text-xs font-semibold text-slate-600">편</span>
+                    </p>
+                    <span className="text-[9px] text-[#0083e3] font-bold block">
+                      클라우드 백업됨
+                    </span>
+                  </div>
+                  <div className="w-full h-1" />
                 </div>
               </div>
             </section>

@@ -755,6 +755,16 @@ export function getOldTestamentStats(): { completedCount: number; totalCount: nu
   return { completedCount, totalCount, percent };
 }
 
+// 전체 성경 통독(66권, 총 1,189장) 실시간 실제 진행률 계산
+export function getTotalBibleStats(): { completedCount: number; totalCount: number; percent: number } {
+  const nt = getNewTestamentStats();
+  const ot = getOldTestamentStats();
+  const completedCount = nt.completedCount + ot.completedCount;
+  const totalCount = 1189; // 구약 929장 + 신약 260장
+  const percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  return { completedCount, totalCount, percent };
+}
+
 // 현재 읽는 중인 위치 (책, 장) - 기본값: 출애굽기 24장
 export function getCurrentReadingLocation(): { book: string; chapter: number } {
   try {
