@@ -6,6 +6,7 @@ import {
   updateMemberReadingProgress,
   getActiveSession,
 } from '../services/authService';
+import { markChapterRangeCompleted, addTodayReadChapter } from '../data/bibleData';
 import { AudioShareModal, AudioShareData } from './AudioShareModal';
 import { convertBlobToMp3 } from '../utils/audioToMp3';
 
@@ -183,26 +184,7 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
   };
 
   const handleSave = async () => {
-    const newRec: UserRecording = {
-      id: `rec-${Date.now()}`,
-      title: `${chapterRangeText} 낭독 녹음`,
-      verseRef: chapterRangeText,
-      duration: formatTime(recordedSeconds || 15),
-      date: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
-    };
-    onSaveRecording(newRec);
-
-    const session = getActiveSession();
-    if (session) {
-      // 1. 관리자 음원 검수 목록 및 낭독 녹음 수 갱신
-      addMemberRecordingToAdmin(session, newRec);
-
-      // 2. 관리자 회원_낭독진도 명부 및 구글 스프레드시트에 즉시 낭독진도 실시간 동기화
-      const chapterCount = Math.max(1, maxCh - minCh + 1);
-      updateMemberReadingProgress(session.email, verse.book, maxCh, chapterCount);
-    }
-
-    // 3. 고음질 MP3 변환 (모든 기기/차량/메신저 100% 호환 + 초경량)
+    // 1. 고음질 MP3 변환 (모든 기기/차량/메신저 100% 호환 + 초경량)
     let finalBlob: Blob | null = recordedBlob;
     if (recordedBlob) {
       try {
@@ -215,6 +197,44 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
     const fileName = `${chapterRangeText}.mp3`;
     const audioFile = finalBlob ? new File([finalBlob], fileName, { type: 'audio/mp3' }) : null;
     const finalUrl = finalBlob ? URL.createObjectURL(finalBlob) : recordedUrl;
+
+    const newRec: UserRecording = {
+      id: `rec-${Date.now()}`,
+      title: `${chapterRangeText} 낭독 녹음`,
+      verseRef: chapterRangeText,
+      duration: formatTime(recordedSeconds || 15),
+      date: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
+      audioBlobUrl: finalUrl || undefined,
+    };
+    onSaveRecording(newRec);
+
+    // 2. 로컬 사용자 녹음 보관함에도 저장
+    try {
+      const rawUser = localStorage.getItem('superbible_user_recordings_v2');
+      const userRecs = rawUser ? JSON.parse(rawUser) : [];
+      localStorage.setItem('superbible_user_recordings_v2', JSON.stringify([newRec, ...userRecs]));
+    } catch (e) {}
+
+    const session = getActiveSession();
+    if (session) {
+      // 3. 관리자 음원 검수 목록 및 낭독 녹음 수 갱신
+      addMemberRecordingToAdmin(session, newRec);
+
+      // 4. 관리자 회원_낭독진도 명부 및 구글 스프레드시트에 즉시 낭독진도 실시간 동기화
+      const chapterCount = Math.max(1, maxCh - minCh + 1);
+      updateMemberReadingProgress(session.email, verse.book, maxCh, chapterCount);
+    }
+
+    // 5. 낭독한 장 범위의 모든 장을 완독 및 오늘 읽은 말씀으로 등록
+    try {
+      markChapterRangeCompleted(verse.book, minCh, maxCh, true);
+      for (let ch = minCh; ch <= maxCh; ch++) {
+        addTodayReadChapter(verse.book, ch);
+      }
+      window.dispatchEvent(new CustomEvent('superbible_verse_read_changed'));
+      window.dispatchEvent(new CustomEvent('superbible_today_read_changed'));
+      window.dispatchEvent(new CustomEvent('superbible_recordings_changed'));
+    } catch (e) {}
 
     setSavedSuccess(true);
     setShareData({

@@ -269,8 +269,15 @@ export async function uploadAudioToDrive(params: {
   const config = getGoogleSheetConfig();
   const scriptUrl = params.customScriptUrl || config.scriptUrl;
 
-  const cleanName = (params.memberName || '성도').replace(/ 성도$/, '').replace(/ 관리자$/, '').trim();
-  const cleanId = (params.loginId || 'user').replace(/@.*$/, '').trim();
+  const rawName = (params.memberName || '성도')
+    .replace(/ 성도$/, '')
+    .replace(/ 관리자$/, '')
+    .replace(/\s*\([^)]*\)$/, '')
+    .trim();
+  const rawId = (params.loginId || 'user').replace(/@.*$/, '').trim();
+  const isYooc = rawId.toLowerCase().includes('yoocomdr');
+  const cleanName = (isYooc && (!rawName || rawName === '로고스' || rawName === '성도')) ? '유원희' : (rawName || '성도');
+  const cleanId = isYooc ? 'yoocomdr' : rawId;
   const userFolderName = `${cleanName}_${cleanId}`;
   const cleanBibleName = (params.bibleName || params.verseRef || params.fileName || '성경낭독').trim();
   const rawTarget = params.fileName || cleanBibleName;
@@ -762,10 +769,12 @@ function doPost(e) {
         rootRecFolder = rootFolders.hasNext() ? rootFolders.next() : DriveApp.createFolder(rootFolderName);
       }
       
-      // 2) 로그인된 사람의 이름으로 하위 폴더 생성 (예: "박기빛_Cmorfbfc2i", "신성환_juandvasieczky", "유원희_yoocomdr", "홍길동_stguest")
-      var rawName = (data.memberName || "").replace(/ 성도$/, "").replace(/ 관리자$/, "").trim();
-      var cleanName = rawName || "성도";
-      var cleanId = (data.loginId || "").replace(/@.*$/, "").trim();
+      // 2) 로그인된 사람의 이름으로 하위 폴더 생성 (예: "박기빛_Cmorbfc2i", "신성환_juandvasieczky", "유원희_yoocomdr", "홍길동_stguest")
+      var rawName = (data.memberName || "").replace(/ 성도$/, "").replace(/ 관리자$/, "").replace(/\s*\([^)]*\)$/, "").trim();
+      var rawId = (data.loginId || "").replace(/@.*$/, "").trim();
+      var isYooc = rawId.toLowerCase().indexOf("yoocomdr") > -1;
+      var cleanName = (isYooc && (!rawName || rawName === "로고스" || rawName === "성도")) ? "유원희" : (rawName || "성도");
+      var cleanId = isYooc ? "yoocomdr" : rawId;
       var userFolderName = data.userFolderName || (cleanName + (cleanId ? "_" + cleanId : ""));
       
       var userFolders = rootRecFolder.getFoldersByName(userFolderName);

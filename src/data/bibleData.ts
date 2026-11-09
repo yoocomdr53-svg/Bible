@@ -670,16 +670,60 @@ export function getTodayDateString(): string {
   }
 }
 
-// 오늘 읽은/낭독한 장 목록 가져오기 (매일 자정에 0으로 자동 갱신)
+// 오늘 읽은/낭독한 장 목록 가져오기 (매일 자정에 0으로 자동 갱신 및 당일 녹음 데이터 자동 집계)
 export function getTodayReadChapters(): Set<string> {
+  const today = getTodayDateString();
+  const dotToday = today.replace(/-/g, '.');
   try {
     const raw = localStorage.getItem(TODAY_READ_STORAGE_KEY);
-    const today = getTodayDateString();
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && parsed.date === today && Array.isArray(parsed.chapters)) {
+      if (parsed && parsed.date === today && Array.isArray(parsed.chapters) && parsed.chapters.length > 0) {
         return new Set<string>(parsed.chapters);
       }
+    }
+
+    // Fallback: 오늘 기록된 낭독 녹음(storage)이 있다면 이를 기반으로 오늘 읽은 말씀 장수 즉시 복원
+    const set = new Set<string>();
+    const recKeys = ['superbible_admin_recordings_v4', 'superbible_user_recordings_v2'];
+    for (const key of recKeys) {
+      const recRaw = localStorage.getItem(key);
+      if (recRaw) {
+        try {
+          const list = JSON.parse(recRaw);
+          if (Array.isArray(list)) {
+            list.forEach((item: any) => {
+              const itemDate = (item.date || '').replace(/\./g, '-');
+              if (itemDate === today || item.date === today || item.date === dotToday) {
+                const ref = item.verseRef || item.title || '';
+                const match = ref.match(/^([가-힣]+)\s*(\d+)(?:~(\d+))?장/);
+                if (match) {
+                  const book = match[1];
+                  const startCh = parseInt(match[2], 10);
+                  const endCh = match[3] ? parseInt(match[3], 10) : startCh;
+                  for (let ch = startCh; ch <= endCh; ch++) {
+                    set.add(`${book}-${ch}`);
+                  }
+                } else if (item.book && item.chapter) {
+                  set.add(`${item.book}-${item.chapter}`);
+                } else {
+                  set.add(`rec-${item.id}`);
+                }
+              }
+            });
+          }
+        } catch (e) {}
+      }
+    }
+
+    if (set.size > 0) {
+      const data = {
+        date: today,
+        chapters: Array.from(set),
+        count: set.size,
+      };
+      localStorage.setItem(TODAY_READ_STORAGE_KEY, JSON.stringify(data));
+      return set;
     }
   } catch (e) {
     console.error('Failed to get today read chapters:', e);

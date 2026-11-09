@@ -101,10 +101,12 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
     window.addEventListener('superbible_verse_read_changed', handleProgressSync);
     window.addEventListener('superbible_today_read_changed', handleProgressSync);
     window.addEventListener('superbible_reading_location_changed', handleProgressSync);
+    window.addEventListener('superbible_recordings_changed', handleProgressSync);
     return () => {
       window.removeEventListener('superbible_verse_read_changed', handleProgressSync);
       window.removeEventListener('superbible_today_read_changed', handleProgressSync);
       window.removeEventListener('superbible_reading_location_changed', handleProgressSync);
+      window.removeEventListener('superbible_recordings_changed', handleProgressSync);
     };
   }, []);
 
@@ -356,12 +358,14 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-sm font-extrabold text-slate-900 whitespace-nowrap">{user.name}</span>
-                    <span className="inline-flex items-center bg-blue-100 text-[#0083e3] text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap">
+                    <span className="text-sm font-extrabold text-slate-900 leading-snug">
+                      {(user.name || '성도').replace(/\s*\([^)]*@?[^)]*\)$/, '').trim()}
+                    </span>
+                    <span className="inline-flex items-center bg-blue-100 text-[#0083e3] text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0">
                       Google 연동
                     </span>
                     {user.role === 'admin' && (
-                      <span className="inline-flex items-center bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-black px-1.5 py-0.5 rounded whitespace-nowrap">
+                      <span className="inline-flex items-center bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-black px-1.5 py-0.5 rounded flex-shrink-0">
                         👑 관리자
                       </span>
                     )}
@@ -835,6 +839,11 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
           user={user}
           recordings={recordings}
           onDeleteRecording={onDeleteRecording}
+          onNavigateToRecord={() => {
+            setOpenInRecordingMode(true);
+            setBibleSubView('reader');
+            setActiveTab('bible');
+          }}
         />
       )}
 

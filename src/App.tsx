@@ -72,10 +72,10 @@ class ErrorBoundary extends (Component as any) {
 }
 
 const DEFAULT_CONNECTED_ADMIN_USER: User = {
-  id: 'user-yoocomdr57',
-  name: '로고스 관리자',
+  id: 'user-yoocomdr',
+  name: '유원희 (로고스 관리자)',
   email: 'yoocomdr57@gmail.com',
-  avatarText: '관리',
+  avatarText: '원희',
   role: 'admin',
   provider: 'standard',
   schoolName: '로고스 수퍼바이블 공동체',

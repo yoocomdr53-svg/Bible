@@ -21,10 +21,10 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
   // Primary Account: yoocomdr57@gmail.com (Connected Google Account & Admin)
   const handleSelectAdmin = () => {
     onSelectAccount({
-      id: 'user-yoocomdr57',
-      name: '로고스 관리자 (yoocomdr57)',
+      id: 'user-yoocomdr',
+      name: '유원희 (로고스 관리자)',
       email: 'yoocomdr57@gmail.com',
-      avatarText: '관리',
+      avatarText: '원희',
       role: 'admin',
       provider: 'google',
       schoolName: '로고스 수퍼바이블 공동체',

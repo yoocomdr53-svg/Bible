@@ -1170,31 +1170,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     const chapterRangeText = getFormattedPassage(selectedBook, minCh, maxCh);
     const chapterCount = Math.max(1, maxCh - minCh + 1);
 
-    const newRecItem = {
-      id: `rec-${Date.now()}`,
-      title: `${chapterRangeText} 낭독 녹음`,
-      verseRef: chapterRangeText,
-      duration: durationStr,
-      date: dateStr,
-    };
-    if (session) {
-      // 1. 관리자 음원 검수 목록 및 누적 녹음 건수 갱신
-      addMemberRecordingToAdmin(session, newRecItem);
-
-      // 2. 관리자 회원_낭독진도 명부 및 구글 스프레드시트에 즉시 낭독진도 실시간 동기화
-      updateMemberReadingProgress(session.email, selectedBook, maxCh, chapterCount);
-    }
-
-    // 3. 낭독한 장 범위의 모든 장을 완독 및 오늘 읽은 말씀으로 등록
-    try {
-      markChapterRangeCompleted(selectedBook, minCh, maxCh, true);
-      for (let ch = minCh; ch <= maxCh; ch++) {
-        addTodayReadChapter(selectedBook, ch);
-      }
-      setCompletedChapters(getCompletedChapters());
-    } catch (e) {}
-
-    // 4. 고음질 MP3 변환 (모든 기기/차량/메신저 100% 호환 + 초경량)
+    // 1. 고음질 MP3 변환 (모든 기기/차량/메신저 100% 호환 + 초경량)
     const rawBlob = recordedBlobRef.current || (audioChunksRef.current.length > 0 ? new Blob(audioChunksRef.current, { type: 'audio/webm' }) : null);
     let finalBlob: Blob | null = rawBlob;
     if (rawBlob) {
@@ -1208,6 +1184,39 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     const finalUrl = finalBlob ? URL.createObjectURL(finalBlob) : (recordedUrlRef.current || null);
     const fileName = `${chapterRangeText}.mp3`;
     const audioFile = finalBlob ? new File([finalBlob], fileName, { type: 'audio/mp3' }) : null;
+
+    const newRecItem = {
+      id: `rec-${Date.now()}`,
+      title: `${chapterRangeText} 낭독 녹음`,
+      verseRef: chapterRangeText,
+      duration: durationStr,
+      date: dateStr,
+      audioBlobUrl: finalUrl || undefined,
+    };
+
+    if (session) {
+      // 2. 관리자 음원 검수 목록 및 누적 녹음 건수 갱신
+      addMemberRecordingToAdmin(session, newRecItem);
+
+      // 3. 관리자 회원_낭독진도 명부 및 구글 스프레드시트에 즉시 낭독진도 실시간 동기화
+      updateMemberReadingProgress(session.email, selectedBook, maxCh, chapterCount);
+    }
+
+    // 4. 로컬 사용자 녹음 보관함에도 저장
+    try {
+      const rawUser = localStorage.getItem('superbible_user_recordings_v2');
+      const userRecs = rawUser ? JSON.parse(rawUser) : [];
+      localStorage.setItem('superbible_user_recordings_v2', JSON.stringify([newRecItem, ...userRecs]));
+    } catch (e) {}
+
+    // 5. 낭독한 장 범위의 모든 장을 완독 및 오늘 읽은 말씀으로 등록
+    try {
+      markChapterRangeCompleted(selectedBook, minCh, maxCh, true);
+      for (let ch = minCh; ch <= maxCh; ch++) {
+        addTodayReadChapter(selectedBook, ch);
+      }
+      setCompletedChapters(getCompletedChapters());
+    } catch (e) {}
 
     // Open Share Modal immediately for seamless Telegram / Team 과제제출방 sharing
     setActiveShareData({

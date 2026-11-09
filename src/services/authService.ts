@@ -354,11 +354,67 @@ export function addMemberRecordingToAdmin(
       saveActiveSession(session);
     }
 
+    // Dispatch global event for realtime view update
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('superbible_recordings_changed'));
+    }
+
     // Realtime sync to Google Sheet (yoocomdr57@gmail.com)
     syncRecordingToGoogleSheet(newRecItem).catch(console.error);
   } catch (e) {
     console.error('Failed to add recording to admin:', e);
   }
+}
+
+// Get all recordings (merged across admin roster & user recordings)
+export function getAllUserRecordings(): { id: string; title: string; verseRef: string; duration: string; date: string; audioBlobUrl?: string }[] {
+  try {
+    const rawAdmin = localStorage.getItem(ADMIN_RECORDINGS_KEY);
+    const adminRecs: MemberRecordingItem[] = rawAdmin ? JSON.parse(rawAdmin) : [];
+    
+    const rawUser = localStorage.getItem('superbible_user_recordings_v2');
+    const userRecs: any[] = rawUser ? JSON.parse(rawUser) : [];
+
+    const map = new Map<string, any>();
+    adminRecs.forEach((r) => map.set(r.id, {
+      id: r.id,
+      title: r.title,
+      verseRef: r.verseRef,
+      duration: r.duration,
+      date: r.date,
+      audioBlobUrl: r.audioBlobUrl,
+    }));
+    userRecs.forEach((r) => {
+      if (!map.has(r.id)) {
+        map.set(r.id, r);
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.id.localeCompare(a.id));
+  } catch (e) {
+    return [];
+  }
+}
+
+// Delete user recording from storage
+export function deleteUserRecordingFromStore(id: string): void {
+  try {
+    const rawAdmin = localStorage.getItem(ADMIN_RECORDINGS_KEY);
+    if (rawAdmin) {
+      const adminRecs: MemberRecordingItem[] = JSON.parse(rawAdmin);
+      const filtered = adminRecs.filter((r) => r.id !== id);
+      localStorage.setItem(ADMIN_RECORDINGS_KEY, JSON.stringify(filtered));
+    }
+    const rawUser = localStorage.getItem('superbible_user_recordings_v2');
+    if (rawUser) {
+      const userRecs: any[] = JSON.parse(rawUser);
+      const filtered = userRecs.filter((r) => r.id !== id);
+      localStorage.setItem('superbible_user_recordings_v2', JSON.stringify(filtered));
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('superbible_recordings_changed'));
+    }
+  } catch (e) {}
 }
 
 // Register new member with simple ID/Email + Password + Phone
