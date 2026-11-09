@@ -433,12 +433,14 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [highlightedVerses, setHighlightedVerses] = useState<number[]>([]);
 
-  // 성경 읽기 완료된 절 관리 상태
+  // 성경 읽기 완료된 절 및 장 관리 상태
   const [completedVerses, setCompletedVerses] = useState<Set<string>>(() => getCompletedVerses());
+  const [completedChapters, setCompletedChapters] = useState<Set<string>>(() => getCompletedChapters());
 
   useEffect(() => {
     const handleVerseChanged = () => {
       setCompletedVerses(getCompletedVerses());
+      setCompletedChapters(getCompletedChapters());
     };
     window.addEventListener('superbible_verse_read_changed', handleVerseChanged);
     return () => {
@@ -476,11 +478,13 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   const handleToggleVerseRead = (v: number) => {
     toggleVerseCompleted(selectedBook, selectedChapter, v);
     setCompletedVerses(getCompletedVerses());
+    setCompletedChapters(getCompletedChapters());
   };
 
   const handleToggleCompleteAllChapterVerses = () => {
     toggleChapterVersesCompleted(selectedBook, selectedChapter, verses.length);
     setCompletedVerses(getCompletedVerses());
+    setCompletedChapters(getCompletedChapters());
     const session = getActiveSession();
     if (session && session.email) {
       updateMemberReadingProgress(session.email, selectedBook, selectedChapter);
@@ -534,6 +538,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     const willComplete = !isCurrentChapterDone;
     toggleChapterVersesCompleted(selectedBook, selectedChapter, verses.length);
     setCompletedVerses(getCompletedVerses());
+    setCompletedChapters(getCompletedChapters());
     const session = getActiveSession();
     if (session && session.email && willComplete) {
       updateMemberReadingProgress(session.email, selectedBook, selectedChapter);
@@ -551,6 +556,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     const willComplete = !isRangeDone;
     const res = markChapterRangeCompleted(selectedBook, 1, selectedChapter, willComplete);
     setCompletedVerses(getCompletedVerses());
+    setCompletedChapters(getCompletedChapters());
     const session = getActiveSession();
     if (session && session.email && willComplete) {
       updateMemberReadingProgress(session.email, selectedBook, selectedChapter, res.completedCount);
@@ -568,6 +574,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     const willComplete = !isAllBookDone;
     const res = markChapterRangeCompleted(selectedBook, 1, maxChapters, willComplete);
     setCompletedVerses(getCompletedVerses());
+    setCompletedChapters(getCompletedChapters());
     const session = getActiveSession();
     if (session && session.email && willComplete) {
       updateMemberReadingProgress(session.email, selectedBook, maxChapters, res.completedCount);
