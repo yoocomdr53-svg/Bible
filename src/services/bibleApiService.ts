@@ -1,5 +1,5 @@
 // Bible API & Multi-Translation Engine
-// Supports: 개역개정, 개역한글, 쉬운성경, 표준새번역, 새번역, 킹제임스(KJV), 킹제임스흠정역, NIV, 직역성경, and User-Uploaded Custom Bibles
+// Supports: 개역개정, 개역한글, 쉬운성경, 표준새번역, 킹제임스(KJV), 킹제임스흠정역, NIV, and User-Uploaded Custom Bibles
 
 import { BIBLE_BOOKS, SAMPLE_VERSES_CHAPTER } from '../data/bibleData';
 
@@ -21,11 +21,9 @@ export const OFFICIAL_TRANSLATIONS: TranslationOption[] = [
   { id: '개역한글', name: '개역한글 (HAN)', category: 'korean', description: '전통 성경 공공 판본' },
   { id: '쉬운성경', name: '쉬운성경 (EASY)', category: 'korean', description: '현대어 쉬운 성경' },
   { id: '표준새번역', name: '표준새번역 (SAE)', category: 'korean', description: '대한성서공회 표준새번역' },
-  { id: '새번역', name: '새번역 (SAENEW)', category: 'korean', description: '대한성서공회 현대 한국어 새번역' },
   { id: '킹제임스', name: '킹제임스 (KJV)', category: 'english', description: 'King James Version (영문 표준)' },
   { id: '킹제임스흠정역', name: '킹제임스 흠정역', category: 'korean', description: 'KJV 한국어 흠정역 (소장본 등록 지원)' },
   { id: 'NIV', name: 'NIV 성경', category: 'english', description: 'New International Version (영문 현대역)' },
-  { id: '직역성경', name: '직역성경', category: 'korean', description: '원어 히브리어/헬라어 직역본 (소장본 등록 지원)' },
 ];
 
 const CUSTOM_VERSIONS_STORAGE_KEY = 'superbible_custom_versions_meta_v1';
@@ -181,7 +179,7 @@ export async function loadBibleChapterVerses(
     if (cached.length > 0) return cached;
   }
 
-  // 2. Check Custom Uploaded Bibles (e.g. 킹제임스흠정역, 직역성경, 쉬운성경 custom files)
+  // 2. Check Custom Uploaded Bibles (e.g. 킹제임스흠정역, 쉬운성경 custom files)
   const customVerses = await getCustomUploadedChapter(translation, bookName, chapter);
   if (customVerses && customVerses.length > 0) {
     memoryCache.set(cacheKey, customVerses);
@@ -200,12 +198,10 @@ export async function loadBibleChapterVerses(
     let apiVer = 'GAE';
     if (translation === '개역한글') apiVer = 'HAN';
     else if (translation === '표준새번역') apiVer = 'SAE';
-    else if (translation === '새번역') apiVer = 'SAENEW';
     else if (translation === '킹제임스') apiVer = 'KJV';
     else if (translation === 'NIV') apiVer = 'NIV';
-    else if (translation === '쉬운성경') apiVer = 'SAENEW'; // high-clarity modern Korean
-    else if (translation === '킹제임스흠정역') apiVer = 'GAE'; // fallback until custom file is uploaded
-    else if (translation === '직역성경') apiVer = 'GAE'; // fallback until custom file is uploaded
+    else if (translation === '쉬운성경') apiVer = 'SAENEW'; // 현대어 쉬운 성경
+    else if (translation === '킹제임스흠정역') apiVer = 'GAE'; // 소장본 업로드 전 기본
 
     const apiUrl = `/api/bible?version=${encodeURIComponent(apiVer)}&book=${encodeURIComponent(bookName)}&chap=${chapter}`;
     const controller = new AbortController();
@@ -231,7 +227,8 @@ export async function loadBibleChapterVerses(
     const bookIdx = BOLLS_BOOK_MAP[bookName] || 1;
     let bollsTrans = 'KRV'; // 개역한글
     if (translation === '킹제임스') bollsTrans = 'KJV';
-    else if (translation === '표준새번역' || translation === '새번역' || translation === '쉬운성경') bollsTrans = 'RNKSV';
+    else if (translation === 'NIV') bollsTrans = 'NIV';
+    else if (translation === '표준새번역' || translation === '쉬운성경') bollsTrans = 'RNKSV';
 
     const bollsUrl = `https://bolls.life/get-chapter/${bollsTrans}/${bookIdx}/${chapter}/`;
     const bController = new AbortController();
@@ -257,6 +254,30 @@ export async function loadBibleChapterVerses(
     }
   } catch (bollsErr) {
     console.warn(`[BibleAPI] Client direct fallback failed:`, bollsErr);
+  }
+
+  // 5-1. Direct NIV GitHub dataset fallback
+  if (translation === 'NIV') {
+    try {
+      const bookIdx = BOLLS_BOOK_MAP[bookName] || 1;
+      const nivResp = await fetch('https://raw.githubusercontent.com/thiagobodruk/bible/master/json/en_niv.json');
+      if (nivResp.ok) {
+        const fullNiv = await nivResp.json();
+        const bookData = fullNiv[bookIdx - 1];
+        const chapterArray = bookData?.chapters?.[chapter - 1] || [];
+        if (Array.isArray(chapterArray) && chapterArray.length > 0) {
+          const verses: VerseItem[] = chapterArray.map((txt: string, idx: number) => ({
+            verse: idx + 1,
+            text: String(txt || '').trim(),
+          }));
+          memoryCache.set(cacheKey, verses);
+          saveCachedChapter(cacheKey, verses);
+          return verses;
+        }
+      }
+    } catch (nivErr) {
+      console.warn(`[BibleAPI] Direct NIV fallback failed:`, nivErr);
+    }
   }
 
   // 6. Hardcoded Sample Verses Fallback (e.g. 창세기 1, 2장 등)

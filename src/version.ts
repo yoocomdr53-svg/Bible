@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 1.6';
+export const APP_VERSION = 'Ver 1.7';
 export const APP_BUILD_DATE = '2026.11.10';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,17 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 1.7',
+    name: 'SuperBible',
+    releaseDate: '2026.11.10',
+    changes: [
+      '성경 역본 정비: 새번역 및 직역성경 목록 삭제, 공식 7대 역본(개역개정, 개역한글, 쉬운성경, 표준새번역, 킹제임스, 킹제임스흠정역, NIV) 확정',
+      'NIV(영문) 성경 낭독 음성 획기적 개선: 한국어 억양 및 기계음 데스크톱 음성을 원천 차단하고 100% 원어민 자연 육성(Google Natural en-US / Edge Jenny·Guy Online Natural) 적용',
+      '영문 성경 낭독 템포 최적화 및 고품질 원음 자동 판별 시스템 탑재',
+      '소장 성경 업로드 모달 프리셋 정리 (킹제임스흠정역, 쉬운성경, 직접입력 3단 구성)',
+    ],
+  },
   {
     version: 'Ver 1.6',
     name: 'SuperBible',

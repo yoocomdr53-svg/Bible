@@ -117,12 +117,13 @@ const splitLongText = (text: string, maxLen = 140): string[] => {
   return parts.length > 0 ? parts : [text.slice(0, maxLen), text.slice(maxLen)];
 };
 
-// 기계음 없는 100% 자연 여성 육성 오디오 스트림 재생기 (Google Neural)
-const playNeuralFemaleAudio = (
+// 기계음 없는 100% 자연 육성 오디오 스트림 재생기 (Google Neural)
+const playNeuralAudio = (
   text: string,
   rate: number,
   onEnd: () => void,
-  onError: () => void
+  onError: () => void,
+  lang: 'ko' | 'en' = 'ko'
 ): { pause: () => void } => {
   const chunks = splitLongText(text, 140);
   let chunkIdx = 0;
@@ -137,7 +138,9 @@ const playNeuralFemaleAudio = (
     }
     const chunk = chunks[chunkIdx];
     chunkIdx++;
-    const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=ko&client=tw-ob&q=${encodeURIComponent(chunk)}`;
+    // 영어(NIV/KJV)는 원어 발음(en-US)으로 요청하여 기계음/어색한 발음 완전 배제
+    const targetLang = lang === 'en' ? 'en-US' : 'ko';
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${targetLang}&client=tw-ob&q=${encodeURIComponent(chunk)}`;
     currentAudio = new Audio(url);
     currentAudio.playbackRate = Math.min(2.0, Math.max(0.7, rate));
     currentAudio.onended = () => {
@@ -165,12 +168,140 @@ const playNeuralFemaleAudio = (
   };
 };
 
+const playNeuralFemaleAudio = playNeuralAudio;
+
 export const getVoiceProfile = (
   type: string,
   voices: SpeechSynthesisVoice[],
   baseRate: number = 1.1,
-  userPitch: number = 0.96
+  userPitch: number = 0.96,
+  isEnglish: boolean = false
 ): VoiceProfile => {
+  // ----------------------------------------------------
+  // 1. 영어 낭독 (NIV / 영문 성경): 기계음 완전 차단 & 고음질 원음 선별
+  // ----------------------------------------------------
+  if (isEnglish) {
+    const enVoices = (voices || []).filter((v) =>
+      v.lang.toLowerCase().startsWith('en')
+    );
+
+    // 구형 기계음 데스크톱 SAPI 보이스(Microsoft David Desktop, Zira Desktop 등) 배제
+    const isRoboticSapiEn = (v: SpeechSynthesisVoice) => {
+      const n = v.name.toLowerCase();
+      return n.includes('desktop') || n.includes('sapi');
+    };
+
+    const isNaturalEn = (v: SpeechSynthesisVoice) => {
+      const n = v.name.toLowerCase();
+      const uri = (v.voiceURI || '').toLowerCase();
+      return (
+        n.includes('natural') ||
+        n.includes('online') ||
+        n.includes('neural') ||
+        n.includes('google') ||
+        n.includes('samantha') ||
+        n.includes('jenny') ||
+        n.includes('aria') ||
+        n.includes('guy') ||
+        n.includes('daniel') ||
+        uri.includes('natural') ||
+        uri.includes('neural')
+      );
+    };
+
+    const isMaleEn = (v: SpeechSynthesisVoice) => {
+      const n = v.name.toLowerCase();
+      return (
+        n.includes('guy') ||
+        n.includes('ryan') ||
+        n.includes('daniel') ||
+        n.includes('male') ||
+        n.includes('man') ||
+        n.includes('david') ||
+        n.includes('george')
+      );
+    };
+
+    const isFemaleEn = (v: SpeechSynthesisVoice) => {
+      if (isMaleEn(v)) return false;
+      const n = v.name.toLowerCase();
+      return (
+        n.includes('jenny') ||
+        n.includes('aria') ||
+        n.includes('michelle') ||
+        n.includes('samantha') ||
+        n.includes('karen') ||
+        n.includes('female') ||
+        n.includes('woman') ||
+        n.includes('girl') ||
+        !isMaleEn(v)
+      );
+    };
+
+    // 영어 낭독 최적 템포 (한국어보다 살짝 차분한 0.95~1.0x가 가장 자연스러움)
+    const effectiveRate = Math.min(1.05, Math.max(0.85, baseRate * 0.92));
+
+    if (type.includes('여성')) {
+      const naturalFemale = enVoices.find(
+        (v) => isFemaleEn(v) && isNaturalEn(v) && !isRoboticSapiEn(v)
+      );
+
+      if (naturalFemale) {
+        return {
+          voice: naturalFemale,
+          pitch: 1.0,
+          rate: effectiveRate,
+          pauseMs: 70,
+          engineName: naturalFemale.name,
+          summary: '기계음 없는 100% 맑고 자연스러운 영어(NIV) 여성 육성 낭독입니다.',
+          isNatural: true,
+        };
+      }
+
+      // 브라우저에 자연스러운 영어 음성이 없으면 Google Natural English Stream으로 재생
+      const anyFemale = enVoices.find((v) => isFemaleEn(v) && !isRoboticSapiEn(v)) || null;
+      return {
+        voice: anyFemale,
+        pitch: 1.0,
+        rate: effectiveRate,
+        pauseMs: 70,
+        engineName: 'AI 스튜디오 자연 영어 음원 (Google Natural English)',
+        summary: '기계음 없는 100% 자연스럽고 유창한 영어(NIV) 원음 낭독입니다.',
+        isNatural: false,
+      };
+    }
+
+    // 남성 / 목회자
+    const naturalMale = enVoices.find(
+      (v) => isMaleEn(v) && isNaturalEn(v) && !isRoboticSapiEn(v)
+    );
+    if (naturalMale) {
+      return {
+        voice: naturalMale,
+        pitch: 0.98,
+        rate: effectiveRate,
+        pauseMs: 80,
+        engineName: naturalMale.name,
+        summary: '중후하고 신뢰감 있는 자연스러운 영어(NIV) 남성 육성 낭독입니다.',
+        isNatural: true,
+      };
+    }
+
+    const anyMale = enVoices.find((v) => isMaleEn(v) && !isRoboticSapiEn(v)) || null;
+    return {
+      voice: anyMale,
+      pitch: 0.98,
+      rate: effectiveRate,
+      pauseMs: 80,
+      engineName: anyMale ? anyMale.name : 'AI 스튜디오 자연 영어 음원 (Google Natural English)',
+      summary: '기계음 없는 100% 자연스러운 영어(NIV) 원음 낭독입니다.',
+      isNatural: anyMale ? !isRoboticSapiEn(anyMale) : false,
+    };
+  }
+
+  // ----------------------------------------------------
+  // 2. 한국어 낭독: 기계음 차단 및 자연 육성 엔진 매핑
+  // ----------------------------------------------------
   const koVoices = (voices || []).filter(
     (v) => v.lang.toLowerCase().includes('ko') || v.lang.toLowerCase().includes('kr')
   );
@@ -315,7 +446,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   const [selectedTranslation, setSelectedTranslation] = useState<string>(() => {
     try {
       const saved = localStorage.getItem('superbible_selected_translation');
-      if (saved) return saved;
+      if (saved && saved !== '새번역' && saved !== '직역성경') return saved;
     } catch (e) {}
     return '개역개정';
   });
@@ -882,17 +1013,23 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     const currentRate = speechRateRef.current || speechRate || 1.1;
     const currentPitch = speechPitchRef.current || speechPitch || 0.96;
 
-    const profile = getVoiceProfile(currentVoiceType, availableVoices, currentRate, currentPitch);
+    // 영어 낭독 여부 판별 (NIV, 킹제임스 KJV 또는 영문 텍스트)
+    const isEnglish =
+      selectedTranslation === 'NIV' ||
+      selectedTranslation === '킹제임스' ||
+      /^[A-Za-z0-9\s.,'":;!?-]+$/.test(textToRead.trim());
 
-    // 1. 여성 낭독 음원 (절대 남성 음성 나오지 않으며 기계음 100% 배제)
-    if (currentVoiceType.includes('여성')) {
-      // 1순위: 브라우저에 고음질 뉴럴 여성 보이스(Edge SunHi Online Natural / Chrome Google 한국어)가 있으면 Web Speech로 재생
+    const profile = getVoiceProfile(currentVoiceType, availableVoices, currentRate, currentPitch, isEnglish);
+
+    // 1. 여성 낭독 음원 (또는 영문에서 고음질 뉴럴 웹 음성 없을 때 Google Natural Stream 사용)
+    if (currentVoiceType.includes('여성') || (isEnglish && !profile.isNatural)) {
+      // 1순위: 브라우저에 고음질 뉴럴 보이스가 있으면 Web Speech로 재생
       if (profile.voice && profile.isNatural) {
         const utterance = new SpeechSynthesisUtterance(textToRead);
-        utterance.lang = 'ko-KR';
+        utterance.lang = isEnglish ? 'en-US' : 'ko-KR';
         utterance.voice = profile.voice;
-        utterance.pitch = 1.0; // 왜곡 없는 자연스러운 여성 원음
-        utterance.rate = currentRate;
+        utterance.pitch = profile.pitch;
+        utterance.rate = profile.rate;
 
         utterance.onend = () => {
           if (isPlayingRef.current) {
@@ -915,10 +1052,10 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
         return;
       }
 
-      // 2순위: 브라우저에 구형 기계음(Heami)만 있는 환경일 경우, 기계음을 완전히 배제하고 AI 스튜디오 100% 자연 여성 육성 스트림으로 재생!
-      currentAudioRef.current = playNeuralFemaleAudio(
+      // 2순위: 브라우저에 구형 기계음(Heami/SAPI Desktop)만 있는 환경일 경우, 기계음을 완전히 배제하고 AI 스튜디오 100% 자연 육성 스트림으로 재생!
+      currentAudioRef.current = playNeuralAudio(
         textToRead,
-        currentRate,
+        profile.rate,
         () => {
           if (isPlayingRef.current) {
             setTimeout(() => {
@@ -927,13 +1064,13 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           }
         },
         () => {
-          // 네트워크 실패 시 로컬 여성 보이스로 폴백
+          // 네트워크 실패 시 로컬 보이스로 폴백
           if (isPlayingRef.current && profile.voice && 'speechSynthesis' in window) {
             const utterance = new SpeechSynthesisUtterance(textToRead);
-            utterance.lang = 'ko-KR';
+            utterance.lang = isEnglish ? 'en-US' : 'ko-KR';
             utterance.voice = profile.voice;
-            utterance.pitch = 1.0;
-            utterance.rate = currentRate;
+            utterance.pitch = profile.pitch;
+            utterance.rate = profile.rate;
             utterance.onend = () => {
               if (isPlayingRef.current) {
                 setTimeout(() => {
@@ -954,42 +1091,75 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
               if (isPlayingRef.current) playVerseAtIndex(index + 1);
             }, profile.pauseMs);
           }
-        }
+        },
+        isEnglish ? 'en' : 'ko'
       );
       return;
     }
 
     // 2. 남성 (자연스러운 중저음 바리톤)
-    const utterance = new SpeechSynthesisUtterance(textToRead);
-    utterance.lang = 'ko-KR';
-    if (profile.voice) {
+    if (profile.voice && profile.isNatural) {
+      const utterance = new SpeechSynthesisUtterance(textToRead);
+      utterance.lang = isEnglish ? 'en-US' : 'ko-KR';
       utterance.voice = profile.voice;
+      utterance.pitch = profile.pitch;
+      utterance.rate = profile.rate;
+
+      utterance.onend = () => {
+        if (isPlayingRef.current) {
+          setTimeout(() => {
+            if (isPlayingRef.current) {
+              playVerseAtIndex(index + 1);
+            }
+          }, profile.pauseMs);
+        }
+      };
+
+      utterance.onerror = (err) => {
+        console.warn('Speech error at verse', v.verse, err);
+        if (isPlayingRef.current) {
+          setTimeout(() => {
+            if (isPlayingRef.current) {
+              playVerseAtIndex(index + 1);
+            }
+          }, profile.pauseMs);
+        }
+      };
+
+      window.speechSynthesis.speak(utterance);
+      return;
     }
-    utterance.pitch = profile.pitch;
-    utterance.rate = profile.rate;
 
-    utterance.onend = () => {
-      if (isPlayingRef.current) {
-        setTimeout(() => {
-          if (isPlayingRef.current) {
-            playVerseAtIndex(index + 1);
-          }
-        }, profile.pauseMs);
-      }
-    };
-
-    utterance.onerror = (err) => {
-      console.warn('Speech error at verse', v.verse, err);
-      if (isPlayingRef.current) {
-        setTimeout(() => {
-          if (isPlayingRef.current) {
-            playVerseAtIndex(index + 1);
-          }
-        }, profile.pauseMs);
-      }
-    };
-
-    window.speechSynthesis.speak(utterance);
+    // 남성이지만 브라우저에 구형 기계음(Heami/SAPI Desktop)만 있을 경우 AI 스트림으로 자연스럽게 재생!
+    currentAudioRef.current = playNeuralAudio(
+      textToRead,
+      profile.rate,
+      () => {
+        if (isPlayingRef.current) {
+          setTimeout(() => {
+            if (isPlayingRef.current) playVerseAtIndex(index + 1);
+          }, profile.pauseMs);
+        }
+      },
+      () => {
+        if (isPlayingRef.current && profile.voice && 'speechSynthesis' in window) {
+          const utterance = new SpeechSynthesisUtterance(textToRead);
+          utterance.lang = isEnglish ? 'en-US' : 'ko-KR';
+          utterance.voice = profile.voice;
+          utterance.pitch = profile.pitch;
+          utterance.rate = profile.rate;
+          utterance.onend = () => {
+            if (isPlayingRef.current) {
+              setTimeout(() => {
+                if (isPlayingRef.current) playVerseAtIndex(index + 1);
+              }, profile.pauseMs);
+            }
+          };
+          window.speechSynthesis.speak(utterance);
+        }
+      },
+      isEnglish ? 'en' : 'ko'
+    );
   };
 
   const togglePlay = () => {
@@ -1024,65 +1194,47 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     }
     setIsPreviewPlaying(true);
 
-    const sample = '태초에 하나님이 천지를 창조하시니라.';
+    const isEnglish = selectedTranslation === 'NIV' || selectedTranslation === '킹제임스';
+    const sample = isEnglish
+      ? 'In the beginning God created the heavens and the earth.'
+      : '태초에 하나님이 천지를 창조하시니라.';
 
-    // 1. 여성 낭독 음원 미리듣기
-    if (type.includes('여성')) {
-      const profile = getVoiceProfile(type, availableVoices, rate, pitch);
-      if (profile.voice && profile.isNatural) {
-        const utterance = new SpeechSynthesisUtterance(sample);
-        utterance.lang = 'ko-KR';
-        utterance.voice = profile.voice;
-        utterance.pitch = 1.0;
-        utterance.rate = rate;
-        utterance.onend = () => setIsPreviewPlaying(false);
-        utterance.onerror = () => setIsPreviewPlaying(false);
-        window.speechSynthesis.speak(utterance);
-        return;
-      }
+    const profile = getVoiceProfile(type, availableVoices, rate, pitch, isEnglish);
 
-      currentAudioRef.current = playNeuralFemaleAudio(
-        sample,
-        rate,
-        () => setIsPreviewPlaying(false),
-        () => {
-          if ('speechSynthesis' in window && profile.voice) {
-            const utterance = new SpeechSynthesisUtterance(sample);
-            utterance.lang = 'ko-KR';
-            utterance.voice = profile.voice;
-            utterance.pitch = 1.0;
-            utterance.rate = rate;
-            utterance.onend = () => setIsPreviewPlaying(false);
-            utterance.onerror = () => setIsPreviewPlaying(false);
-            window.speechSynthesis.speak(utterance);
-          } else {
-            setIsPreviewPlaying(false);
-          }
-        }
-      );
+    // 1. 고음질 뉴럴 브라우저 음성 지원 시
+    if (profile.voice && profile.isNatural) {
+      const utterance = new SpeechSynthesisUtterance(sample);
+      utterance.lang = isEnglish ? 'en-US' : 'ko-KR';
+      utterance.voice = profile.voice;
+      utterance.pitch = profile.pitch;
+      utterance.rate = profile.rate;
+      utterance.onend = () => setIsPreviewPlaying(false);
+      utterance.onerror = () => setIsPreviewPlaying(false);
+      window.speechSynthesis.speak(utterance);
       return;
     }
 
-    // 2. 남성 (자연스러운 중저음)
-    if (!('speechSynthesis' in window)) return;
-    const utterance = new SpeechSynthesisUtterance(sample);
-    utterance.lang = 'ko-KR';
-
-    const profile = getVoiceProfile(type, availableVoices, rate, pitch);
-    if (profile.voice) {
-      utterance.voice = profile.voice;
-    }
-    utterance.pitch = profile.pitch;
-    utterance.rate = profile.rate;
-
-    utterance.onend = () => {
-      setIsPreviewPlaying(false);
-    };
-    utterance.onerror = () => {
-      setIsPreviewPlaying(false);
-    };
-
-    window.speechSynthesis.speak(utterance);
+    // 2. 브라우저에 구형 기계음만 있거나 뉴럴 보이스 부재 시 AI 스튜디오 자연 음원 스트림 재생
+    currentAudioRef.current = playNeuralAudio(
+      sample,
+      profile.rate,
+      () => setIsPreviewPlaying(false),
+      () => {
+        if ('speechSynthesis' in window && profile.voice) {
+          const utterance = new SpeechSynthesisUtterance(sample);
+          utterance.lang = isEnglish ? 'en-US' : 'ko-KR';
+          utterance.voice = profile.voice;
+          utterance.pitch = profile.pitch;
+          utterance.rate = profile.rate;
+          utterance.onend = () => setIsPreviewPlaying(false);
+          utterance.onerror = () => setIsPreviewPlaying(false);
+          window.speechSynthesis.speak(utterance);
+        } else {
+          setIsPreviewPlaying(false);
+        }
+      },
+      isEnglish ? 'en' : 'ko'
+    );
   };
 
   const formatTime = (sec: number) => {
@@ -2139,7 +2291,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
       >
         <div className="max-w-2xl mx-auto space-y-4">
           {/* Custom Translation Notice Banner */}
-          {(selectedTranslation === '킹제임스흠정역' || selectedTranslation === '직역성경') &&
+          {selectedTranslation === '킹제임스흠정역' &&
             !isCustomTranslationRegistered(selectedTranslation) && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between text-xs text-amber-950 shadow-xs mb-2">
                 <div className="flex items-center gap-2">
@@ -3111,11 +3263,11 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
                   <span className="text-[#1b64b9] font-black">{voiceType}</span>
                 </div>
                 <span className="text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200 truncate max-w-[140px]">
-                  {getVoiceProfile(voiceType, availableVoices, speechRate, speechPitch).engineName}
+                  {getVoiceProfile(voiceType, availableVoices, speechRate, speechPitch, selectedTranslation === 'NIV' || selectedTranslation === '킹제임스').engineName}
                 </span>
               </div>
               <p className="text-[10px] text-slate-600 font-bold leading-relaxed">
-                ✓ {getVoiceProfile(voiceType, availableVoices, speechRate, speechPitch).summary}
+                ✓ {getVoiceProfile(voiceType, availableVoices, speechRate, speechPitch, selectedTranslation === 'NIV' || selectedTranslation === '킹제임스').summary}
               </p>
             </div>
 

@@ -1797,10 +1797,11 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               >
                 <option value="개역개정">개역개정</option>
                 <option value="개역한글">개역한글</option>
-                <option value="새번역">새번역</option>
-                <option value="공동번역">공동번역</option>
+                <option value="쉬운성경">쉬운성경</option>
+                <option value="표준새번역">표준새번역</option>
+                <option value="킹제임스">킹제임스 (KJV)</option>
+                <option value="킹제임스흠정역">킹제임스 흠정역</option>
                 <option value="NIV">NIV (English)</option>
-                <option value="ESV">ESV (English)</option>
               </select>
               <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-700 text-xs">
                 ▼

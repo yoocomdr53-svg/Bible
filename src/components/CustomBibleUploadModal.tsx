@@ -160,7 +160,7 @@ export const CustomBibleUploadModal: React.FC<CustomBibleUploadModalProps> = ({
               <span>소장 성경 텍스트(.txt) 등록</span>
             </h3>
             <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5">
-              킹제임스흠정역, 직역성경, 쉬운성경 등 소장 파일을 앱에 등록합니다
+              킹제임스흠정역, 쉬운성경 등 소장 파일을 앱에 등록합니다
             </p>
           </div>
           <button
@@ -180,8 +180,8 @@ export const CustomBibleUploadModal: React.FC<CustomBibleUploadModalProps> = ({
             <label className="block text-xs font-black text-slate-800 mb-1.5">
               1. 등록할 성경 역본 선택
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-              {['킹제임스흠정역', '직역성경', '쉬운성경', '직접입력'].map((preset) => (
+            <div className="grid grid-cols-3 gap-1.5">
+              {['킹제임스흠정역', '쉬운성경', '직접입력'].map((preset) => (
                 <button
                   key={preset}
                   type="button"
