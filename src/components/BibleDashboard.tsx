@@ -37,6 +37,7 @@ import { APP_NAME, APP_VERSION } from '../version';
 
 interface BibleDashboardProps {
   user: User;
+  initialTab?: ActiveTab;
   onLogout: () => void;
   onToggleRole?: () => void;
   openModal: (modal: ActiveModal) => void;
@@ -51,6 +52,7 @@ interface BibleDashboardProps {
 
 export const BibleDashboard: React.FC<BibleDashboardProps> = ({
   user,
+  initialTab,
   onLogout,
   onToggleRole,
   openModal,
@@ -62,7 +64,14 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
   onDeleteRecording,
   onOpenInstall,
 }) => {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('home');
+  const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab || 'home');
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -749,15 +758,35 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
       )}
 
       {activeTab === 'settings' && (
-        <SettingsView
-          user={user}
-          onLogout={onLogout}
-          onToggleRole={onToggleRole}
-          onOpenAdmin={() => {
-            pushHistory({ tab: 'settings' });
-            setActiveTab('admin');
-          }}
-        />
+        user.role === 'admin' ? (
+          <SettingsView
+            user={user}
+            onLogout={onLogout}
+            onToggleRole={onToggleRole}
+            onBackToHome={() => setActiveTab('home')}
+            onOpenAdmin={() => {
+              pushHistory({ tab: 'settings' });
+              setActiveTab('admin');
+            }}
+          />
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-[#f8fafc]">
+            <div className="w-16 h-16 rounded-3xl bg-amber-50 border border-amber-200 flex items-center justify-center text-3xl mb-3 shadow-inner">
+              🔒
+            </div>
+            <h3 className="text-base font-black text-slate-900 mb-1">관리자 전용 설정입니다</h3>
+            <p className="text-xs text-slate-500 mb-4 max-w-xs leading-relaxed">
+              시스템 및 계정 설정 화면은 관리자(Admin) 권한을 가진 계정으로만 접근하실 수 있습니다.
+            </p>
+            <button
+              type="button"
+              onClick={() => setActiveTab('home')}
+              className="px-4 py-2 bg-[#0083e3] hover:bg-blue-600 active:scale-95 text-white text-xs font-bold rounded-xl shadow cursor-pointer transition"
+            >
+              홈 화면으로 돌아가기
+            </button>
+          </div>
+        )
       )}
 
       {/* Admin Bible & Recitation Management View (관리자 전용 접근 보호) */}

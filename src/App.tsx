@@ -1,5 +1,5 @@
 import React, { useState, Component, ReactNode, ErrorInfo } from 'react';
-import { User, ActiveModal, BibleVerse, ReadingDayPlan, UserRecording } from './types';
+import { User, ActiveTab, ActiveModal, BibleVerse, ReadingDayPlan, UserRecording } from './types';
 import { TODAY_VERSE, INITIAL_READING_PLANS, INITIAL_RECORDINGS, addTodayReadChapter, markChapterRangeCompleted } from './data/bibleData';
 import { LoginView } from './components/LoginView';
 import { BibleDashboard } from './components/BibleDashboard';
@@ -135,16 +135,28 @@ export default function App() {
     setActiveModal('none');
   };
 
+  const [dashboardInitialTab, setDashboardInitialTab] = useState<ActiveTab>('home');
+
   // Direct login from standard form or simple sign-up form
   const handleLoginSuccess = (authenticatedUser: User) => {
     setUser(authenticatedUser);
     saveActiveSession(authenticatedUser);
+    setDashboardInitialTab('home');
+    setCurrentView('dashboard');
+  };
+
+  // Open settings with admin authentication
+  const handleOpenSettingsAsAdmin = (adminUser: User) => {
+    setUser(adminUser);
+    saveActiveSession(adminUser);
+    setDashboardInitialTab('settings');
     setCurrentView('dashboard');
   };
 
   // Logout back to ERP Login & clear session
   const handleLogout = () => {
     clearActiveSession();
+    setDashboardInitialTab('home');
     setCurrentView('login');
   };
 
@@ -254,13 +266,14 @@ export default function App() {
           <LoginView
             onLoginSuccess={handleLoginSuccess}
             openModal={handleOpenModal}
-            onOpenSettings={() => setCurrentView('dashboard')}
+            onOpenSettings={handleOpenSettingsAsAdmin}
             onOpenInstall={() => setShowInstallModal(true)}
           />
         ) : (
           <ErrorBoundary>
             <BibleDashboard
               user={user}
+              initialTab={dashboardInitialTab}
               onLogout={handleLogout}
               onToggleRole={handleToggleRole}
               openModal={handleOpenModal}

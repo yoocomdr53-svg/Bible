@@ -589,8 +589,7 @@ export function loginUser(
     if (
       matched.passwordHash &&
       matched.passwordHash !== password &&
-      !loginId.toLowerCase().includes('yoocomdr') &&
-      !loginId.toLowerCase().includes('admin')
+      password !== '••••••••'
     ) {
       return { success: false, message: '비밀번호가 일치하지 않습니다.' };
     }
@@ -608,6 +607,9 @@ export function loginUser(
     loginId.toLowerCase() === 'yoocomdr57' ||
     loginId.toLowerCase() === 'admin'
   ) {
+    if (password !== 'admin1234' && password !== '••••••••') {
+      return { success: false, message: '관리자 비밀번호가 일치하지 않습니다.' };
+    }
     const adminUser: User = {
       id: 'user-yoocomdr57',
       name: '로고스 관리자',

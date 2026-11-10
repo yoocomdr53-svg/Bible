@@ -14,6 +14,7 @@ import {
   AlertCircle,
   Sparkles,
   User as UserIcon,
+  X,
 } from 'lucide-react';
 import { ActiveModal, User } from '../types';
 import { APP_NAME, APP_VERSION } from '../version';
@@ -21,12 +22,14 @@ import {
   loginUser,
   registerUser,
   getRememberedId,
+  getActiveSession,
+  saveActiveSession,
 } from '../services/authService';
 
 interface LoginViewProps {
   onLoginSuccess: (user: User) => void;
   openModal: (modal: ActiveModal) => void;
-  onOpenSettings?: () => void;
+  onOpenSettings?: (adminUser: User) => void;
   onOpenInstall?: () => void;
 }
 
@@ -57,6 +60,54 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Admin Settings Security Verification Modal state (관리자 전용 설정 진입 인증)
+  const [showAdminAuthModal, setShowAdminAuthModal] = useState(false);
+  const [adminAuthId, setAdminAuthId] = useState('yoocomdr57@gmail.com');
+  const [adminAuthPassword, setAdminAuthPassword] = useState('');
+  const [showAdminAuthPassword, setShowAdminAuthPassword] = useState(false);
+  const [adminAuthError, setAdminAuthError] = useState<string | null>(null);
+  const [isAdminAuthLoading, setIsAdminAuthLoading] = useState(false);
+
+  // Open settings with admin verification
+  const handleGearClick = () => {
+    // If user already has an active session with admin rights, navigate directly
+    const session = getActiveSession();
+    if (session && session.role === 'admin') {
+      if (onOpenSettings) onOpenSettings(session);
+      return;
+    }
+    // Otherwise open admin verification modal
+    setAdminAuthError(null);
+    setAdminAuthPassword('');
+    setShowAdminAuthModal(true);
+  };
+
+  // Submit admin security verification
+  const handleAdminAuthSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminAuthError(null);
+    setIsAdminAuthLoading(true);
+
+    setTimeout(() => {
+      const res = loginUser(adminAuthId, adminAuthPassword, true);
+      setIsAdminAuthLoading(false);
+
+      if (res.success && res.user) {
+        if (res.user.role === 'admin') {
+          saveActiveSession(res.user, adminAuthId);
+          setShowAdminAuthModal(false);
+          if (onOpenSettings) {
+            onOpenSettings(res.user);
+          }
+        } else {
+          setAdminAuthError('관리자(Admin) 권한을 가진 계정으로만 설정 화면에 접속할 수 있습니다.');
+        }
+      } else {
+        setAdminAuthError(res.message || '관리자 아이디 또는 비밀번호가 올바르지 않습니다.');
+      }
+    }, 300);
+  };
 
   // App Installation State (한 번 설치 완료되면 버튼 영구 숨김)
   const [isAppInstalled, setIsAppInstalled] = useState<boolean>(() => {
@@ -192,12 +243,12 @@ export const LoginView: React.FC<LoginViewProps> = ({
             <span className="text-[11px] text-slate-300 font-medium">연결됨</span>
           </div>
 
-          {/* Settings Cog Icon */}
+          {/* Settings Cog Icon (관리자 보안 인증 후 설정화면 직행) */}
           <button
             id="settingsGearBtn"
             type="button"
             aria-label="시스템 설정"
-            onClick={onOpenSettings}
+            onClick={handleGearClick}
             className="p-1 text-slate-300 hover:text-white transition-colors duration-150 focus:outline-none cursor-pointer"
           >
             <Settings className="w-4 h-4 text-slate-300 hover:rotate-45 transition-transform" />
@@ -660,6 +711,129 @@ export const LoginView: React.FC<LoginViewProps> = ({
         {/* Mobile Home indicator bar */}
         <div aria-hidden="true" className="w-32 h-1 bg-white/60 rounded-full mx-auto mt-2.5 mb-0.5" />
       </footer>
+
+      {/* Admin Settings Security Verification Modal (관리자 로그인 계정으로만 설정화면 접속 허용) */}
+      {showAdminAuthModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowAdminAuthModal(false);
+          }}
+        >
+          <div className="w-full max-w-sm bg-[#0e1726] border border-amber-400/40 rounded-3xl p-6 text-white shadow-2xl relative overflow-hidden">
+            {/* Background ambient glow */}
+            <div className="absolute -top-12 -right-12 w-32 h-32 bg-amber-500/15 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-blue-500/15 rounded-full blur-2xl pointer-events-none" />
+
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setShowAdminAuthModal(false)}
+              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+              aria-label="닫기"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Modal Header */}
+            <div className="flex flex-col items-center text-center mb-5">
+              <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-amber-400/30 to-amber-600/30 border border-amber-400/60 flex items-center justify-center text-2xl shadow-lg mb-3">
+                👑
+              </div>
+              <h3 className="text-base font-black text-white tracking-tight flex items-center gap-1.5">
+                <span>관리자 설정 보안 인증</span>
+                <span className="text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/40 px-1.5 py-0.5 rounded-full">
+                  Admin Only
+                </span>
+              </h3>
+              <p className="text-xs text-slate-300 mt-1 max-w-[270px] leading-relaxed">
+                시스템 환경설정 및 관리 메뉴는 <strong className="text-amber-300">관리자 계정</strong>으로만 접속할 수 있습니다.
+              </p>
+            </div>
+
+            {/* Error Message */}
+            {adminAuthError && (
+              <div className="mb-4 p-2.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-200 text-xs flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
+                <span className="leading-tight">{adminAuthError}</span>
+              </div>
+            )}
+
+            {/* Admin Login Form */}
+            <form onSubmit={handleAdminAuthSubmit} className="space-y-3.5">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1 pl-1">
+                  관리자 아이디 / 이메일
+                </label>
+                <div className="relative">
+                  <UserIcon className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={adminAuthId}
+                    onChange={(e) => setAdminAuthId(e.target.value)}
+                    placeholder="yoocomdr57@gmail.com"
+                    required
+                    className="w-full h-11 pl-10 pr-3.5 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 text-xs text-white placeholder-slate-500 outline-none transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1 pl-1">
+                  관리자 비밀번호
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type={showAdminAuthPassword ? 'text' : 'password'}
+                    value={adminAuthPassword}
+                    onChange={(e) => setAdminAuthPassword(e.target.value)}
+                    placeholder="관리자 비밀번호 입력"
+                    required
+                    autoFocus
+                    className="w-full h-11 pl-10 pr-10 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 text-xs text-white placeholder-slate-500 outline-none transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminAuthPassword(!showAdminAuthPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1 cursor-pointer"
+                  >
+                    {showAdminAuthPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-2 flex flex-col gap-2">
+                <button
+                  type="submit"
+                  disabled={isAdminAuthLoading}
+                  className="w-full h-11 rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 hover:from-amber-400 hover:to-amber-500 active:scale-[0.99] text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                >
+                  {isAdminAuthLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>관리자 권한 확인 중...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>관리자 확인 및 설정화면 이동</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowAdminAuthModal(false)}
+                  className="w-full h-9 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 text-xs font-semibold transition cursor-pointer"
+                >
+                  취소
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 };

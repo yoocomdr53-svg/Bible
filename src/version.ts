@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 0.9';
+export const APP_VERSION = 'Ver 1.0';
 export const APP_BUILD_DATE = '2026.11.10';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,16 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 1.0',
+    name: 'SuperBible',
+    releaseDate: '2026.11.10',
+    changes: [
+      '로그인 화면 상단 설정(톱니바퀴) 클릭 시 관리자 보안 인증 팝업 연동',
+      '관리자 계정(Admin)으로 인증 완료 시에만 설정 화면으로 직행하도록 보안 강화',
+      '설정 화면 접속 시 홈 화면이 아닌 시스템 및 계정 설정 화면(SettingsView)이 바로 열리도록 라우팅 수정',
+    ],
+  },
   {
     version: 'Ver 0.9',
     name: 'SuperBible',

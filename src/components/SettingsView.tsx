@@ -9,9 +9,10 @@ interface SettingsViewProps {
   onLogout: () => void;
   onOpenAdmin?: () => void;
   onToggleRole?: () => void;
+  onBackToHome?: () => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ user, onLogout, onOpenAdmin, onToggleRole }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ user, onLogout, onOpenAdmin, onToggleRole, onBackToHome }) => {
   const [alarmEnabled, setAlarmEnabled] = useState(true);
   const [readingSpeed, setReadingSpeed] = useState('1.0x');
   const [offlineCache, setOfflineCache] = useState(true);
@@ -26,9 +27,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, onLogout, onOp
   return (
     <div className="flex-1 overflow-y-auto smooth-scroll no-scrollbar bg-[#f8fafc] pb-24 text-slate-800 p-4 space-y-4">
       {/* Title */}
-      <div>
-        <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">시스템 및 계정 설정</h2>
-        <p className="text-xs text-slate-500">{APP_NAME} {APP_VERSION} & 로고스 학사 ERP 연동 관리</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">시스템 및 계정 설정</h2>
+          <p className="text-xs text-slate-500">{APP_NAME} {APP_VERSION} & 로고스 학사 ERP 연동 관리</p>
+        </div>
+        {onBackToHome && (
+          <button
+            type="button"
+            onClick={onBackToHome}
+            className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#0083e3] text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+          >
+            <span>← 홈으로</span>
+          </button>
+        )}
       </div>
 
       {/* Official App Installation Card (Android APK / Tablet / PWA) */}
