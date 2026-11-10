@@ -255,9 +255,13 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
             <button
               id="logoutBackBtn"
               type="button"
-              onClick={onLogout}
-              title="로그아웃 (ERP 로그인으로 돌아가기)"
-              className="p-1.5 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+              onClick={() => {
+                if (window.confirm('SuperBible 앱에서 나가시겠습니까? (로그아웃)')) {
+                  onLogout();
+                }
+              }}
+              title="앱에서 나가기 (로그아웃)"
+              className="p-1.5 text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
             >
               <LogOut className="w-5 h-5 stroke-slate-700" />
             </button>
@@ -635,14 +639,29 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('settings')}
-                  aria-label="계정 설정"
-                  className="p-1 text-slate-400 hover:text-blue-600 transition-colors flex-shrink-0 cursor-pointer"
-                >
-                  <ChevronRight className="w-5 h-5 text-slate-400 hover:translate-x-0.5 transition-transform" />
-                </button>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm('SuperBible 앱에서 나가시겠습니까? (로그아웃)')) {
+                        onLogout();
+                      }
+                    }}
+                    className="px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:text-rose-600 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-200 rounded-lg transition active:scale-95 cursor-pointer flex items-center gap-1 shadow-2xs"
+                    title="앱에서 나가기 (로그아웃)"
+                  >
+                    <LogOut className="w-3.5 h-3.5 text-slate-500" />
+                    <span>나가기</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('settings')}
+                    aria-label="계정 설정"
+                    className="p-1 text-slate-400 hover:text-blue-600 transition-colors flex-shrink-0 cursor-pointer"
+                  >
+                    <ChevronRight className="w-5 h-5 text-slate-400 hover:translate-x-0.5 transition-transform" />
+                  </button>
+                </div>
               </div>
             </section>
           </div>

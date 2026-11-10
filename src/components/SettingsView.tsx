@@ -208,11 +208,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, onLogout, onOp
       {/* Logout / Switch back to ERP */}
       <div className="pt-2">
         <button
-          onClick={onLogout}
+          onClick={() => {
+            if (window.confirm('SuperBible 앱에서 나가시겠습니까? (로그아웃)')) {
+              onLogout();
+            }
+          }}
           className="w-full h-11 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-98 text-white text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
         >
           <LogOut className="w-4 h-4" />
-          <span>LOGOS ERP 로그인 포털로 나가기 (로그아웃)</span>
+          <span>SuperBible 앱에서 나가기 (로그아웃)</span>
         </button>
       </div>
 

@@ -95,7 +95,12 @@ function getSavedUser(): User {
 }
 
 function getSavedView(): 'login' | 'dashboard' {
-  // 앱 실행 / 재실행 시 반드시 로그인 화면을 첫 화면으로 표시하여 보안 유지
+  const sessionUser = getActiveSession();
+  // 로그인된 세션이 있는 경우 계속 로그인 상태를 유지하여 바로 홈(대시보드) 화면으로 진입
+  // 나가기(로그아웃) 버튼을 눌러 세션이 해제된 경우에만 로그인 화면 표시
+  if (sessionUser && sessionUser.id) {
+    return 'dashboard';
+  }
   return 'login';
 }
 
