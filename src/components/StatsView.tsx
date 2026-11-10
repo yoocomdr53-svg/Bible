@@ -34,6 +34,7 @@ interface StatsViewProps {
   recordings: UserRecording[];
   onDeleteRecording: (id: string) => void;
   onNavigateToRecord?: () => void;
+  isEmbedded?: boolean;
 }
 
 // Helper to extract chapter keys from a recording's title / verseRef
@@ -104,6 +105,7 @@ export const StatsView: React.FC<StatsViewProps> = ({
   recordings: propRecordings,
   onDeleteRecording,
   onNavigateToRecord,
+  isEmbedded = false,
 }) => {
   // Main Tab State: 'weekly' (주간) | 'monthly' (월간 추이) | 'progress' (진행률)
   const [activeTab, setActiveTab] = useState<'weekly' | 'monthly' | 'progress'>('progress');
@@ -603,7 +605,13 @@ export const StatsView: React.FC<StatsViewProps> = ({
   const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
 
   return (
-    <div className="flex-1 overflow-y-auto smooth-scroll no-scrollbar bg-[#f8fafc] pb-24 text-slate-800 p-3.5 sm:p-4 space-y-4">
+    <div
+      className={
+        isEmbedded
+          ? 'space-y-4 text-slate-800'
+          : 'flex-1 overflow-y-auto smooth-scroll no-scrollbar bg-[#f8fafc] pb-24 text-slate-800 p-3.5 sm:p-4 space-y-4'
+      }
+    >
       {/* 1. Top Cards: 신약 & 구약 통독 진행률 (현재 사용자의 실제 낭독/완독 기준) */}
       <div className="grid grid-cols-2 gap-3">
         {/* 신약 성경 통독 카드 */}

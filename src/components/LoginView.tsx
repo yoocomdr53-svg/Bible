@@ -137,21 +137,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
     }, 500);
   };
 
-  // Quick fill demo credentials
-  const handleFillAdmin = () => {
-    setAuthMode('login');
-    setLoginId('yoocomdr57@gmail.com');
-    setLoginPassword('admin1234');
-    setErrorMessage(null);
-  };
-
-  const handleFillMember = () => {
-    setAuthMode('login');
-    setLoginId('yooc');
-    setLoginPassword('1234');
-    setErrorMessage(null);
-  };
-
   return (
     <main
       id="loginView"
@@ -395,26 +380,6 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 ) : (
                   <span>안전하게 로그인</span>
                 )}
-              </button>
-            </div>
-
-            {/* Quick Demo Helper Buttons */}
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={handleFillAdmin}
-                className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 font-bold text-[11px] transition cursor-pointer"
-                title="관리자 계정(yoocomdr57@gmail.com) 자동 입력"
-              >
-                👑 관리자 자동입력
-              </button>
-              <button
-                type="button"
-                onClick={handleFillMember}
-                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold text-[11px] transition cursor-pointer"
-                title="일반 성도 계정(yooc) 자동 입력"
-              >
-                👤 성도 자동입력
               </button>
             </div>
           </form>

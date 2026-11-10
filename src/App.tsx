@@ -1,5 +1,4 @@
 import React, { useState, Component, ReactNode, ErrorInfo } from 'react';
-import { ShieldCheck } from 'lucide-react';
 import { User, ActiveModal, BibleVerse, ReadingDayPlan, UserRecording } from './types';
 import { TODAY_VERSE, INITIAL_READING_PLANS, INITIAL_RECORDINGS, addTodayReadChapter, markChapterRangeCompleted } from './data/bibleData';
 import { LoginView } from './components/LoginView';
@@ -242,18 +241,6 @@ export default function App() {
 
   return (
     <div className="w-full min-h-screen bg-slate-950 flex flex-col items-center justify-center relative select-none">
-      {/* Top Floating Portal Switcher (관리자 전환 버튼 삭제 완료) */}
-      <div className="fixed top-2.5 right-3 z-50 flex items-center bg-slate-900/85 backdrop-blur-md px-2.5 py-1 rounded-full border border-slate-700/60 shadow-md text-xs text-slate-300">
-        <button
-          onClick={() => setCurrentView(currentView === 'login' ? 'dashboard' : 'login')}
-          className="px-2 py-0.5 rounded-full text-slate-300 hover:text-white font-medium transition cursor-pointer flex items-center gap-1.5"
-          title={currentView === 'login' ? 'SuperBible Ver 0.3 바로보기' : '로그인 포털로'}
-        >
-          <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-          <span>{currentView === 'login' ? 'SuperBible Ver 0.3 바로보기' : '로그인 포털로'}</span>
-        </button>
-      </div>
-
       {/* Main Viewport Container: Smartphone / Tablet / Computer Auto-Responsive */}
       <div
         id="appViewport"

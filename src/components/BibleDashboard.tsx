@@ -10,7 +10,6 @@ import {
   Settings,
   ChevronRight,
   ChevronDown,
-  Flame,
   Volume2,
   Music,
   RefreshCw,
@@ -25,9 +24,6 @@ import {
   getBibleAbbreviation,
   getCurrentReadingLocation,
   saveCurrentReadingLocation,
-  getSingleRoundBibleStats,
-  getGoal12TotalStats,
-  getTodayReadCount,
 } from '../data/bibleData';
 import { BibleReaderView } from './BibleReaderView';
 import { StatsView } from './StatsView';
@@ -86,32 +82,6 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
       verse: 1,
     };
   });
-
-  // Real-time actual reading & recitation progress
-  // 1) 일독 1,189장 실시간 진행률 (1,189장 완독 시 100%)
-  const [singleRoundStats, setSingleRoundStats] = useState(getSingleRoundBibleStats);
-  // 2) 통독 12목표 전체 진행률 (총 12독 = 14,268장 완독 시 100%)
-  const [goal12Stats, setGoal12Stats] = useState(getGoal12TotalStats);
-  // 3) 오늘 읽은/낭독한 말씀 장수
-  const [todayReadCount, setTodayReadCount] = useState(getTodayReadCount);
-
-  useEffect(() => {
-    const handleProgressSync = () => {
-      setSingleRoundStats(getSingleRoundBibleStats());
-      setGoal12Stats(getGoal12TotalStats());
-      setTodayReadCount(getTodayReadCount());
-    };
-    window.addEventListener('superbible_verse_read_changed', handleProgressSync);
-    window.addEventListener('superbible_today_read_changed', handleProgressSync);
-    window.addEventListener('superbible_reading_location_changed', handleProgressSync);
-    window.addEventListener('superbible_recordings_changed', handleProgressSync);
-    return () => {
-      window.removeEventListener('superbible_verse_read_changed', handleProgressSync);
-      window.removeEventListener('superbible_today_read_changed', handleProgressSync);
-      window.removeEventListener('superbible_reading_location_changed', handleProgressSync);
-      window.removeEventListener('superbible_recordings_changed', handleProgressSync);
-    };
-  }, []);
 
   // Today's Verse (오늘의 말씀 - 날짜별 자동 수정/갱신 및 순환 관리)
   const [todayVerse, setTodayVerse] = useState<BibleVerse>(() => {
@@ -465,153 +435,18 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
               </div>
             </section>
 
-            {/* Core Feature Grid (5 items) */}
-            <section className="grid grid-cols-5 gap-1.5 sm:gap-2.5">
-              {/* 1. 성경 (누르면 성경화면 -> 장화면 -> 절화면 3단계 즉시 시작) */}
-              <button
-                type="button"
-                onClick={handleOpenBibleSelector}
-                className="bg-white rounded-xl p-2 sm:p-3 flex flex-col items-center justify-center shadow-soft border border-slate-100 hover:border-blue-200 active:scale-95 transition-all cursor-pointer"
-              >
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#0083e3] mb-1.5">
-                  <BookOpen className="w-5 h-5 sm:w-6 sm:h-6" />
-                </div>
-                <span className="text-[11px] sm:text-xs font-bold text-slate-700">성경</span>
-              </button>
-
-              {/* 2. 찬송가 (새찬송가 645곡 전곡 뷰어 & 멜로디 반주) */}
-              <button
-                type="button"
-                onClick={() => setActiveTab('hymn')}
-                className="bg-white rounded-xl p-2 sm:p-3 flex flex-col items-center justify-center shadow-soft border border-slate-100 hover:border-emerald-200 active:scale-95 transition-all cursor-pointer"
-              >
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 mb-1.5">
-                  <Music className="w-5 h-5 sm:w-6 sm:h-6" />
-                </div>
-                <span className="text-[11px] sm:text-xs font-bold text-slate-700">찬송가</span>
-              </button>
-
-              {/* 3. 도전일독 */}
-              <button
-                type="button"
-                onClick={handleOpenChallenge}
-                className="bg-white rounded-xl p-2 sm:p-3 flex flex-col items-center justify-center shadow-soft border border-slate-100 hover:border-blue-200 active:scale-95 transition-all cursor-pointer"
-              >
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#0083e3] mb-1.5">
-                  <CheckSquare className="w-5 h-5 sm:w-6 sm:h-6" />
-                </div>
-                <span className="text-[11px] sm:text-xs font-bold text-slate-700">도전일독</span>
-              </button>
-
-              {/* 4. 낭독녹음 */}
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenInRecordingMode(true);
-                  setBibleSubView('reader');
-                  setActiveTab('bible');
-                }}
-                className="bg-white rounded-xl p-2 sm:p-3 flex flex-col items-center justify-center shadow-soft border border-slate-100 hover:border-blue-200 active:scale-95 transition-all cursor-pointer"
-              >
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#0083e3] mb-1.5">
-                  <Mic className="w-5 h-5 sm:w-6 sm:h-6" />
-                </div>
-                <span className="text-[11px] sm:text-xs font-bold text-slate-700">낭독녹음</span>
-              </button>
-
-              {/* 5. 통계 */}
-              <button
-                type="button"
-                onClick={() => setActiveTab('stats')}
-                className="bg-white rounded-xl p-2 sm:p-3 flex flex-col items-center justify-center shadow-soft border border-slate-100 hover:border-blue-200 active:scale-95 transition-all cursor-pointer"
-              >
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#0083e3] mb-1.5">
-                  <BarChart2 className="w-5 h-5 sm:w-6 sm:h-6" />
-                </div>
-                <span className="text-[11px] sm:text-xs font-bold text-slate-700">통계</span>
-              </button>
-            </section>
-
-            {/* Streak Card */}
-            <section className="bg-white rounded-2xl p-4 shadow-soft border border-blue-100/70">
-              <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-blue-50 text-[#0083e3] flex items-center justify-center">
-                    <Flame className="w-4 h-4 text-[#0083e3]" />
-                  </span>
-                  <span className="text-xs font-bold text-slate-800">
-                    {user.name} 성도님의 말씀 동행
-                  </span>
-                </div>
-                <span className="text-[11px] font-bold text-[#0083e3] bg-blue-50 px-2 py-0.5 rounded-full">
-                  연속 {user.consecutiveDays}일 묵상 달성 🔥
-                </span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 sm:gap-3 pt-3 text-center">
-                {/* 1. 일독 1,189장 진행률 카드 (1,189장 완독 시 100%) */}
-                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col justify-between">
-                  <p className="text-[10.5px] sm:text-xs text-slate-600 font-bold truncate">일독 진행률</p>
-                  <div className="my-1">
-                    <p className="text-base sm:text-lg font-black text-[#0083e3]">
-                      {singleRoundStats.percent}%
-                    </p>
-                    <span className="text-[9.5px] text-slate-400 font-semibold block">
-                      {singleRoundStats.completedCount} / 1,189장
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-[#0083e3] h-full rounded-full transition-all duration-300"
-                      style={{ width: `${Math.min(100, Math.max(0, singleRoundStats.percent))}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* 2. 목표달성 전체 진행률 (12독 총 14,268장 완독 시 100%) */}
-                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col justify-between">
-                  <p className="text-[10.5px] sm:text-xs text-slate-600 font-bold truncate">목표달성 전체</p>
-                  <div className="my-1">
-                    <p className="text-base sm:text-lg font-black text-indigo-600">
-                      {goal12Stats.percent}%
-                    </p>
-                    <span className="text-[9.5px] text-slate-400 font-semibold block">
-                      {goal12Stats.totalCumChapters.toLocaleString()} / 14,268장
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-indigo-600 h-full rounded-full transition-all duration-300"
-                      style={{ width: `${Math.min(100, Math.max(0, goal12Stats.percent))}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* 3. 오늘 읽은 말씀 카드 */}
-                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col justify-between">
-                  <p className="text-[10.5px] sm:text-xs text-slate-600 font-bold truncate">오늘 읽은 말씀</p>
-                  <div className="my-1">
-                    <p className="text-base sm:text-lg font-black text-slate-900">
-                      {todayReadCount}
-                      <span className="text-xs font-semibold text-slate-600 ml-0.5">장</span>
-                    </p>
-                    <span
-                      className={`text-[9.5px] font-bold block ${
-                        todayReadCount > 0 ? 'text-emerald-600' : 'text-slate-400'
-                      }`}
-                    >
-                      {todayReadCount > 0 ? '목표 달성' : '말씀 읽기 전'}
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-200/40 h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-emerald-500 h-full rounded-full transition-all duration-300"
-                      style={{ width: todayReadCount > 0 ? '100%' : '0%' }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </section>
+            {/* 통계자료 전체 화면 (중복 5개 메뉴 및 스트릭 카드 자리에 전면 이동) */}
+            <StatsView
+              user={user}
+              recordings={recordings}
+              onDeleteRecording={onDeleteRecording}
+              onNavigateToRecord={() => {
+                setOpenInRecordingMode(true);
+                setBibleSubView('reader');
+                setActiveTab('bible');
+              }}
+              isEmbedded={true}
+            />
 
             {/* Daily Verse Section (오늘의 말씀 - 날짜별 365일 자동 갱신 및 순환 교체) */}
             <section className="bg-white rounded-3xl p-4 sm:p-5 shadow-soft border border-slate-100 space-y-3">

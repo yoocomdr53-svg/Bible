@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Copy, Check, Download, Sparkles, Share2 } from 'lucide-react';
 import { BibleVerse } from '../types';
+import { APP_NAME, APP_VERSION } from '../version';
 
 interface VerseCardModalProps {
   isOpen: boolean;
@@ -22,7 +23,7 @@ export const VerseCardModal: React.FC<VerseCardModalProps> = ({ isOpen, onClose,
   if (!isOpen) return null;
 
   const handleCopyText = () => {
-    const formatted = `"${verse.text}"\n- ${verse.book} ${verse.chapter}:${verse.verse} (${verse.translation})\nSuperBible Ver 0.3 제공`;
+    const formatted = `"${verse.text}"\n- ${verse.book} ${verse.chapter}:${verse.verse} (${verse.translation})\n${APP_NAME} ${APP_VERSION} 제공`;
     navigator.clipboard?.writeText(formatted);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
