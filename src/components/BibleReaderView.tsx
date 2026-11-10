@@ -43,6 +43,13 @@ import {
 } from '../services/authService';
 import { convertBlobToMp3 } from '../utils/audioToMp3';
 import { saveAudioToStorage } from '../utils/audioStorage';
+import {
+  loadBibleChapterVerses,
+  getAllAvailableTranslations,
+  isCustomTranslationRegistered,
+  TranslationOption,
+} from '../services/bibleApiService';
+import { CustomBibleUploadModal } from './CustomBibleUploadModal';
 
 interface BibleReaderViewProps {
   onOpenVerseCard: (verse: BibleVerse) => void;
@@ -305,7 +312,18 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   const [selectedBook, setSelectedBook] = useState(initialBook);
   const [selectedChapter, setSelectedChapter] = useState(initialChapter);
   const [selectedVerse, setSelectedVerse] = useState(initialVerse);
-  const [selectedTranslation, setSelectedTranslation] = useState<'개역개정' | '개역한글' | '쉬운성경' | 'NIV'>('개역개정');
+  const [selectedTranslation, setSelectedTranslation] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('superbible_selected_translation');
+      if (saved) return saved;
+    } catch (e) {}
+    return '개역개정';
+  });
+  const [availableTranslations, setAvailableTranslations] = useState<TranslationOption[]>(() =>
+    getAllAvailableTranslations()
+  );
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [targetUploadVersion, setTargetUploadVersion] = useState('킹제임스흠정역');
 
   // Screen display settings (matching user uploaded screenshot)
   const [fontFamily, setFontFamily] = useState<'기본' | '나눔고딕' | '나눔명조'>('기본');
@@ -517,7 +535,41 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
 
   // Generate or fetch verses (defined BEFORE any derived counts to prevent temporal dead zone ReferenceError!)
   const key = `${selectedBook}-${selectedChapter}`;
+  const [apiVerses, setApiVerses] = useState<{ verse: number; text: string }[] | null>(null);
+  const [isLoadingVerses, setIsLoadingVerses] = useState<boolean>(false);
+
+  useEffect(() => {
+    let isCancelled = false;
+    setIsLoadingVerses(true);
+
+    loadBibleChapterVerses(selectedBook, selectedChapter, selectedTranslation)
+      .then((loaded) => {
+        if (!isCancelled) {
+          if (loaded && loaded.length > 0) {
+            setApiVerses(loaded);
+          } else {
+            setApiVerses(null);
+          }
+          setIsLoadingVerses(false);
+        }
+      })
+      .catch((err) => {
+        if (!isCancelled) {
+          console.error('[BibleReaderView] loadBibleChapterVerses error:', err);
+          setApiVerses(null);
+          setIsLoadingVerses(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedBook, selectedChapter, selectedTranslation]);
+
   const verses = React.useMemo(() => {
+    if (apiVerses && apiVerses.length > 0) {
+      return apiVerses;
+    }
     if (SAMPLE_VERSES_CHAPTER[key]) {
       return SAMPLE_VERSES_CHAPTER[key];
     }
@@ -526,11 +578,13 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     for (let i = 1; i <= count; i++) {
       generated.push({
         verse: i,
-        text: FALLBACK_SCRIPTURES[(i - 1) % FALLBACK_SCRIPTURES.length],
+        text: isLoadingVerses
+          ? `${selectedBook} ${selectedChapter}장 ${i}절 말씀을 불러오고 있습니다...`
+          : `${selectedBook} ${selectedChapter}장 ${i}절 말씀입니다.`,
       });
     }
     return generated;
-  }, [key, selectedBook, selectedChapter]);
+  }, [apiVerses, key, selectedBook, selectedChapter, isLoadingVerses]);
 
   const handleToggleVerseRead = (v: number) => {
     toggleVerseCompleted(selectedBook, selectedChapter, v);
@@ -2084,6 +2138,40 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
         }}
       >
         <div className="max-w-2xl mx-auto space-y-4">
+          {/* Custom Translation Notice Banner */}
+          {(selectedTranslation === '킹제임스흠정역' || selectedTranslation === '직역성경') &&
+            !isCustomTranslationRegistered(selectedTranslation) && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between text-xs text-amber-950 shadow-xs mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">📖</span>
+                  <div>
+                    <p className="font-black text-xs text-amber-900">{selectedTranslation} 소장본 등록 안내</p>
+                    <p className="text-[10.5px] text-amber-700 font-medium">
+                      소장하신 {selectedTranslation} 텍스트 파일(.txt)을 등록하시면 본문이 즉시 반영됩니다.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTargetUploadVersion(selectedTranslation);
+                    setShowUploadModal(true);
+                  }}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-black text-[11px] rounded-xl cursor-pointer whitespace-nowrap shadow-xs ml-2"
+                >
+                  파일 등록
+                </button>
+              </div>
+            )}
+
+          {/* Loading indicator */}
+          {isLoadingVerses && (
+            <div className="py-2 text-center text-xs text-slate-400 font-medium flex items-center justify-center gap-2">
+              <span className="animate-spin text-sm">⏳</span>
+              <span>{selectedBook} {selectedChapter}장 ({selectedTranslation}) 본문을 불러오는 중입니다...</span>
+            </div>
+          )}
+
           {/* Section banner */}
           {selectedBook === '창세기' && selectedChapter === 1 && (
             <div className="pt-2 pb-1">
@@ -2738,32 +2826,82 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
       {/* MODAL: Translation Picker */}
       {showTransModal && (
         <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in"
           onClick={(e) => {
             if (e.target === e.currentTarget) setShowTransModal(false);
           }}
         >
-          <div className="bg-white rounded-2xl p-5 w-full max-w-xs shadow-2xl border">
-            <h3 className="font-extrabold text-slate-900 pb-3 border-b">역본 선택</h3>
-            <div className="space-y-2 py-3">
-              {(['개역개정', '개역한글', '쉬운성경', 'NIV'] as const).map((trans) => (
-                <button
-                  key={trans}
-                  type="button"
-                  onClick={() => {
-                    setSelectedTranslation(trans);
-                    setShowTransModal(false);
-                  }}
-                  className={`w-full p-2.5 rounded-xl text-left text-xs font-bold border flex items-center justify-between ${
-                    selectedTranslation === trans
-                      ? 'bg-[#1b64b9] text-white border-[#1b64b9]'
-                      : 'hover:bg-slate-50 border-slate-200 text-slate-800'
-                  }`}
-                >
-                  <span>{trans}</span>
-                  {selectedTranslation === trans && <span>✓</span>}
-                </button>
-              ))}
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl border border-slate-100 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="font-black text-slate-900 text-sm sm:text-base">성경 역본 선택</h3>
+                <p className="text-[11px] text-slate-500 font-medium mt-0.5">원하시는 성경 번역본을 선택하세요</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTransModal(false)}
+                className="w-7 h-7 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1.5 py-3 overflow-y-auto flex-1 text-xs">
+              {availableTranslations.map((trans) => {
+                const isSelected = selectedTranslation === trans.id;
+                const isCustom = trans.isCustom || isCustomTranslationRegistered(trans.id);
+                return (
+                  <button
+                    key={trans.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTranslation(trans.id);
+                      localStorage.setItem('superbible_selected_translation', trans.id);
+                      setShowTransModal(false);
+                    }}
+                    className={`w-full p-2.5 rounded-xl text-left border flex items-center justify-between transition cursor-pointer ${
+                      isSelected
+                        ? 'bg-[#1b64b9] text-white border-[#1b64b9] shadow-xs font-black'
+                        : 'hover:bg-slate-50 border-slate-200 text-slate-800 font-bold'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span>{trans.name}</span>
+                        {isCustom && (
+                          <span
+                            className={`text-[9.5px] px-1.5 py-0.2 rounded-md font-bold ${
+                              isSelected ? 'bg-white/20 text-white' : 'bg-blue-50 text-[#1b64b9]'
+                            }`}
+                          >
+                            소장본
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-[10.5px] mt-0.5 font-normal ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
+                        {trans.description}
+                      </p>
+                    </div>
+                    {isSelected && <span className="font-bold text-sm">✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Bottom action: Upload custom Bible file */}
+            <div className="pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTransModal(false);
+                  setTargetUploadVersion('킹제임스흠정역');
+                  setShowUploadModal(true);
+                }}
+                className="w-full py-2.5 px-3 bg-slate-900 hover:bg-black text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm cursor-pointer transition"
+              >
+                <span>➕</span>
+                <span>소장 성경 텍스트(.txt) 파일 등록</span>
+              </button>
             </div>
           </div>
         </div>
@@ -3060,6 +3198,18 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* MODAL: Custom Bible Text File Upload */}
+      <CustomBibleUploadModal
+        isOpen={showUploadModal}
+        defaultTargetVersion={targetUploadVersion}
+        onClose={() => setShowUploadModal(false)}
+        onSuccess={(newVer) => {
+          setAvailableTranslations(getAllAvailableTranslations());
+          setSelectedTranslation(newVer);
+          localStorage.setItem('superbible_selected_translation', newVer);
+        }}
+      />
     </div>
   );
 };
