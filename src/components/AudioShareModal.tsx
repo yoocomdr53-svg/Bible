@@ -84,7 +84,13 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
   const effectiveLoginId = isYooc ? 'yoocomdr' : rawLoginId;
   const folderName = `${effectiveUserName}_${effectiveLoginId}`;
 
-  const displayDate = data?.date || new Date().toISOString().slice(0, 10).replace(/-/g, '.');
+  const displayDate = (() => {
+    const now = new Date();
+    const dateStr = data?.date || `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    return dateStr.includes(':') ? dateStr : `${dateStr} ${timeStr}`;
+  })();
+
   const displayDuration = data?.duration || '00:15';
 
   useEffect(() => {
@@ -138,8 +144,9 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
     return new File([blobToUse], targetFileName, { type: 'audio/mpeg' });
   };
 
+  // 성경 녹음 낭독 공유 메세지: 낭독본문, 녹음시간, 제출일시만 텍스트로 표시하고 음원 첨부 (설명문, 바로가기 링크 완전 배제)
   const getSubmissionText = () => {
-    return `[${APP_NAME} ${APP_VERSION} 성경 낭독 과제 제출]\n👤 성도명: ${effectiveUserName} (${selectedTeam})\n📜 낭독 본문: ${effectivePassageName}\n⏱️ 녹음 시간: ${displayDuration}\n📅 제출 일시: ${displayDate}\n🎵 첨부 음원: ${targetFileName}\nhttps://bible-9lrz.vercel.app/`;
+    return `낭독본문: ${effectivePassageName}\n녹음시간: ${displayDuration}\n제출일시: ${displayDate}`;
   };
 
   // 1. Automatically Sync to Google Drive (성경낭독녹음 > [이름_아이디] 폴더) and Google Sheets
@@ -204,10 +211,10 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
       try {
         await navigator.share({
           files: [file],
-          title: `[${selectedTeam}] ${effectiveUserName} 낭독 과제 (${effectivePassageName})`,
+          title: effectivePassageName,
           text: getSubmissionText(),
         });
-        setActionNotice(`텔레그램 ${selectedTeam} 과제제출방으로 ${targetFileName} 음원 파일이 전송되었습니다!`);
+        setActionNotice(`과제제출방으로 ${targetFileName} 음원 파일과 내용이 공유되었습니다!`);
         setTimeout(() => setActionNotice(null), 3500);
         return;
       } catch (err: any) {
@@ -235,7 +242,7 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
     } catch (e) {}
 
     setActionNotice(
-      `음원 파일(${targetFileName})이 다운로드되고 과제 제출 내용이 복사되었습니다. 텔레그램 ${selectedTeam} 과제제출방에 파일을 끌어다 놓아 전송해 주세요!`
+      `음원 파일(${targetFileName})이 다운로드되고 낭독본문/녹음시간/제출일시 내용이 복사되었습니다.`
     );
     setTimeout(() => {
       window.open('https://web.telegram.org/', '_blank');
@@ -250,15 +257,17 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
         if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({
             files: [file],
-            title: `[${selectedTeam}] ${effectiveUserName} 낭독 과제 (${effectivePassageName})`,
+            title: effectivePassageName,
             text: getSubmissionText(),
           });
         } else {
           await navigator.share({
-            title: `[${selectedTeam}] ${effectiveUserName} 낭독 과제`,
+            title: effectivePassageName,
             text: getSubmissionText(),
-            url: 'https://bible-9lrz.vercel.app/',
           });
+          if (file) {
+            handleDownloadAudio();
+          }
         }
       } catch (e: any) {
         if (e.name !== 'AbortError') console.warn(e);
@@ -407,38 +416,41 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
           </div>
         </div>
 
-        {/* 2. 과제 제출 양식 미리보기 - Matching user screenshot Image 3 */}
+        {/* 2. 공유 메시지 미리보기 (낭독본문, 녹음시간, 제출일시) */}
         <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2 text-xs">
           <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
             <span className="font-extrabold text-slate-800 flex items-center gap-1.5">
               <span>📖</span>
-              <span>과제 제출 양식 미리보기</span>
+              <span>공유 메시지 양식</span>
             </span>
             <span className="text-[10px] bg-blue-100 text-[#0083e3] font-bold px-2 py-0.5 rounded-full">
               {selectedTeam}
             </span>
           </div>
 
-          <div className="space-y-1 text-slate-700 text-[12px] leading-relaxed">
-            <p>
-              <strong className="text-slate-900">제출자:</strong> {effectiveUserName}
-            </p>
-            <div className="flex items-center gap-1.5">
-              <strong className="text-slate-900 whitespace-nowrap">낭독 본문:</strong>
+          <div className="space-y-1.5 text-slate-800 text-[12px] font-mono leading-relaxed bg-white p-3 rounded-xl border border-slate-200/60 shadow-2xs">
+            <div className="flex items-center justify-between gap-2">
+              <strong className="text-slate-700 whitespace-nowrap font-sans">낭독본문:</strong>
               <input
                 type="text"
                 value={customPassageName}
                 onChange={(e) => setCustomPassageName(e.target.value)}
                 placeholder="예: 말라기 1~5장"
-                className="flex-1 text-right text-xs font-black text-blue-700 bg-white px-2 py-0.5 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
+                className="flex-1 text-right text-xs font-black text-blue-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs font-sans"
               />
             </div>
-            <p>
-              <strong className="text-slate-900">녹음 시간:</strong> {displayDuration} · {displayDate}
-            </p>
-            <p className="text-[11px] text-slate-500 font-mono truncate">
-              <strong className="text-slate-700">음원:</strong> {targetFileName} (MP3)
-            </p>
+            <div className="flex items-center justify-between">
+              <strong className="text-slate-700 font-sans">녹음시간:</strong>
+              <span className="font-bold text-slate-900">{displayDuration}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <strong className="text-slate-700 font-sans">제출일시:</strong>
+              <span className="font-bold text-slate-900">{displayDate}</span>
+            </div>
+            <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px]">
+              <span className="text-slate-500 font-sans">첨부 음원:</span>
+              <span className="font-bold text-blue-600 truncate max-w-[190px]">{targetFileName} (MP3)</span>
+            </div>
           </div>
 
           {/* Audio Preview Player */}

@@ -1,6 +1,6 @@
 // public/sw.js - Service Worker for SuperBible PWA
 // Provides high-reliability real-time auto updates on both PC (Chrome/Edge desktop) and mobile (Android/iOS)
-const CACHE_NAME = 'superbible-v1.1-cache';
+const CACHE_NAME = 'superbible-v1.2-cache';
 
 self.addEventListener('install', (event) => {
   // Activate immediately without waiting for old worker or existing tabs to close
