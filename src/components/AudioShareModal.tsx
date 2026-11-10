@@ -294,6 +294,7 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
       const audio = new Audio(streamUrl);
       audioRef.current = audio;
       audio.onended = () => setIsPlayingAudio(false);
+      audio.onerror = () => setIsPlayingAudio(false);
       audio.play().catch(() => setIsPlayingAudio(false));
       setIsPlayingAudio(true);
     }

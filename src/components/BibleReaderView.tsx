@@ -42,6 +42,7 @@ import {
   addMemberRecordingToAdmin,
 } from '../services/authService';
 import { convertBlobToMp3 } from '../utils/audioToMp3';
+import { saveAudioToStorage } from '../utils/audioStorage';
 
 interface BibleReaderViewProps {
   onOpenVerseCard: (verse: BibleVerse) => void;
@@ -1088,12 +1089,16 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   // Recording controls
   const handleToggleRecord = async () => {
     if (isRecordingNow) {
-      // Stop recording
+      // Pause or stop current verse take
       setIsRecordingNow(false);
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        try {
-          mediaRecorderRef.current.stop();
-        } catch (e) {}
+      if (mediaRecorderRef.current) {
+        if (mediaRecorderRef.current.state === 'recording') {
+          try {
+            mediaRecorderRef.current.pause();
+          } catch (e) {
+            try { mediaRecorderRef.current.stop(); } catch (err) {}
+          }
+        }
       }
       if (!recordedVerses.includes(activeRecordVerse)) {
         setRecordedVerses((prev) => [...prev, activeRecordVerse]);
@@ -1103,27 +1108,41 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
         setActiveRecordVerse((prev) => prev + 1);
       }
     } else {
-      // Start recording
+      // Start or Resume recording
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
+        try {
+          mediaRecorderRef.current.resume();
+          setIsRecordingNow(true);
+          return;
+        } catch (e) {}
+      }
+
+      // Fresh recording session: clear previous chunks and start clean
+      audioChunksRef.current = [];
+      recordedBlobRef.current = null;
+
       try {
+        // High fidelity microphone constraints (standard hardware native sample rate, clean AEC, NS, AGC)
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
-            channelCount: 1, // Mono (용량 최소화)
-            sampleRate: 24000,
             echoCancellation: true,
             noiseSuppression: true,
+            autoGainControl: true,
           },
         });
         mediaStreamRef.current = stream;
 
-        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : MediaRecorder.isTypeSupported('audio/webm')
-          ? 'audio/webm'
-          : MediaRecorder.isTypeSupported('audio/mp4')
-          ? 'audio/mp4'
-          : '';
+        const preferredMimeTypes = [
+          'audio/webm;codecs=opus',
+          'audio/webm',
+          'audio/ogg;codecs=opus',
+          'audio/mp4',
+        ];
+        const mimeType = preferredMimeTypes.find((m) => MediaRecorder.isTypeSupported(m)) || '';
 
-        const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+        const recorder = mimeType
+          ? new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 128000 })
+          : new MediaRecorder(stream);
         mediaRecorderRef.current = recorder;
 
         recorder.ondataavailable = (e) => {
@@ -1133,13 +1152,18 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
         };
 
         recorder.onstop = () => {
-          const finalBlob = new Blob(audioChunksRef.current, {
-            type: recorder.mimeType || 'audio/webm',
-          });
-          recordedBlobRef.current = finalBlob;
-          if (recordedUrlRef.current) URL.revokeObjectURL(recordedUrlRef.current);
-          recordedUrlRef.current = URL.createObjectURL(finalBlob);
-          stream.getTracks().forEach((track) => track.stop());
+          if (audioChunksRef.current.length > 0) {
+            const finalBlob = new Blob(audioChunksRef.current, {
+              type: recorder.mimeType || 'audio/webm',
+            });
+            recordedBlobRef.current = finalBlob;
+            if (recordedUrlRef.current) URL.revokeObjectURL(recordedUrlRef.current);
+            recordedUrlRef.current = URL.createObjectURL(finalBlob);
+          }
+          if (mediaStreamRef.current) {
+            mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+            mediaStreamRef.current = null;
+          }
         };
 
         recorder.start(250);
@@ -1152,14 +1176,38 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   };
 
   const handleCompleteRecording = async () => {
-    if (isRecordingNow) {
-      setIsRecordingNow(false);
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+    setIsRecordingNow(false);
+
+    // Guarantee full recorder stop and finalize all audio chunks
+    let rawBlob: Blob | null = null;
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      rawBlob = await new Promise<Blob | null>((resolve) => {
+        recorder.onstop = () => {
+          const finalBlob = new Blob(audioChunksRef.current, {
+            type: recorder.mimeType || 'audio/webm',
+          });
+          recordedBlobRef.current = finalBlob;
+          if (mediaStreamRef.current) {
+            mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+            mediaStreamRef.current = null;
+          }
+          resolve(finalBlob);
+        };
         try {
-          mediaRecorderRef.current.stop();
-        } catch (e) {}
+          recorder.stop();
+        } catch (e) {
+          resolve(recordedBlobRef.current);
+        }
+      });
+    } else {
+      rawBlob = recordedBlobRef.current || (audioChunksRef.current.length > 0 ? new Blob(audioChunksRef.current, { type: recorder?.mimeType || 'audio/webm' }) : null);
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
       }
     }
+
     const session = getActiveSession();
     const durationStr = recordDurationSec > 0 ? formatHMS(recordDurationSec) : `${recordedVerses.length * 15 || 45}초`;
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
@@ -1170,12 +1218,11 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     const chapterRangeText = getFormattedPassage(selectedBook, minCh, maxCh);
     const chapterCount = Math.max(1, maxCh - minCh + 1);
 
-    // 1. 고음질 MP3 변환 (모든 기기/차량/메신저 100% 호환 + 초경량)
-    const rawBlob = recordedBlobRef.current || (audioChunksRef.current.length > 0 ? new Blob(audioChunksRef.current, { type: 'audio/webm' }) : null);
+    // 1. 고음질 128kbps MP3 변환 (음성 피크 정규화 + 잡음/찌그러짐 완전 제거)
     let finalBlob: Blob | null = rawBlob;
-    if (rawBlob) {
+    if (rawBlob && rawBlob.size > 0) {
       try {
-        finalBlob = await convertBlobToMp3(rawBlob);
+        finalBlob = await convertBlobToMp3(rawBlob, 128);
       } catch (convErr) {
         console.warn('MP3 conversion fallback', convErr);
       }
@@ -1185,14 +1232,20 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
     const fileName = `${chapterRangeText}.mp3`;
     const audioFile = finalBlob ? new File([finalBlob], fileName, { type: 'audio/mp3' }) : null;
 
+    const recId = `rec-${Date.now()}`;
     const newRecItem = {
-      id: `rec-${Date.now()}`,
+      id: recId,
       title: `${chapterRangeText} 낭독 녹음`,
       verseRef: chapterRangeText,
       duration: durationStr,
       date: dateStr,
       audioBlobUrl: finalUrl || undefined,
     };
+
+    // 영구 재생을 위해 IndexedDB에 MP3 저장
+    if (finalBlob) {
+      saveAudioToStorage(recId, finalBlob).catch(() => {});
+    }
 
     if (session) {
       // 2. 관리자 음원 검수 목록 및 누적 녹음 건수 갱신
@@ -1216,6 +1269,9 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
         addTodayReadChapter(selectedBook, ch);
       }
       setCompletedChapters(getCompletedChapters());
+      window.dispatchEvent(new CustomEvent('superbible_verse_read_changed'));
+      window.dispatchEvent(new CustomEvent('superbible_today_read_changed'));
+      window.dispatchEvent(new CustomEvent('superbible_recordings_changed'));
     } catch (e) {}
 
     // Open Share Modal immediately for seamless Telegram / Team 과제제출방 sharing

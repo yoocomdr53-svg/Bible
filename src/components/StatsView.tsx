@@ -23,6 +23,7 @@ import {
 } from '../data/bibleData';
 import { AudioShareModal, AudioShareData } from './AudioShareModal';
 import { getAllUserRecordings, deleteUserRecordingFromStore } from '../services/authService';
+import { getAudioFromStorage, deleteAudioFromStorage } from '../utils/audioStorage';
 
 interface StatsViewProps {
   user: User;
@@ -475,8 +476,8 @@ export const StatsView: React.FC<StatsViewProps> = ({
   // Max value for monthly chart Y-axis
   const maxMonthlyVal = Math.max(30, Math.max(...monthlyData.map((m) => m.count)) + 5);
 
-  // Play audio function
-  const togglePlayAudio = (rec: UserRecording) => {
+  // Play audio function (IndexedDB에서 영구 복원 지원)
+  const togglePlayAudio = async (rec: UserRecording) => {
     if (playingId === rec.id) {
       if (audioPlayerRef.current) {
         audioPlayerRef.current.pause();
@@ -490,16 +491,25 @@ export const StatsView: React.FC<StatsViewProps> = ({
     }
 
     setPlayingId(rec.id);
-    const audioUrl = rec.audioBlobUrl;
-    if (audioUrl) {
-      const audio = new Audio(audioUrl);
+
+    let streamUrl = rec.audioBlobUrl;
+    // 새로고침 등으로 Blob URL이 만료된 경우 IndexedDB에서 영구 보관된 MP3 복원
+    try {
+      const storedBlob = await getAudioFromStorage(rec.id);
+      if (storedBlob && storedBlob.size > 0) {
+        streamUrl = URL.createObjectURL(storedBlob);
+      }
+    } catch (e) {}
+
+    if (streamUrl) {
+      const audio = new Audio(streamUrl);
       audioPlayerRef.current = audio;
       audio.onended = () => setPlayingId(null);
       audio.onerror = () => {
-        setTimeout(() => setPlayingId(null), 3000);
+        setPlayingId(null);
       };
       audio.play().catch(() => {
-        setTimeout(() => setPlayingId(null), 3000);
+        setPlayingId(null);
       });
     } else {
       setTimeout(() => setPlayingId(null), 3000);
@@ -521,6 +531,7 @@ export const StatsView: React.FC<StatsViewProps> = ({
   const handleDelete = (id: string) => {
     if (confirm('이 낭독 녹음 파일을 삭제하시겠습니까?')) {
       deleteUserRecordingFromStore(id);
+      deleteAudioFromStorage(id).catch(() => {});
       onDeleteRecording(id);
       setAllRecordings((prev) => prev.filter((r) => r.id !== id));
       if (playingId === id) {

@@ -9,6 +9,7 @@ import {
 import { markChapterRangeCompleted, addTodayReadChapter } from '../data/bibleData';
 import { AudioShareModal, AudioShareData } from './AudioShareModal';
 import { convertBlobToMp3 } from '../utils/audioToMp3';
+import { saveAudioToStorage } from '../utils/audioStorage';
 
 interface AudioRecordingModalProps {
   isOpen: boolean;
@@ -86,28 +87,30 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Real Microphone Audio Recording (Opus 24kHz Mono - 최소 용량 + 선명한 음성)
+  // Real Microphone Audio Recording (고음질 128kbps MP3 + 음성 피크 정규화 + 잡음/찌그러짐 완전 제거)
   const startRecording = async () => {
     try {
+      // 표준 마이크 캡처 제약조건 (왜곡 방지: 24kHz 강제 다운샘플링 제거, AEC/NS/AGC 자동 적용)
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          channelCount: 1, // Mono (용량 최소화)
-          sampleRate: 24000,
           echoCancellation: true,
           noiseSuppression: true,
+          autoGainControl: true,
         },
       });
       mediaStreamRef.current = stream;
 
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/webm')
-        ? 'audio/webm'
-        : MediaRecorder.isTypeSupported('audio/mp4')
-        ? 'audio/mp4'
-        : '';
+      const preferredMimeTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus',
+        'audio/mp4',
+      ];
+      const mimeType = preferredMimeTypes.find((m) => MediaRecorder.isTypeSupported(m)) || '';
 
-      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 128000 })
+        : new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
       audioChunksRef.current = [];
 
@@ -117,14 +120,24 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
         }
       };
 
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         const finalBlob = new Blob(audioChunksRef.current, {
           type: recorder.mimeType || 'audio/webm',
         });
-        setRecordedBlob(finalBlob);
-        const url = URL.createObjectURL(finalBlob);
+        if (stream) {
+          stream.getTracks().forEach((track) => track.stop());
+        }
+        // 즉시 고음질 128kbps MP3로 변환하여 미리듣기 및 저장에 활용
+        let mp3Blob = finalBlob;
+        try {
+          mp3Blob = await convertBlobToMp3(finalBlob, 128);
+        } catch (convErr) {
+          console.warn('MP3 conversion fallback', convErr);
+        }
+        setRecordedBlob(mp3Blob);
+        if (recordedUrl) URL.revokeObjectURL(recordedUrl);
+        const url = URL.createObjectURL(mp3Blob);
         setRecordedUrl(url);
-        stream.getTracks().forEach((track) => track.stop());
       };
 
       recorder.start(250);
@@ -145,15 +158,43 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
     }
   };
 
-  const stopRecording = () => {
+  const stopRecording = async (): Promise<Blob | null> => {
     setIsRecording(false);
     if (timerRef.current) clearInterval(timerRef.current);
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      try {
-        mediaRecorderRef.current.stop();
-      } catch (e) {}
-    }
     setHasRecorded(true);
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      return new Promise<Blob | null>((resolve) => {
+        const recorder = mediaRecorderRef.current;
+        if (!recorder) return resolve(recordedBlob);
+        recorder.onstop = async () => {
+          const finalBlob = new Blob(audioChunksRef.current, {
+            type: recorder.mimeType || 'audio/webm',
+          });
+          if (mediaStreamRef.current) {
+            mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+            mediaStreamRef.current = null;
+          }
+          let mp3Blob = finalBlob;
+          try {
+            mp3Blob = await convertBlobToMp3(finalBlob, 128);
+          } catch (convErr) {
+            console.warn('MP3 conversion fallback', convErr);
+          }
+          setRecordedBlob(mp3Blob);
+          if (recordedUrl) URL.revokeObjectURL(recordedUrl);
+          const url = URL.createObjectURL(mp3Blob);
+          setRecordedUrl(url);
+          resolve(mp3Blob);
+        };
+        try {
+          recorder.stop();
+        } catch (e) {
+          resolve(recordedBlob);
+        }
+      });
+    }
+    return recordedBlob;
   };
 
   const togglePlayback = () => {
@@ -168,6 +209,7 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
         const audio = new Audio(recordedUrl);
         audioElementRef.current = audio;
         audio.onended = () => setIsPlaying(false);
+        audio.onerror = () => setIsPlaying(false);
         audio.play().catch(() => setIsPlaying(false));
         setIsPlaying(true);
       } else {
@@ -184,11 +226,12 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
   };
 
   const handleSave = async () => {
-    // 1. 고음질 MP3 변환 (모든 기기/차량/메신저 100% 호환 + 초경량)
     let finalBlob: Blob | null = recordedBlob;
-    if (recordedBlob) {
+    if (isRecording) {
+      finalBlob = await stopRecording();
+    } else if (recordedBlob) {
       try {
-        finalBlob = await convertBlobToMp3(recordedBlob);
+        finalBlob = await convertBlobToMp3(recordedBlob, 128);
       } catch (convErr) {
         console.warn('MP3 conversion fallback', convErr);
       }
@@ -198,14 +241,21 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
     const audioFile = finalBlob ? new File([finalBlob], fileName, { type: 'audio/mp3' }) : null;
     const finalUrl = finalBlob ? URL.createObjectURL(finalBlob) : recordedUrl;
 
+    const recId = `rec-${Date.now()}`;
     const newRec: UserRecording = {
-      id: `rec-${Date.now()}`,
+      id: recId,
       title: `${chapterRangeText} 낭독 녹음`,
       verseRef: chapterRangeText,
       duration: formatTime(recordedSeconds || 15),
       date: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
       audioBlobUrl: finalUrl || undefined,
     };
+
+    // 영구 재생을 위해 IndexedDB에 MP3 저장
+    if (finalBlob) {
+      saveAudioToStorage(recId, finalBlob).catch(() => {});
+    }
+
     onSaveRecording(newRec);
 
     // 2. 로컬 사용자 녹음 보관함에도 저장
