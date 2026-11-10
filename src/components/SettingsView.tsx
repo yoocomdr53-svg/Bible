@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { LogOut, Bell, Shield, Smartphone, Globe, RefreshCw, CheckCircle2, User as UserIcon } from 'lucide-react';
+import { LogOut, Bell, Shield, Smartphone, Globe, RefreshCw, CheckCircle2, User as UserIcon, Laptop, Sparkles } from 'lucide-react';
 import { User } from '../types';
 import { AppInstallModal } from './AppInstallModal';
 import { APP_NAME, APP_VERSION, APP_BUILD_DATE } from '../version';
+import { checkForAppUpdate, forceAppUpdate } from '../services/updateService';
 
 interface SettingsViewProps {
   user: User;
@@ -18,10 +19,37 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, onLogout, onOp
   const [offlineCache, setOfflineCache] = useState(true);
   const [syncNotice, setSyncNotice] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [updateFeedback, setUpdateFeedback] = useState<string | null>(null);
 
   const triggerManualSync = () => {
     setSyncNotice(true);
     setTimeout(() => setSyncNotice(false), 2000);
+  };
+
+  // PC and Mobile force version check and refresh
+  const handleCheckAndUpdate = async () => {
+    setIsCheckingUpdate(true);
+    setUpdateFeedback('최신 버전 확인 중...');
+    try {
+      const res = await checkForAppUpdate();
+      if (res.hasUpdate && res.serverVersion) {
+        setUpdateFeedback(`새 버전(${res.serverVersion}) 감지! 최신 화면으로 갱신합니다...`);
+        setTimeout(() => {
+          forceAppUpdate();
+        }, 800);
+      } else {
+        setUpdateFeedback(`현재 ${APP_VERSION} 최신 상태입니다. 캐시 재동기화 중...`);
+        setTimeout(() => {
+          forceAppUpdate();
+        }, 800);
+      }
+    } catch (e) {
+      setUpdateFeedback('최신 화면으로 새로고침합니다...');
+      setTimeout(() => {
+        forceAppUpdate();
+      }, 500);
+    }
   };
 
   return (
@@ -199,6 +227,45 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, onLogout, onOp
           </div>
         </div>
       )}
+
+      {/* Real-time Version & Auto-Update Card (PC 데스크톱 및 스마트폰 실시간 자동 업데이트) */}
+      <div className="bg-gradient-to-br from-white to-blue-50/40 rounded-2xl p-4 border border-blue-100 shadow-soft space-y-2.5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <Laptop className="w-4 h-4 text-blue-600" />
+              <h4 className="text-xs font-black text-slate-900">PC 및 모바일 자동 업데이트</h4>
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded-full border border-emerald-300">
+                실시간 연동중
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-600 leading-tight">
+              현재 실행 버전: <strong className="text-blue-700 font-extrabold">{APP_NAME} {APP_VERSION}</strong>
+            </p>
+            <p className="text-[10px] text-slate-500 leading-normal">
+              컴퓨터 PC 설치 앱 및 스마트폰에서 프로그램 수정 시 새로고침 없이도 자동으로 최신 버전이 감지되어 업데이트됩니다.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            disabled={isCheckingUpdate}
+            onClick={handleCheckAndUpdate}
+            className="px-3 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-[#0083e3] hover:from-blue-700 hover:to-blue-600 active:scale-95 text-white font-black text-xs flex items-center gap-1.5 transition shadow-sm cursor-pointer flex-shrink-0 disabled:opacity-60"
+            title="PC 데스크톱 및 모바일 캐시를 완전 삭제하고 최신 버전으로 즉시 새로고침"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isCheckingUpdate ? 'animate-spin' : ''}`} />
+            <span>{isCheckingUpdate ? '확인 중...' : '최신 버전 확인'}</span>
+          </button>
+        </div>
+
+        {updateFeedback && (
+          <div className="p-2 rounded-xl bg-blue-100/70 border border-blue-200 text-blue-900 text-[11px] font-bold flex items-center gap-1.5 animate-in fade-in">
+            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+            <span>{updateFeedback}</span>
+          </div>
+        )}
+      </div>
 
       {/* Cloud Sync Button */}
       <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-soft">

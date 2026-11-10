@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 1.0';
+export const APP_VERSION = 'Ver 1.1';
 export const APP_BUILD_DATE = '2026.11.10';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,16 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 1.1',
+    name: 'SuperBible',
+    releaseDate: '2026.11.10',
+    changes: [
+      '컴퓨터(PC) 데스크톱 설치 PWA 및 스마트폰 실시간 자동 업데이트(Auto-Update) 시스템 구축',
+      '버전 감지 엔드포인트(/version.json) 및 서비스 워커 무효화 캐시 정책(vercel.json) 적용으로 PC 설치 앱 지연 문제 원천 해결',
+      '설정 화면에 [PC 및 모바일 자동 업데이트] 상태 카드 및 [최신 버전 확인 및 지금 새로고침] 원클릭 버튼 추가',
+    ],
+  },
   {
     version: 'Ver 1.0',
     name: 'SuperBible',

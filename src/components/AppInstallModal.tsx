@@ -94,7 +94,7 @@ export const AppInstallModal: React.FC<AppInstallModalProps> = ({ isOpen, onClos
     // Direct link to downloadable package / instructions
     const a = document.createElement('a');
     a.href = '/manifest.json';
-    a.download = `SuperBible_v0.3.webmanifest`;
+    a.download = `SuperBible_${APP_VERSION}.webmanifest`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -286,6 +286,16 @@ export const AppInstallModal: React.FC<AppInstallModalProps> = ({ isOpen, onClos
                     바탕화면 및 작업 표시줄에 고정하여 원클릭으로 낭독할 수 있습니다.
                   </li>
                 </ol>
+              </div>
+
+              <div className="p-3 bg-blue-50 text-blue-900 rounded-2xl text-xs font-bold space-y-1.5 border border-blue-100">
+                <div className="flex items-center gap-1.5 text-blue-700 font-black">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <span>PC 설치 앱 실시간 자동 업데이트 지원</span>
+                </div>
+                <p className="text-[11px] text-slate-600 font-normal leading-relaxed">
+                  프로그램이 업데이트되면 PC 설치 앱 실행 시 또는 백그라운드에서 자동으로 감지되어 스마트폰·태블릿처럼 항상 최신 버전({APP_VERSION})으로 자동 갱신됩니다.
+                </p>
               </div>
             </div>
           )}

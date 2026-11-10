@@ -1,4 +1,5 @@
-import React, { useState, Component, ReactNode, ErrorInfo } from 'react';
+import React, { useState, useEffect, Component, ReactNode, ErrorInfo } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { User, ActiveTab, ActiveModal, BibleVerse, ReadingDayPlan, UserRecording } from './types';
 import { TODAY_VERSE, INITIAL_READING_PLANS, INITIAL_RECORDINGS, addTodayReadChapter, markChapterRangeCompleted } from './data/bibleData';
 import { LoginView } from './components/LoginView';
@@ -7,6 +8,7 @@ import { HelpModals } from './components/HelpModals';
 import { VerseCardModal } from './components/VerseCardModal';
 import { AudioRecordingModal } from './components/AudioRecordingModal';
 import { AppInstallModal } from './components/AppInstallModal';
+import { initAutoUpdateService } from './services/updateService';
 import {
   getActiveSession,
   saveActiveSession,
@@ -108,6 +110,15 @@ export default function App() {
   const [currentView, setCurrentView] = useState<'login' | 'dashboard'>(getSavedView);
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
   const [showInstallModal, setShowInstallModal] = useState(false);
+  const [updatingVersion, setUpdatingVersion] = useState<string | null>(null);
+
+  // Initialize real-time auto-update system (PC desktop and mobile PWA)
+  useEffect(() => {
+    const cleanup = initAutoUpdateService((newVer) => {
+      setUpdatingVersion(newVer);
+    });
+    return cleanup;
+  }, []);
 
   // User session state
   const [user, setUser] = useState<User>(getSavedUser);
@@ -257,6 +268,14 @@ export default function App() {
 
   return (
     <div className="w-full min-h-screen bg-slate-950 flex flex-col items-center justify-center relative select-none">
+      {/* Real-time Auto-Update Notice (PC 데스크톱 및 모바일 자동 갱신 알림) */}
+      {updatingVersion && (
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-slate-900/95 text-white rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-bold border border-amber-400/80 animate-in fade-in slide-in-from-top duration-300">
+          <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+          <span>SuperBible {updatingVersion} 최신 버전으로 자동 갱신 중...</span>
+        </div>
+      )}
+
       {/* Main Viewport Container: Smartphone / Tablet / Computer Auto-Responsive */}
       <div
         id="appViewport"
