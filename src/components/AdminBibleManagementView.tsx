@@ -401,7 +401,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     let matchStatus = true;
     if (selectedStatusFilter === 'excellent') matchStatus = m.status === 'excellent';
     else if (selectedStatusFilter === 'warning') matchStatus = m.status === 'warning';
-    else if (selectedStatusFilter === 'completed') matchStatus = m.currentReadingRound >= 12;
+    else if (selectedStatusFilter === 'completed') matchStatus = Math.floor((m.totalReadChapters || 0) / 1189) >= 12;
     else if (selectedStatusFilter === 'active') matchStatus = m.status === 'active' || m.status === 'excellent';
 
     return matchSearch && matchDept && matchStatus;
@@ -425,7 +425,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
       avatarText: newMemberForm.name.slice(0, 2).toUpperCase(),
       targetRounds: 12,
       featuredCount: 0,
-      currentReadingRound: 1,
+      currentReadingRound: 0,
       currentBook: '창세기',
       currentChapter: 1,
       totalReadChapters: 0,
@@ -485,7 +485,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
   // KPI aggregates
   const totalMembersCount = members.length;
   const activeTodayCount = members.filter((m) => m.lastActive.includes('오늘') || m.lastActive.includes('방금')).length;
-  const completed12Count = members.filter((m) => m.currentReadingRound >= 12).length;
+  const completed12Count = members.filter((m) => Math.floor((m.totalReadChapters || 0) / 1189) >= 12).length;
   const totalRecordingsSum = members.reduce((sum, m) => sum + m.recordingsCount, 0);
 
   // Toggle Featured Recording
@@ -557,7 +557,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
       m.department,
       m.role,
       m.phone,
-      `${m.currentReadingRound}독`,
+      `${Math.floor((m.totalReadChapters || 0) / 1189)}독`,
       m.currentBook,
       `${m.currentChapter}장`,
       `${m.totalReadChapters}/1189장`,
@@ -703,7 +703,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     lines.push('회원번호,이름,소속부서,직분,전화번호,이메일,현재통독회차,현재성경,현재장,완독장수,녹음수,최근활동일시,상태,연속통독일,관리자메모');
     members.forEach((m) => {
       lines.push(
-        `"${m.id}","${m.name}","${m.department}","${m.role}","${m.phone}","${m.email}","${m.currentReadingRound}독","${m.currentBook}","${m.currentChapter}장","${m.totalReadChapters}","${m.recordingsCount}","${m.lastActive}","${m.status}","${m.consecutiveDays}","${(m.memo || '').replace(/"/g, '""')}"`
+        `"${m.id}","${m.name}","${m.department}","${m.role}","${m.phone}","${m.email}","${Math.floor((m.totalReadChapters || 0) / 1189)}독","${m.currentBook}","${m.currentChapter}장","${m.totalReadChapters}","${m.recordingsCount}","${m.lastActive}","${m.status}","${m.consecutiveDays}","${(m.memo || '').replace(/"/g, '""')}"`
       );
     });
 
@@ -1381,7 +1381,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                         <div>
                           <span className="text-slate-400 block text-[10px] font-semibold">성경 통독 현황</span>
                           <span className="font-black text-[#1b64b9]">
-                            {m.currentReadingRound}독 진행 ({m.currentBook} {m.currentChapter}장)
+                            {Math.floor((m.totalReadChapters || 0) / 1189)}독 ({m.currentBook} {m.currentChapter}장)
                           </span>
                         </div>
                       </div>
@@ -1524,7 +1524,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                             <div className="flex items-center gap-1.5">
                               <span className="text-sm font-black text-slate-900">{member.name}</span>
                               <span className="text-xs text-slate-500 font-bold">{member.role}</span>
-                              {member.currentReadingRound >= 12 && (
+                              {Math.floor((member.totalReadChapters || 0) / 1189) >= 12 && (
                                 <span className="text-[10px] bg-amber-100 text-amber-800 font-black px-1.5 py-0.2 rounded-md">
                                   👑 12독 완수
                                 </span>
@@ -1549,7 +1549,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                         {/* Round pill */}
                         <div className="text-right flex-shrink-0">
                           <span className="text-xs font-black text-[#1b64b9] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-                            {member.currentReadingRound}독 / 12독 목표
+                            {Math.floor((member.totalReadChapters || 0) / 1189)}독 / 12독 목표
                           </span>
                           <p className="text-[10px] text-slate-400 mt-0.5 font-medium">{member.lastActive}</p>
                         </div>
@@ -1606,7 +1606,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                         >
                           💬 격려 알림
                         </button>
-                        {member.currentReadingRound >= 12 && (
+                        {Math.floor((member.totalReadChapters || 0) / 1189) >= 12 && (
                           <button
                             type="button"
                             onClick={() => setCertMember(member)}
@@ -1886,7 +1886,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                   <button
                     type="button"
                     onClick={() => {
-                      const m = members.find((x) => x.currentReadingRound >= 12) || members[0];
+                      const m = members.find((x) => Math.floor((x.totalReadChapters || 0) / 1189) >= 12) || members[0];
                       setCertMember(m);
                     }}
                     className="w-full py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl shadow-xs transition cursor-pointer text-center"
@@ -2348,7 +2348,9 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                   <span className="text-[10px] text-slate-400 block font-bold">통독 회차</span>
-                  <span className="text-sm font-black text-[#1b64b9]">{selectedMember.currentReadingRound}독 / 12독</span>
+                  <span className="text-sm font-black text-[#1b64b9]">
+                    {Math.floor((selectedMember.totalReadChapters || 0) / 1189)}독 / 12독
+                  </span>
                 </div>
                 <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                   <span className="text-[10px] text-slate-400 block font-bold">완독 장수</span>

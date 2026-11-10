@@ -638,7 +638,7 @@ function doPost(e) {
           member.role || "성도",
           member.phone || "010-미등록",
           member.email || data.loginId || "",
-          member.currentReadingRound || 1,
+          typeof member.currentReadingRound === 'number' ? member.currentReadingRound : 0,
           member.currentBook || "창세기",
           member.currentChapter || 1,
           member.totalReadChapters || 0,

@@ -140,14 +140,15 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
       currentMembers = [...INITIAL_MEMBERS];
     }
 
-    // 부서 명칭을 5개 공식 부서(다이나믹팀, 경영팀, 지벳팀, 중고등부, 초등부)로 정규화
+    // 부서 명칭을 5개 공식 부서(다이나믹팀, 경영팀, 지벳팀, 중고등부, 초등부)로 정규화 및 통독 회차(전체 1,189장 완독 시에만 1독) 정규화
     const validDepts = new Set<string>(OFFICIAL_DEPARTMENTS);
     currentMembers = currentMembers.map((m) => {
       let dept = m.department;
       if (!validDepts.has(dept)) {
         dept = m.role === '관리자' ? '경영팀' : '다이나믹팀';
       }
-      return { ...m, department: dept };
+      const actualRound = Math.floor((m.totalReadChapters || 0) / 1189);
+      return { ...m, department: dept, currentReadingRound: actualRound };
     });
 
     // Ensure all registered accounts exist in currentMembers
@@ -185,7 +186,7 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
           accountStatus: 'active',
           avatarColor: isMasterAdmin ? 'bg-amber-500' : 'bg-blue-500',
           avatarText: acc.user.avatarText,
-          currentReadingRound: 1,
+          currentReadingRound: 0,
           targetRounds: 12,
           currentBook: '창세기',
           currentChapter: 1,
@@ -267,7 +268,7 @@ export function syncMemberToAdminRoster(
       accountStatus: 'active',
       avatarColor: isMasterAdmin ? 'bg-amber-500' : 'bg-blue-500',
       avatarText: user.avatarText,
-      currentReadingRound: 1,
+      currentReadingRound: 0,
       targetRounds: 12,
       currentBook: '창세기',
       currentChapter: 1,
@@ -302,7 +303,7 @@ export function syncMemberToAdminRoster(
       accountStatus: 'active',
       avatarColor: 'bg-blue-500',
       avatarText: user.avatarText,
-      currentReadingRound: 1,
+      currentReadingRound: 0,
       targetRounds: 12,
       currentBook: '창세기',
       currentChapter: 1,
@@ -348,12 +349,15 @@ export function updateMemberReadingProgress(
         realCompletedChaptersCount,
         (members[idx].totalReadChapters || 0) + deltaChapters
       );
+      // 전체 1독(1,189장) 완료 시에만 1독으로 산정 (1,189장 미만은 0독)
+      members[idx].currentReadingRound = Math.floor((members[idx].totalReadChapters || 0) / 1189);
       members[idx].lastActive = '방금 낭독';
       members[idx].consecutiveDays = Math.max(1, (members[idx].consecutiveDays || 0) + 1);
       localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(members));
     } else {
       const isMasterAdmin = searchEmail.includes('yoocomdr') || searchName.includes('관리자');
       const dept = session?.department || (isMasterAdmin ? '경영팀' : '다이나믹팀');
+      const initialTotalRead = Math.max(1, realCompletedChaptersCount);
       const newMember: MemberReadingProfile = {
         id: `M-${String(members.length + 1).padStart(2, '0')}`,
         name: session?.name || '성도',
@@ -369,11 +373,11 @@ export function updateMemberReadingProgress(
         accountStatus: 'active',
         avatarColor: isMasterAdmin ? 'bg-amber-500' : 'bg-blue-500',
         avatarText: session?.avatarText || '성도',
-        currentReadingRound: 1,
+        currentReadingRound: Math.floor(initialTotalRead / 1189),
         targetRounds: 12,
         currentBook: bookName,
         currentChapter: chapterNumber,
-        totalReadChapters: Math.max(1, realCompletedChaptersCount),
+        totalReadChapters: initialTotalRead,
         recordingsCount: 1,
         lastActive: '방금 낭독',
         status: 'active',

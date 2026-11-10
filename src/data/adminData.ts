@@ -83,7 +83,7 @@ export const INITIAL_MEMBERS: MemberReadingProfile[] = [
     accountStatus: 'active',
     avatarColor: 'bg-amber-500',
     avatarText: '관리',
-    currentReadingRound: 1,
+    currentReadingRound: 0,
     targetRounds: 12,
     currentBook: '창세기',
     currentChapter: 1,
