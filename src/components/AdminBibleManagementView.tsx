@@ -1027,9 +1027,11 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
             {/* Department Progress Summary */}
             <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-black text-slate-900">부서별 통독 참여 현황</span>
-                  <span className="text-[10px] text-slate-400 font-bold">5개 공동체</span>
+                  <span className="text-[10px] text-blue-600 bg-blue-50 font-black px-2 py-0.5 rounded-full border border-blue-200">
+                    성경 전체 1,189장 완독 목표
+                  </span>
                 </div>
                 <button
                   type="button"
@@ -1044,31 +1046,49 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                 {OFFICIAL_DEPARTMENTS.map((deptName, idx) => {
                   const deptMembers = members.filter((m) => m.department === deptName);
                   const count = deptMembers.length;
-                  const totalRead = deptMembers.reduce((sum, m) => sum + (m.totalReadChapters || 0), 0);
-                  // 신약 260장 기준 부서별 평균 달성률 (초기 가입시 0%로 초기화)
-                  const progress = count > 0 && totalRead > 0
-                    ? Math.min(100, Math.round((totalRead / (count * 260)) * 100))
-                    : 0;
+                  // 부서 전체 구성원들이 낭독/통독한 누적 장수 합계
+                  const memberChapters = deptMembers.reduce((sum, m) => sum + (m.totalReadChapters || 0), 0);
+                  const deptRecordings = recordings.filter((r) => r.department === deptName);
+                  const totalRead = Math.max(memberChapters, deptRecordings.length);
+
+                  // 성경 66권 전체 1,189장 기준 부서 공동체 전체 통독 진행률 (한사람이 아닌 부서 전체 낭독 진행률)
+                  const TOTAL_BIBLE_CHAPTERS = 1189;
+                  const rawPct = (totalRead / TOTAL_BIBLE_CHAPTERS) * 100;
+                  const progress = totalRead >= TOTAL_BIBLE_CHAPTERS
+                    ? 100
+                    : totalRead <= 0
+                    ? 0
+                    : rawPct < 10
+                    ? Number(rawPct.toFixed(1))
+                    : Math.round(rawPct);
+
                   const colors = ['bg-emerald-500', 'bg-indigo-500', 'bg-purple-500', 'bg-blue-500', 'bg-amber-500'];
                   const color = colors[idx % colors.length];
 
                   return (
                     <div key={deptName} className="space-y-1">
                       <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                        <span>
-                          {deptName} ({count}명 · {totalRead}장 완독)
-                        </span>
-                        <span className="font-black text-slate-900">{progress}%</span>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-extrabold text-slate-900">{deptName}</span>
+                          <span className="text-[11px] text-slate-500 font-medium truncate">
+                            (전체 {count}명 참여 · 총 {totalRead}/1,189장 완독)
+                          </span>
+                        </div>
+                        <span className="font-black text-slate-900 whitespace-nowrap ml-2">{progress}%</span>
                       </div>
-                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                      <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
                         <div
-                          className={`${color} h-full rounded-full transition-all`}
-                          style={{ width: `${progress}%` }}
+                          className={`${color} h-full rounded-full transition-all duration-300`}
+                          style={{ width: `${Math.min(100, Math.max(progress > 0 ? 2 : 0, progress))}%` }}
                         />
                       </div>
                     </div>
                   );
                 })}
+              </div>
+
+              <div className="pt-1 border-t border-slate-100 text-[11px] text-slate-500 leading-relaxed font-medium">
+                💡 <strong className="text-slate-700">부서 전체 공동 통독:</strong> 한 사람이 아닌 경영팀, 지벳팀, 중고등부, 초등부, 다이나믹팀 각 부서의 모든 구성원이 함께 성경 전체 1,189장을 낭독해나가는 합산 진행률입니다.
               </div>
             </div>
 

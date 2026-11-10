@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 1.3';
+export const APP_VERSION = 'Ver 1.4';
 export const APP_BUILD_DATE = '2026.11.10';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,16 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 1.4',
+    name: 'SuperBible',
+    releaseDate: '2026.11.10',
+    changes: [
+      '부서별 통독 참여 현황 산정 기준 전면 개편: 1인당 평균 분모 제거 및 부서 공동체 성경 66권 전체 1,189장 완독 목표 적용',
+      '경영팀, 지벳팀, 중고등부, 초등부, 다이나믹팀 전체 구성원의 합산 낭독 장수와 부서 통독 완독률(%) 실시간 동적 연동',
+      '부서별 통독 참여 인원수 및 총 완독 장수(총 O장 / 1,189장) 직관적 시각화 표시',
+    ],
+  },
   {
     version: 'Ver 1.3',
     name: 'SuperBible',
