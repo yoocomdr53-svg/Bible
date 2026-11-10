@@ -26,7 +26,8 @@ import {
   getTodayReadCount,
 } from '../data/bibleData';
 import { AudioShareModal, AudioShareData } from './AudioShareModal';
-import { getAllUserRecordings, deleteUserRecordingFromStore } from '../services/authService';
+import { getUserRecordings, deleteUserRecordingFromStore } from '../services/authService';
+import { getUserScopeKey } from '../data/bibleData';
 import { getAudioFromStorage, deleteAudioFromStorage } from '../utils/audioStorage';
 
 interface StatsViewProps {
@@ -124,12 +125,15 @@ export const StatsView: React.FC<StatsViewProps> = ({
   const todayDayOfWeekIndex = (now.getDay() + 6) % 7; // Mon = 0, Sun = 6
   const [selectedDayIndex, setSelectedDayIndex] = useState<number>(todayDayOfWeekIndex);
 
-  // Merged recordings from props and persistent store
+  // Merged recordings from props and persistent store (신규 가입자는 빈 목록으로 시작)
   const [allRecordings, setAllRecordings] = useState<UserRecording[]>(() => {
-    const fromStore = getAllUserRecordings();
-    if (fromStore.length > 0) return fromStore;
-    return propRecordings;
+    if (propRecordings && propRecordings.length > 0) return propRecordings;
+    return getUserRecordings(user?.email);
   });
+
+  useEffect(() => {
+    setAllRecordings(propRecordings || []);
+  }, [propRecordings]);
 
   // Audio Playback state
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -150,25 +154,18 @@ export const StatsView: React.FC<StatsViewProps> = ({
   // Toast notice
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  // Attendance tracking stored in localStorage
+  // Attendance tracking stored in localStorage per user
+  const attendanceStorageKey = getUserScopeKey('superbible_attendance_days_v5', user?.email);
   const [attendedDays, setAttendedDays] = useState<number[]>(() => {
     try {
-      const saved = localStorage.getItem('superbible_attendance_days_v4');
+      const saved = localStorage.getItem(attendanceStorageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch (e) {}
-    // Seed initial attendance based on user's consecutive days or recordings
-    const initialDays = new Set<number>();
     const currentDay = new Date().getDate();
-    initialDays.add(currentDay);
-    // Add past days up to user consecutive days or default
-    const count = Math.min(14, user.consecutiveDays || 14);
-    for (let i = 1; i <= count; i++) {
-      initialDays.add(i);
-    }
-    return Array.from(initialDays).sort((a, b) => a - b);
+    return [currentDay];
   });
 
   // Automatically record today's access/recitation to attendance
@@ -178,13 +175,13 @@ export const StatsView: React.FC<StatsViewProps> = ({
       setAttendedDays((prev) => {
         if (!prev.includes(currentDayNum)) {
           const updated = [...prev, currentDayNum].sort((a, b) => a - b);
-          localStorage.setItem('superbible_attendance_days_v4', JSON.stringify(updated));
+          localStorage.setItem(attendanceStorageKey, JSON.stringify(updated));
           return updated;
         }
         return prev;
       });
     } catch (e) {}
-  }, []);
+  }, [attendanceStorageKey]);
 
   // Listen to realtime updates
   useEffect(() => {
@@ -192,10 +189,8 @@ export const StatsView: React.FC<StatsViewProps> = ({
       setNtStats(getNewTestamentStats());
       setOtStats(getOldTestamentStats());
       setTodayReadCount(getTodayReadCount());
-      const recs = getAllUserRecordings();
-      if (recs.length > 0) {
-        setAllRecordings(recs);
-      }
+      const recs = getUserRecordings(user?.email);
+      setAllRecordings(recs);
     };
     window.addEventListener('superbible_verse_read_changed', handleUpdate);
     window.addEventListener('superbible_today_read_changed', handleUpdate);
@@ -209,7 +204,7 @@ export const StatsView: React.FC<StatsViewProps> = ({
         audioPlayerRef.current = null;
       }
     };
-  }, []);
+  }, [user?.email]);
 
   // -------------------------------------------------------------
   // 1. EXTRACT ALL COMPLETED/RECITED CHAPTERS BY CURRENT USER
@@ -217,18 +212,18 @@ export const StatsView: React.FC<StatsViewProps> = ({
   const allUserCompletedChapters = useMemo(() => {
     const set = new Set<string>();
 
-    // 1) From completed chapters store
-    const completedStore = getCompletedChapters();
+    // 1) From completed chapters store for this specific user
+    const completedStore = getCompletedChapters(user?.email);
     completedStore.forEach((k) => set.add(k));
 
-    // 2) From user recordings (e.g. 말라기 1~5장, 시편 23편, 야고보서 1장, 로마서 8장)
+    // 2) From user recordings
     allRecordings.forEach((r) => {
       const chs = extractChaptersFromRec(r);
       chs.forEach((chKey) => set.add(chKey));
     });
 
     return set;
-  }, [allRecordings]);
+  }, [allRecordings, user?.email]);
 
   // -------------------------------------------------------------
   // 2. DYNAMIC PROGRESS CALCULATION: 신약 통독 진행 현황 (사용자 실제 낭독 기준)

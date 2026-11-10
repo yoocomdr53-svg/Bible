@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 1.2';
+export const APP_VERSION = 'Ver 1.3';
 export const APP_BUILD_DATE = '2026.11.10';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,18 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 1.3',
+    name: 'SuperBible',
+    releaseDate: '2026.11.10',
+    changes: [
+      '소속 부서 5개 공식 부서(다이나믹팀, 경영팀, 지벳팀, 중고등부, 초등부) 개편 및 간편 회원가입 시 부서 선택 추가',
+      '관리자 성경관리 [부서별 통독 참여 현황] 막대그래프 더미 데이터 초기화 및 실제 사용자 데이터 기반 실시간 집계 연동',
+      '신규 가입자 등록 시 이전 로그인 사용자/관리자 통독 데이터 상속 및 누수 버그 원천 차단 (계정별 완벽 격리)',
+      '신규 회원 가입 후 직접 낭독하기 전까지 모든 통독 장수 및 녹음 건수 0건으로 정확히 초기화',
+      '구글 스프레드시트(yoocomdr57@gmail.com) 신규 가입자 명부 및 실시간 낭독 데이터 양방향 자동 연동',
+    ],
+  },
   {
     version: 'Ver 1.2',
     name: 'SuperBible',

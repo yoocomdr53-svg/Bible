@@ -56,12 +56,22 @@ export interface ReadingCampaign {
   badgeTag: string;
 }
 
+// 5개 공식 소속 부서 목록
+export const OFFICIAL_DEPARTMENTS = [
+  '다이나믹팀',
+  '경영팀',
+  '지벳팀',
+  '중고등부',
+  '초등부',
+] as const;
+export type OfficialDepartment = typeof OFFICIAL_DEPARTMENTS[number];
+
 // 회원관리 초기 마스터 관리자 (샘플 더미 데이터 초기화 완료)
 export const INITIAL_MEMBERS: MemberReadingProfile[] = [
   {
     id: 'M-01',
     name: '로고스 관리자',
-    department: '교목실 & 성경통독 총괄관리부',
+    department: '경영팀',
     role: '관리자',
     phone: '010-0000-0000',
     email: 'yoocomdr57@gmail.com',
@@ -77,11 +87,11 @@ export const INITIAL_MEMBERS: MemberReadingProfile[] = [
     targetRounds: 12,
     currentBook: '창세기',
     currentChapter: 1,
-    totalReadChapters: 10,
+    totalReadChapters: 0,
     recordingsCount: 0,
     lastActive: '방금 전',
     status: 'active',
-    consecutiveDays: 30,
+    consecutiveDays: 1,
     featuredCount: 0,
     memo: '수퍼바이블 총괄 시스템 관리자 (yoocomdr57@gmail.com)',
   },

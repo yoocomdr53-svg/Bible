@@ -22,6 +22,7 @@ import {
 import { getActiveSessionInfo } from '../services/authService';
 import { convertBlobToMp3 } from '../utils/audioToMp3';
 import { APP_NAME, APP_VERSION } from '../version';
+import { OFFICIAL_DEPARTMENTS } from '../data/adminData';
 
 export interface AudioShareData {
   title: string;
@@ -48,10 +49,10 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
   onClose,
   data,
   userName = '로고스 관리자',
-  initialTeam = '지벳팀',
+  initialTeam = '다이나믹팀',
 }) => {
-  const [selectedTeam, setSelectedTeam] = useState<'지벳팀' | '경영팀' | '학생팀'>(
-    (initialTeam as '지벳팀' | '경영팀' | '학생팀') || '지벳팀'
+  const [selectedTeam, setSelectedTeam] = useState<string>(
+    initialTeam || '다이나믹팀'
   );
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
@@ -390,20 +391,20 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
           </button>
         </div>
 
-        {/* 1. 과제 제출 팀 선택: [지벳팀] [경영팀] [학생팀] */}
+        {/* 1. 과제 제출 팀 선택: 5개 공식 부서 */}
         <div>
           <label className="text-xs font-bold text-slate-700 block mb-1.5">
-            과제 제출 팀 선택:
+            과제 제출 부서 선택:
           </label>
-          <div className="grid grid-cols-3 gap-2">
-            {(['지벳팀', '경영팀', '학생팀'] as const).map((team) => {
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+            {OFFICIAL_DEPARTMENTS.map((team) => {
               const isSelected = selectedTeam === team;
               return (
                 <button
                   key={team}
                   type="button"
                   onClick={() => setSelectedTeam(team)}
-                  className={`py-2 rounded-xl text-xs font-extrabold transition cursor-pointer border ${
+                  className={`py-2 px-1 rounded-xl text-xs font-extrabold transition cursor-pointer border text-center ${
                     isSelected
                       ? 'bg-[#0083e3] text-white border-[#0083e3] shadow-sm'
                       : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'

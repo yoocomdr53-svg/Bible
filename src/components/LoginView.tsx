@@ -14,10 +14,12 @@ import {
   AlertCircle,
   Sparkles,
   User as UserIcon,
+  Building,
   X,
 } from 'lucide-react';
 import { ActiveModal, User } from '../types';
 import { APP_NAME, APP_VERSION } from '../version';
+import { OFFICIAL_DEPARTMENTS } from '../data/adminData';
 import {
   loginUser,
   registerUser,
@@ -48,10 +50,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
 
-  // Register form state (성명/이름 + 아이디/이메일 + 비밀번호 + 전화번호)
+  // Register form state (성명/이름 + 아이디/이메일 + 소속부서 + 비밀번호 + 전화번호)
   const [regName, setRegName] = useState('');
   const [regId, setRegId] = useState('');
   const [regPhone, setRegPhone] = useState('');
+  const [regDepartment, setRegDepartment] = useState<string>('다이나믹팀');
   const [regPassword, setRegPassword] = useState('');
   const [regPasswordConfirm, setRegPasswordConfirm] = useState('');
   const [showRegPassword, setShowRegPassword] = useState(false);
@@ -202,7 +205,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
     setIsLoading(true);
 
     setTimeout(() => {
-      const res = registerUser(cleanId, cleanPw, cleanName, cleanPhone);
+      const res = registerUser(cleanId, cleanPw, cleanName, cleanPhone, regDepartment);
       setIsLoading(false);
 
       if (res.success && res.user) {
@@ -571,7 +574,37 @@ export const LoginView: React.FC<LoginViewProps> = ({
               </div>
             </div>
 
-            {/* Field 2: Password */}
+            {/* Field 3: Department (소속 부서 선택) */}
+            <div className="relative">
+              <label
+                htmlFor="regDepartment"
+                className="absolute -top-2 left-3.5 bg-white px-1.5 text-[11px] font-bold text-slate-500 z-10"
+              >
+                소속 부서 선택 <span className="text-red-500">*</span>
+              </label>
+              <div className="relative flex items-center">
+                <div className="absolute left-3.5 text-slate-400 pointer-events-none flex items-center">
+                  <Building className="w-4 h-4 text-slate-500" />
+                </div>
+                <select
+                  id="regDepartment"
+                  value={regDepartment}
+                  onChange={(e) => setRegDepartment(e.target.value)}
+                  className="w-full h-11 pl-10 pr-8 text-[13px] font-bold text-slate-800 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-600 focus:border-blue-600 transition shadow-xs appearance-none cursor-pointer"
+                >
+                  {OFFICIAL_DEPARTMENTS.map((dept) => (
+                    <option key={dept} value={dept}>
+                      {dept}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-3.5 text-slate-400 pointer-events-none flex items-center text-xs">
+                  ▼
+                </div>
+              </div>
+            </div>
+
+            {/* Field 4: Password */}
             <div className="relative">
               <label
                 htmlFor="regPassword"

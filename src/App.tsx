@@ -15,6 +15,9 @@ import {
   clearActiveSession,
   updateMemberReadingProgress,
   addMemberRecordingToAdmin,
+  getUserRecordings,
+  saveUserRecordings,
+  deleteUserRecordingFromStore,
 } from './services/authService';
 
 interface ErrorBoundaryProps {
@@ -75,17 +78,17 @@ class ErrorBoundary extends (Component as any) {
 
 const DEFAULT_CONNECTED_ADMIN_USER: User = {
   id: 'user-yoocomdr',
-  name: '유원희 (로고스 관리자)',
+  name: '로고스 관리자',
   email: 'yoocomdr57@gmail.com',
-  avatarText: '원희',
+  avatarText: '관리',
   role: 'admin',
   provider: 'standard',
   schoolName: '로고스 수퍼바이블 공동체',
-  department: '교목실 & 성경통독 총괄관리부',
-  consecutiveDays: 30,
+  department: '경영팀',
+  consecutiveDays: 1,
   ntProgress: 0,
   todayVersesRead: 0,
-  recordingsCount: 3,
+  recordingsCount: 0,
 };
 
 function getSavedUser(): User {
@@ -125,17 +128,27 @@ export default function App() {
 
   const [readingPlans, setReadingPlans] = useState<ReadingDayPlan[]>(INITIAL_READING_PLANS);
   const [recordings, setRecordings] = useState<UserRecording[]>(() => {
-    try {
-      const raw = localStorage.getItem('superbible_user_recordings_v2');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {}
-    return INITIAL_RECORDINGS;
+    return getUserRecordings(getSavedUser()?.email);
   });
   const [verseForCard, setVerseForCard] = useState<BibleVerse>(TODAY_VERSE);
   const [verseForRecorder, setVerseForRecorder] = useState<BibleVerse>(TODAY_VERSE);
+
+  // Sync recordings when user email changes or recording events trigger
+  useEffect(() => {
+    if (user?.email) {
+      setRecordings(getUserRecordings(user.email));
+    }
+  }, [user?.email]);
+
+  useEffect(() => {
+    const handleRecChanged = () => {
+      if (user?.email) {
+        setRecordings(getUserRecordings(user.email));
+      }
+    };
+    window.addEventListener('superbible_recordings_changed', handleRecChanged);
+    return () => window.removeEventListener('superbible_recordings_changed', handleRecChanged);
+  }, [user?.email]);
 
   // Handlers
   const handleOpenModal = (modal: ActiveModal) => {
@@ -152,6 +165,7 @@ export default function App() {
   const handleLoginSuccess = (authenticatedUser: User) => {
     setUser(authenticatedUser);
     saveActiveSession(authenticatedUser);
+    setRecordings(getUserRecordings(authenticatedUser.email));
     setDashboardInitialTab('home');
     setCurrentView('dashboard');
   };
@@ -160,6 +174,7 @@ export default function App() {
   const handleOpenSettingsAsAdmin = (adminUser: User) => {
     setUser(adminUser);
     saveActiveSession(adminUser);
+    setRecordings(getUserRecordings(adminUser.email));
     setDashboardInitialTab('settings');
     setCurrentView('dashboard');
   };
@@ -209,13 +224,11 @@ export default function App() {
     );
   };
 
-  // Save new audio recording
+  // Save new audio recording (사용자별 격리 보관)
   const handleSaveRecording = (newRec: UserRecording) => {
     setRecordings((prev) => {
       const updated = [newRec, ...prev];
-      try {
-        localStorage.setItem('superbible_user_recordings_v2', JSON.stringify(updated));
-      } catch (e) {}
+      saveUserRecordings(user.email, updated);
       return updated;
     });
     setUser((u) => {
@@ -248,11 +261,10 @@ export default function App() {
   const handleDeleteRecording = (id: string) => {
     setRecordings((prev) => {
       const updated = prev.filter((r) => r.id !== id);
-      try {
-        localStorage.setItem('superbible_user_recordings_v2', JSON.stringify(updated));
-      } catch (e) {}
+      saveUserRecordings(user.email, updated);
       return updated;
     });
+    deleteUserRecordingFromStore(id, user.email);
     setUser((u) => ({ ...u, recordingsCount: Math.max(0, u.recordingsCount - 1) }));
   };
 

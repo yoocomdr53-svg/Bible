@@ -44,6 +44,7 @@ import {
   INITIAL_MEMBERS,
   INITIAL_MEMBER_RECORDINGS,
   INITIAL_CAMPAIGNS,
+  OFFICIAL_DEPARTMENTS,
 } from '../data/adminData';
 import {
   getGoogleSheetConfig,
@@ -152,7 +153,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [newMemberForm, setNewMemberForm] = useState({
     name: '',
-    department: '장년 1교구',
+    department: '다이나믹팀',
     role: '성도',
     phone: '010-',
     email: '',
@@ -445,7 +446,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     setShowAddMemberModal(false);
     setNewMemberForm({
       name: '',
-      department: '장년 1교구',
+      department: '다이나믹팀',
       role: '성도',
       phone: '010-',
       email: '',
@@ -1040,23 +1041,34 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
               </div>
 
               <div className="space-y-2.5">
-                {[
-                  { name: '청장년 성경통독부', count: 85, progress: 68, color: 'bg-emerald-500' },
-                  { name: '교직원선교회', count: 42, progress: 84, color: 'bg-indigo-500' },
-                  { name: '주일학교 교사부', count: 38, progress: 72, color: 'bg-purple-500' },
-                  { name: '대학청년부', count: 56, progress: 54, color: 'bg-blue-500' },
-                  { name: '장년 1교구', count: 27, progress: 45, color: 'bg-amber-500' },
-                ].map((dept, idx) => (
-                  <div key={idx} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                      <span>{dept.name} ({dept.count}명)</span>
-                      <span className="font-black text-slate-900">{dept.progress}%</span>
+                {OFFICIAL_DEPARTMENTS.map((deptName, idx) => {
+                  const deptMembers = members.filter((m) => m.department === deptName);
+                  const count = deptMembers.length;
+                  const totalRead = deptMembers.reduce((sum, m) => sum + (m.totalReadChapters || 0), 0);
+                  // 신약 260장 기준 부서별 평균 달성률 (초기 가입시 0%로 초기화)
+                  const progress = count > 0 && totalRead > 0
+                    ? Math.min(100, Math.round((totalRead / (count * 260)) * 100))
+                    : 0;
+                  const colors = ['bg-emerald-500', 'bg-indigo-500', 'bg-purple-500', 'bg-blue-500', 'bg-amber-500'];
+                  const color = colors[idx % colors.length];
+
+                  return (
+                    <div key={deptName} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                        <span>
+                          {deptName} ({count}명 · {totalRead}장 완독)
+                        </span>
+                        <span className="font-black text-slate-900">{progress}%</span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                        <div
+                          className={`${color} h-full rounded-full transition-all`}
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                      <div className={`${dept.color} h-full rounded-full transition-all`} style={{ width: `${dept.progress}%` }} />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -1196,11 +1208,11 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                     className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 font-bold text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="전체">부서 전체</option>
-                    <option value="청장년 성경통독부">청장년 성경통독부</option>
-                    <option value="대학청년부">대학청년부</option>
-                    <option value="교직원선교회">교직원선교회</option>
-                    <option value="주일학교 교사부">주일학교 교사부</option>
-                    <option value="장년 1교구">장년 1교구</option>
+                    {OFFICIAL_DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
                   </select>
 
                   {/* Baptism filter */}
@@ -1422,7 +1434,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
 
               {/* Department Filter Chips */}
               <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 text-[11px] font-bold">
-                {['전체', '청장년 성경통독부', '대학청년부', '교직원선교회', '주일학교 교사부', '장년 1교구'].map((dept) => (
+                {['전체', ...OFFICIAL_DEPARTMENTS].map((dept) => (
                   <button
                     key={dept}
                     type="button"
@@ -2791,11 +2803,11 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                     onChange={(e) => setNewMemberForm({ ...newMemberForm, department: e.target.value })}
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
                   >
-                    <option value="청장년 성경통독부">청장년 성경통독부</option>
-                    <option value="대학청년부">대학청년부</option>
-                    <option value="교직원선교회">교직원선교회</option>
-                    <option value="주일학교 교사부">주일학교 교사부</option>
-                    <option value="장년 1교구">장년 1교구</option>
+                    {OFFICIAL_DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -2995,11 +3007,11 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                     onChange={(e) => setEditingMember({ ...editingMember, department: e.target.value })}
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
                   >
-                    <option value="청장년 성경통독부">청장년 성경통독부</option>
-                    <option value="대학청년부">대학청년부</option>
-                    <option value="교직원선교회">교직원선교회</option>
-                    <option value="주일학교 교사부">주일학교 교사부</option>
-                    <option value="장년 1교구">장년 1교구</option>
+                    {OFFICIAL_DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>

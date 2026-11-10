@@ -614,8 +614,8 @@ export const getChapterVerseCount = (book: string, chapter: number): number => {
 };
 
 export const INITIAL_READING_PLANS: ReadingDayPlan[] = [
-  { day: 254, date: '9월 11일', portion: '약 1~2장', verseRange: '야고보서 1장 - 2장', completed: true, memo: '실천하는 믿음의 중요성' },
-  { day: 255, date: '9월 12일', portion: '약 3~4장', verseRange: '야고보서 3장 - 4장', completed: true, memo: '혀를 다스리고 온유한 지혜를 구함' },
+  { day: 254, date: '9월 11일', portion: '약 1~2장', verseRange: '야고보서 1장 - 2장', completed: false, memo: '실천하는 믿음의 중요성' },
+  { day: 255, date: '9월 12일', portion: '약 3~4장', verseRange: '야고보서 3장 - 4장', completed: false, memo: '혀를 다스리고 온유한 지혜를 구함' },
   { day: 256, date: '9월 13일 (오늘)', portion: '약 5장, 벧전 1장', verseRange: '야고보서 5장 - 베드로전서 1장', completed: false, memo: '고난 중의 인내와 기도' },
   { day: 257, date: '9월 14일', portion: '벧전 2~3장', verseRange: '베드로전서 2장 - 3장', completed: false },
   { day: 258, date: '9월 15일', portion: '벧전 4~5장', verseRange: '베드로전서 4장 - 5장', completed: false },
@@ -623,39 +623,37 @@ export const INITIAL_READING_PLANS: ReadingDayPlan[] = [
   { day: 260, date: '9월 17일', portion: '요일 1~3장', verseRange: '요한일서 1장 - 3장', completed: false },
 ];
 
-export const INITIAL_RECORDINGS: UserRecording[] = [
-  {
-    id: 'rec-1',
-    title: '시편 23편 전체 낭독',
-    verseRef: '시편 23:1-6',
-    duration: '01:24',
-    date: '2026.09.12',
-  },
-  {
-    id: 'rec-2',
-    title: '야고보서 1장 말씀 묵상 낭독',
-    verseRef: '야고보서 1:19-27',
-    duration: '02:05',
-    date: '2026.09.10',
-  },
-  {
-    id: 'rec-3',
-    title: '로마서 8장 생명의 성령의 법',
-    verseRef: '로마서 8:28-39',
-    duration: '01:48',
-    date: '2026.09.08',
-  },
-];
+// 초기 녹음 보관함 (신규 가입자는 0건으로 시작)
+export const INITIAL_RECORDINGS: UserRecording[] = [];
 
 // ==========================================
-// 성경 읽기 완료된 절 및 완독된 장 (Completed Verses & Chapters) 관리
+// 성경 읽기 완료된 절 및 완독된 장 (Completed Verses & Chapters) 사용자별 격리 관리
 // ==========================================
-export const READ_VERSES_STORAGE_KEY = 'superbible_completed_verses_v2';
-export const COMPLETED_CHAPTERS_STORAGE_KEY = 'superbible_completed_chapters_v2';
+export const READ_VERSES_STORAGE_KEY = 'superbible_completed_verses_v4';
+export const COMPLETED_CHAPTERS_STORAGE_KEY = 'superbible_completed_chapters_v4';
 export const CURRENT_READING_BOOK_KEY = 'superbible_current_reading_book';
 export const CURRENT_READING_CHAPTER_KEY = 'superbible_current_reading_chapter';
 export const IN_PROGRESS_CHAPTERS_KEY = 'superbible_reading_in_progress_v1';
-export const TODAY_READ_STORAGE_KEY = 'superbible_today_read_data_v2';
+export const TODAY_READ_STORAGE_KEY = 'superbible_today_read_data_v4';
+
+// 사용자별 로컬스토리지 키 생성 (로그인된 사용자 간 데이터 혼선 원천 차단)
+export function getUserScopeKey(baseKey: string, specificUserEmail?: string): string {
+  try {
+    let email = specificUserEmail;
+    if (!email && typeof window !== 'undefined') {
+      const raw = localStorage.getItem('superbible_auth_session_v3');
+      if (raw) {
+        const u = JSON.parse(raw);
+        email = u?.user?.email || u?.email || u?.loginId;
+      }
+    }
+    if (email) {
+      const clean = email.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      return `${baseKey}_${clean}`;
+    }
+  } catch (e) {}
+  return `${baseKey}_default`;
+}
 
 // 오늘 날짜 문자열 반환 (한국 시간 기준 YYYY-MM-DD)
 export function getTodayDateString(): string {
@@ -670,60 +668,17 @@ export function getTodayDateString(): string {
   }
 }
 
-// 오늘 읽은/낭독한 장 목록 가져오기 (매일 자정에 0으로 자동 갱신 및 당일 녹음 데이터 자동 집계)
+// 오늘 읽은/낭독한 장 목록 가져오기 (매일 자정에 0으로 자동 갱신 및 당일 사용자별 데이터 집계)
 export function getTodayReadChapters(): Set<string> {
   const today = getTodayDateString();
-  const dotToday = today.replace(/-/g, '.');
   try {
-    const raw = localStorage.getItem(TODAY_READ_STORAGE_KEY);
+    const key = getUserScopeKey(TODAY_READ_STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.date === today && Array.isArray(parsed.chapters) && parsed.chapters.length > 0) {
         return new Set<string>(parsed.chapters);
       }
-    }
-
-    // Fallback: 오늘 기록된 낭독 녹음(storage)이 있다면 이를 기반으로 오늘 읽은 말씀 장수 즉시 복원
-    const set = new Set<string>();
-    const recKeys = ['superbible_admin_recordings_v4', 'superbible_user_recordings_v2'];
-    for (const key of recKeys) {
-      const recRaw = localStorage.getItem(key);
-      if (recRaw) {
-        try {
-          const list = JSON.parse(recRaw);
-          if (Array.isArray(list)) {
-            list.forEach((item: any) => {
-              const itemDate = (item.date || '').replace(/\./g, '-');
-              if (itemDate === today || item.date === today || item.date === dotToday) {
-                const ref = item.verseRef || item.title || '';
-                const match = ref.match(/^([가-힣]+)\s*(\d+)(?:~(\d+))?장/);
-                if (match) {
-                  const book = match[1];
-                  const startCh = parseInt(match[2], 10);
-                  const endCh = match[3] ? parseInt(match[3], 10) : startCh;
-                  for (let ch = startCh; ch <= endCh; ch++) {
-                    set.add(`${book}-${ch}`);
-                  }
-                } else if (item.book && item.chapter) {
-                  set.add(`${item.book}-${item.chapter}`);
-                } else {
-                  set.add(`rec-${item.id}`);
-                }
-              }
-            });
-          }
-        } catch (e) {}
-      }
-    }
-
-    if (set.size > 0) {
-      const data = {
-        date: today,
-        chapters: Array.from(set),
-        count: set.size,
-      };
-      localStorage.setItem(TODAY_READ_STORAGE_KEY, JSON.stringify(data));
-      return set;
     }
   } catch (e) {
     console.error('Failed to get today read chapters:', e);
@@ -746,7 +701,8 @@ export function addTodayReadChapter(book: string, chapter: number): number {
       chapters: Array.from(set),
       count: set.size,
     };
-    localStorage.setItem(TODAY_READ_STORAGE_KEY, JSON.stringify(data));
+    const key = getUserScopeKey(TODAY_READ_STORAGE_KEY);
+    localStorage.setItem(key, JSON.stringify(data));
     window.dispatchEvent(
       new CustomEvent('superbible_today_read_changed', {
         detail: { count: set.size, chapters: data.chapters },
@@ -759,10 +715,10 @@ export function addTodayReadChapter(book: string, chapter: number): number {
   }
 }
 
-// 신약 통독(27권, 총 260장) 실시간 실제 진행률 계산
-export function getNewTestamentStats(): { completedCount: number; totalCount: number; percent: number } {
-  const currentVerses = getCompletedVerses();
-  const currentChapters = getCompletedChapters();
+// 신약 통독(27권, 총 260장) 실시간 실제 진행률 계산 (사용자별 격리)
+export function getNewTestamentStats(userEmail?: string): { completedCount: number; totalCount: number; percent: number } {
+  const currentVerses = getCompletedVerses(userEmail);
+  const currentChapters = getCompletedChapters(userEmail);
   const ntBooks = BIBLE_BOOKS.filter((b) => b.testament === 'NT');
   const totalCount = 260; // 27권 신약 전체 260장
   let completedCount = 0;
@@ -779,10 +735,10 @@ export function getNewTestamentStats(): { completedCount: number; totalCount: nu
   return { completedCount, totalCount, percent };
 }
 
-// 구약 통독(39권, 총 929장) 실시간 실제 진행률 계산
-export function getOldTestamentStats(): { completedCount: number; totalCount: number; percent: number } {
-  const currentVerses = getCompletedVerses();
-  const currentChapters = getCompletedChapters();
+// 구약 통독(39권, 총 929장) 실시간 실제 진행률 계산 (사용자별 격리)
+export function getOldTestamentStats(userEmail?: string): { completedCount: number; totalCount: number; percent: number } {
+  const currentVerses = getCompletedVerses(userEmail);
+  const currentChapters = getCompletedChapters(userEmail);
   const otBooks = BIBLE_BOOKS.filter((b) => b.testament === 'OT');
   const totalCount = 929; // 39권 구약 전체 929장
   let completedCount = 0;
@@ -800,8 +756,8 @@ export function getOldTestamentStats(): { completedCount: number; totalCount: nu
 }
 
 // 전체 성경 통독(66권, 총 1,189장) 실시간 실제 진행률 계산
-export function getTotalBibleStats(): { completedCount: number; totalCount: number; percent: number } {
-  return getSingleRoundBibleStats();
+export function getTotalBibleStats(userEmail?: string): { completedCount: number; totalCount: number; percent: number } {
+  return getSingleRoundBibleStats(userEmail);
 }
 
 export const READINGS_COUNT_KEY = 'superbible_completed_readings_count_v1';
@@ -816,9 +772,9 @@ export function getCompletedReadingsCount(): number {
 }
 
 // 1. 일독 1,189장 실시간 진행률 (1,189장 완독 시 100%)
-export function getSingleRoundBibleStats(): { completedCount: number; totalCount: number; percent: number } {
-  const currentVerses = getCompletedVerses();
-  const currentChapters = getCompletedChapters();
+export function getSingleRoundBibleStats(userEmail?: string): { completedCount: number; totalCount: number; percent: number } {
+  const currentVerses = getCompletedVerses(userEmail);
+  const currentChapters = getCompletedChapters(userEmail);
   let completedCount = 0;
   const totalCount = 1189;
 
@@ -959,9 +915,10 @@ export function setChapterInProgress(book: string, chapter: number, inProgress: 
   }
 }
 
-export function getCompletedVerses(): Set<string> {
+export function getCompletedVerses(userEmail?: string): Set<string> {
   try {
-    const raw = localStorage.getItem(READ_VERSES_STORAGE_KEY);
+    const key = getUserScopeKey(READ_VERSES_STORAGE_KEY, userEmail);
+    const raw = localStorage.getItem(key);
     if (raw) {
       return new Set<string>(JSON.parse(raw));
     }
@@ -972,17 +929,19 @@ export function getCompletedVerses(): Set<string> {
   return new Set<string>();
 }
 
-export function saveCompletedVerses(versesSet: Set<string>): void {
+export function saveCompletedVerses(versesSet: Set<string>, userEmail?: string): void {
   try {
-    localStorage.setItem(READ_VERSES_STORAGE_KEY, JSON.stringify(Array.from(versesSet)));
+    const key = getUserScopeKey(READ_VERSES_STORAGE_KEY, userEmail);
+    localStorage.setItem(key, JSON.stringify(Array.from(versesSet)));
   } catch (e) {
     console.error('Failed to save completed verses:', e);
   }
 }
 
-export function getCompletedChapters(): Set<string> {
+export function getCompletedChapters(userEmail?: string): Set<string> {
   try {
-    const raw = localStorage.getItem(COMPLETED_CHAPTERS_STORAGE_KEY);
+    const key = getUserScopeKey(COMPLETED_CHAPTERS_STORAGE_KEY, userEmail);
+    const raw = localStorage.getItem(key);
     if (raw) {
       return new Set<string>(JSON.parse(raw));
     }
@@ -993,9 +952,10 @@ export function getCompletedChapters(): Set<string> {
   return new Set<string>();
 }
 
-export function saveCompletedChapters(chaptersSet: Set<string>): void {
+export function saveCompletedChapters(chaptersSet: Set<string>, userEmail?: string): void {
   try {
-    localStorage.setItem(COMPLETED_CHAPTERS_STORAGE_KEY, JSON.stringify(Array.from(chaptersSet)));
+    const key = getUserScopeKey(COMPLETED_CHAPTERS_STORAGE_KEY, userEmail);
+    localStorage.setItem(key, JSON.stringify(Array.from(chaptersSet)));
   } catch (e) {
     console.error('Failed to save completed chapters:', e);
   }
