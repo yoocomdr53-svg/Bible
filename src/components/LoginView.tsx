@@ -58,6 +58,32 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // App Installation State (한 번 설치 완료되면 버튼 영구 숨김)
+  const [isAppInstalled, setIsAppInstalled] = useState<boolean>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        if (
+          window.matchMedia('(display-mode: standalone)').matches ||
+          (window.navigator as any).standalone
+        ) {
+          return true;
+        }
+        return localStorage.getItem('superbible_app_installed') === 'true';
+      }
+    } catch (e) {}
+    return false;
+  });
+
+  useEffect(() => {
+    const handleInstalled = () => setIsAppInstalled(true);
+    window.addEventListener('appinstalled', handleInstalled);
+    window.addEventListener('superbible_app_installed_changed', handleInstalled);
+    return () => {
+      window.removeEventListener('appinstalled', handleInstalled);
+      window.removeEventListener('superbible_app_installed_changed', handleInstalled);
+    };
+  }, []);
+
   // Load remembered ID on mount
   useEffect(() => {
     const savedId = getRememberedId();
@@ -159,18 +185,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
           </span>
         </div>
 
-        <div className="flex items-center space-x-2 text-slate-300 pr-1">
-          {/* App Install Button on Top Header */}
-          <button
-            type="button"
-            onClick={onOpenInstall}
-            className="bg-amber-400/20 hover:bg-amber-400/30 active:scale-95 border border-amber-400/50 text-amber-300 text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs transition cursor-pointer"
-            title="스마트폰·태블릿 SuperBible 앱 설치 (APK / 홈 화면 추가)"
-          >
-            <span>📱</span>
-            <span>앱 설치</span>
-          </button>
-
+        <div className="flex items-center space-x-3 text-slate-300 pr-1">
           {/* Signal / Status */}
           <div className="flex items-center space-x-1.5 text-xs opacity-80">
             <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -236,16 +251,18 @@ export const LoginView: React.FC<LoginViewProps> = ({
           스마트 성경통독 & 학사 성경관리 시스템
         </p>
 
-        {/* Mobile / Tablet App Install Banner on Login View */}
-        <button
-          type="button"
-          onClick={onOpenInstall}
-          className="mt-2.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-amber-500/20 via-amber-400/30 to-amber-500/20 hover:from-amber-500/30 hover:to-amber-500/30 border border-amber-400/60 text-amber-300 text-[11.5px] font-black flex items-center justify-center gap-1.5 shadow-lg backdrop-blur-md active:scale-95 transition cursor-pointer"
-        >
-          <span className="text-xs">📲</span>
-          <span>스마트폰·태블릿 앱 설치 (APK / 바로가기)</span>
-          <span className="text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded-full">설치</span>
-        </button>
+        {/* Mobile / Tablet App Install Banner on Login View (한 번 설치 시 자동 숨김) */}
+        {!isAppInstalled && (
+          <button
+            type="button"
+            onClick={onOpenInstall}
+            className="mt-2.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-amber-500/20 via-amber-400/30 to-amber-500/20 hover:from-amber-500/30 hover:to-amber-500/30 border border-amber-400/60 text-amber-300 text-[11.5px] font-black flex items-center justify-center gap-1.5 shadow-lg backdrop-blur-md active:scale-95 transition cursor-pointer"
+          >
+            <span className="text-xs">📲</span>
+            <span>스마트폰·태블릿 앱 설치 (APK / 바로가기)</span>
+            <span className="text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded-full">설치</span>
+          </button>
+        )}
       </section>
 
       {/* Main Authentication Card */}

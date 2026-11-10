@@ -37,6 +37,10 @@ export const AppInstallModal: React.FC<AppInstallModalProps> = ({ isOpen, onClos
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setDeferredPrompt(null);
+      try {
+        localStorage.setItem('superbible_app_installed', 'true');
+        window.dispatchEvent(new CustomEvent('superbible_app_installed_changed'));
+      } catch (e) {}
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
@@ -45,6 +49,10 @@ export const AppInstallModal: React.FC<AppInstallModalProps> = ({ isOpen, onClos
     // Check if already running in standalone mode (installed)
     if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
       setIsInstalled(true);
+      try {
+        localStorage.setItem('superbible_app_installed', 'true');
+        window.dispatchEvent(new CustomEvent('superbible_app_installed_changed'));
+      } catch (e) {}
     }
 
     return () => {
@@ -57,6 +65,11 @@ export const AppInstallModal: React.FC<AppInstallModalProps> = ({ isOpen, onClos
 
   // Handle 1-Click Native PWA Install
   const handleNativeInstall = async () => {
+    try {
+      localStorage.setItem('superbible_app_installed', 'true');
+      window.dispatchEvent(new CustomEvent('superbible_app_installed_changed'));
+    } catch (e) {}
+
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const choiceResult = await deferredPrompt.userChoice;
@@ -73,6 +86,11 @@ export const AppInstallModal: React.FC<AppInstallModalProps> = ({ isOpen, onClos
   };
 
   const handleDownloadApk = () => {
+    try {
+      localStorage.setItem('superbible_app_installed', 'true');
+      window.dispatchEvent(new CustomEvent('superbible_app_installed_changed'));
+    } catch (e) {}
+
     // Direct link to downloadable package / instructions
     const a = document.createElement('a');
     a.href = '/manifest.json';

@@ -251,17 +251,6 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
 
           {/* Header Action Icons */}
           <div className="flex items-center gap-2">
-            {/* App Install Button (Android APK / Tablet / PWA) */}
-            <button
-              type="button"
-              onClick={() => (onOpenInstall ? onOpenInstall() : setShowInstallModal(true))}
-              className="bg-[#fef3c7] hover:bg-[#fde68a] active:scale-95 border border-amber-300 text-amber-900 text-[11px] font-bold px-2.5 py-1 rounded-xl flex items-center gap-1 shadow-2xs transition cursor-pointer"
-              title="SuperBible 모바일 / 태블릿 앱 설치 (APK / PWA)"
-            >
-              <span>📱</span>
-              <span>앱 설치</span>
-            </button>
-
             {/* Back to ERP / Logout */}
             <button
               id="logoutBackBtn"
@@ -306,130 +295,8 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
       {/* Main Tab Content */}
       {activeTab === 'home' && (
         <main className="flex-1 overflow-y-auto smooth-scroll no-scrollbar bg-[#f8fafc] pb-24">
-          {/* User Greeting Banner */}
-          <section className="bg-gradient-to-r from-blue-50 via-white to-indigo-50/60 px-4 py-3 border-b border-blue-100/60">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="relative flex-shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-[#0083e3] font-bold text-sm border border-blue-200 shadow-inner">
-                    {user.avatarText}
-                  </div>
-                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-xs border border-slate-200">
-                    <svg className="w-2.5 h-2.5" viewBox="0 0 24 24">
-                      <path
-                        d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
-                        fill="#4285F4"
-                      />
-                      <path
-                        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.26v3.15C3.25 21.36 7.31 24 12 24z"
-                        fill="#34A853"
-                      />
-                      <path
-                        d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.26C.46 8.16 0 9.97 0 12s.46 3.84 1.26 5.42l4.02-3.15z"
-                        fill="#FBBC05"
-                      />
-                      <path
-                        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.25 2.64 1.26 6.58l4.02 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-                        fill="#EA4335"
-                      />
-                    </svg>
-                  </div>
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-sm font-extrabold text-slate-900 leading-snug">
-                      {(user.name || '성도').replace(/\s*\([^)]*@?[^)]*\)$/, '').trim()}
-                    </span>
-                    <span className="inline-flex items-center bg-blue-100 text-[#0083e3] text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0">
-                      Google 연동
-                    </span>
-                    {user.role === 'admin' && (
-                      <span className="inline-flex items-center bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-black px-1.5 py-0.5 rounded flex-shrink-0">
-                        👑 관리자
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-slate-500 truncate mt-0.5" id="dashboardUserEmail">
-                    {user.email}
-                  </p>
-                  <p className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-0.5 whitespace-nowrap">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping flex-shrink-0" />
-                    클라우드 자동 동기화됨 · 방금 동기화
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('settings')}
-                aria-label="계정 설정"
-                className="p-1 text-slate-400 hover:text-blue-600 transition-colors flex-shrink-0 cursor-pointer"
-              >
-                <ChevronRight className="w-5 h-5 text-slate-400 hover:translate-x-0.5 transition-transform" />
-              </button>
-            </div>
-          </section>
-
           {/* Cards & Content Area */}
           <div className="px-4 py-3 space-y-3.5">
-            {/* Admin Management Quick Banner: 👑 관리자 성경관리 (관리자 접속 시에만 노출) */}
-            {user.role === 'admin' && (
-              <section
-                onClick={() => {
-                  pushHistory({ tab: activeTab });
-                  setActiveTab('admin');
-                }}
-                className="bg-gradient-to-r from-[#0f172a] via-[#1e293b] to-[#0f172a] rounded-2xl p-3 sm:p-3.5 text-white shadow-md border border-slate-700/70 cursor-pointer active:scale-98 transition flex items-center justify-between group"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-base shadow-xs flex-shrink-0 group-hover:scale-105 transition-transform">
-                    👑
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs sm:text-sm font-black text-white truncate">관리자 성경관리</span>
-                      <span className="text-[10px] bg-blue-600 text-blue-100 font-bold px-1.5 py-0.2 rounded-full flex-shrink-0">
-                        관리자 전용
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-300 mt-0.5 truncate">
-                      회원 낭독 현황 · 음원 검수 · 12목표 체계적 관리
-                    </p>
-                  </div>
-                </div>
-                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-white group-hover:translate-x-0.5 transition flex-shrink-0 ml-2" />
-              </section>
-            )}
-
-            {/* Dedicated Mobile & Tablet App Install Banner on Home */}
-            <section
-              onClick={() => (onOpenInstall ? onOpenInstall() : setShowInstallModal(true))}
-              className="bg-gradient-to-r from-blue-600 via-[#0083e3] to-sky-500 rounded-2xl p-3 sm:p-3.5 text-white shadow-soft flex items-center justify-between gap-3 cursor-pointer hover:shadow-md transition active:scale-[0.99] border border-blue-400/30"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-xl flex-shrink-0 shadow-inner">
-                  📲
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-black bg-amber-300 text-slate-950 px-1.5 py-0.5 rounded-md shadow-2xs">
-                      스마트폰·태블릿
-                    </span>
-                    <span className="text-xs font-bold text-blue-100">SuperBible 전용 앱 설치</span>
-                  </div>
-                  <p className="text-[12px] font-bold text-white truncate mt-0.5">
-                    홈 화면에 바로가기 추가 및 APK 파일 설치하기
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex-shrink-0 bg-white hover:bg-slate-50 text-[#0083e3] text-xs font-black px-3 py-1.5 rounded-xl shadow-xs flex items-center gap-1">
-                <span>앱설치</span>
-                <span>→</span>
-              </div>
-            </section>
-
             {/* Top Sponsor Card: 갑자기 날아든 폭탄 */}
             <section className="bg-slate-100 rounded-xl border border-slate-200 overflow-hidden shadow-soft">
               <div className="px-3.5 py-2.5 flex items-center justify-between bg-white relative">
@@ -653,6 +520,128 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                   className="text-xs text-amber-300 font-bold underline flex-shrink-0 ml-2 cursor-pointer"
                 >
                   소식보기
+                </button>
+              </div>
+            </section>
+
+            {/* 1. 스마트폰 앱설치 메뉴 (맨 아래쪽으로 이동) */}
+            <section
+              onClick={() => (onOpenInstall ? onOpenInstall() : setShowInstallModal(true))}
+              className="bg-gradient-to-r from-blue-600 via-[#0083e3] to-sky-500 rounded-2xl p-3.5 text-white shadow-soft flex items-center justify-between gap-3 cursor-pointer hover:shadow-md transition active:scale-[0.99] border border-blue-400/30"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-xl flex-shrink-0 shadow-inner">
+                  📲
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-black bg-amber-300 text-slate-950 px-1.5 py-0.5 rounded-md shadow-2xs">
+                      스마트폰·태블릿
+                    </span>
+                    <span className="text-xs font-bold text-blue-100">SuperBible 전용 앱 설치</span>
+                  </div>
+                  <p className="text-[12px] font-bold text-white truncate mt-0.5">
+                    홈 화면에 바로가기 추가 및 APK 파일 설치하기
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex-shrink-0 bg-white hover:bg-slate-50 text-[#0083e3] text-xs font-black px-3 py-1.5 rounded-xl shadow-xs flex items-center gap-1">
+                <span>앱설치</span>
+                <span>→</span>
+              </div>
+            </section>
+
+            {/* 2. 관리자 성경관리 메뉴 (맨 아래쪽으로 이동 - 관리자 접속 시에만 노출) */}
+            {user.role === 'admin' && (
+              <section
+                onClick={() => {
+                  pushHistory({ tab: activeTab });
+                  setActiveTab('admin');
+                }}
+                className="bg-gradient-to-r from-[#0f172a] via-[#1e293b] to-[#0f172a] rounded-2xl p-3.5 text-white shadow-md border border-slate-700/70 cursor-pointer active:scale-98 transition flex items-center justify-between group"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-base shadow-xs flex-shrink-0 group-hover:scale-105 transition-transform">
+                    👑
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs sm:text-sm font-black text-white truncate">관리자 성경관리</span>
+                      <span className="text-[10px] bg-blue-600 text-blue-100 font-bold px-1.5 py-0.2 rounded-full flex-shrink-0">
+                        관리자 전용
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 mt-0.5 truncate">
+                      회원 낭독 현황 · 음원 검수 · 12목표 체계적 관리
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-white group-hover:translate-x-0.5 transition flex-shrink-0 ml-2" />
+              </section>
+            )}
+
+            {/* 3. 로고스 관리자 프로필 카드 (맨 아래쪽으로 이동) */}
+            <section className="bg-gradient-to-r from-blue-50 via-white to-indigo-50/60 p-3.5 rounded-2xl border border-blue-100 shadow-soft">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="relative flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-[#0083e3] font-bold text-sm border border-blue-200 shadow-inner">
+                      {user.avatarText}
+                    </div>
+                    <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-xs border border-slate-200">
+                      <svg className="w-2.5 h-2.5" viewBox="0 0 24 24">
+                        <path
+                          d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
+                          fill="#4285F4"
+                        />
+                        <path
+                          d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.26v3.15C3.25 21.36 7.31 24 12 24z"
+                          fill="#34A853"
+                        />
+                        <path
+                          d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.26C.46 8.16 0 9.97 0 12s.46 3.84 1.26 5.42l4.02-3.15z"
+                          fill="#FBBC05"
+                        />
+                        <path
+                          d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.25 2.64 1.26 6.58l4.02 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+                          fill="#EA4335"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-sm font-extrabold text-slate-900 leading-snug">
+                        {(user.name || '성도').replace(/\s*\([^)]*@?[^)]*\)$/, '').trim()}
+                      </span>
+                      <span className="inline-flex items-center bg-blue-100 text-[#0083e3] text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0">
+                        Google 연동
+                      </span>
+                      {user.role === 'admin' && (
+                        <span className="inline-flex items-center bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-black px-1.5 py-0.5 rounded flex-shrink-0">
+                          👑 관리자
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 truncate mt-0.5" id="dashboardUserEmail">
+                      {user.email}
+                    </p>
+                    <p className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-0.5 whitespace-nowrap">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping flex-shrink-0" />
+                      클라우드 자동 동기화됨 · 방금 동기화
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('settings')}
+                  aria-label="계정 설정"
+                  className="p-1 text-slate-400 hover:text-blue-600 transition-colors flex-shrink-0 cursor-pointer"
+                >
+                  <ChevronRight className="w-5 h-5 text-slate-400 hover:translate-x-0.5 transition-transform" />
                 </button>
               </div>
             </section>
