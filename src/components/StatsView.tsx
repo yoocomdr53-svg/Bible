@@ -13,6 +13,10 @@ import {
   TrendingUp,
   CheckCircle2,
   Sparkles,
+  CheckSquare,
+  Square,
+  Check,
+  X,
 } from 'lucide-react';
 import { User, UserRecording } from '../types';
 import {
@@ -136,6 +140,10 @@ export const StatsView: React.FC<StatsViewProps> = ({
 
   // Share Modal state
   const [shareData, setShareData] = useState<AudioShareData | null>(null);
+
+  // Multiple selection state for recording deletion
+  const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
+  const [selectedRecIds, setSelectedRecIds] = useState<Set<string>>(new Set());
 
   // Toast notice
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -527,7 +535,7 @@ export const StatsView: React.FC<StatsViewProps> = ({
     });
   };
 
-  // Delete recording
+  // Delete single recording
   const handleDelete = (id: string) => {
     if (confirm('이 낭독 녹음 파일을 삭제하시겠습니까?')) {
       deleteUserRecordingFromStore(id);
@@ -538,6 +546,57 @@ export const StatsView: React.FC<StatsViewProps> = ({
         if (audioPlayerRef.current) audioPlayerRef.current.pause();
         setPlayingId(null);
       }
+      setSelectedRecIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      window.dispatchEvent(new CustomEvent('superbible_recordings_changed'));
+    }
+  };
+
+  // Toggle selection for single recording
+  const handleToggleSelect = (id: string) => {
+    setSelectedRecIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // Select all or deselect all
+  const handleToggleSelectAll = () => {
+    if (selectedRecIds.size === allRecordings.length) {
+      setSelectedRecIds(new Set());
+    } else {
+      setSelectedRecIds(new Set(allRecordings.map((r) => r.id)));
+    }
+  };
+
+  // Delete all selected recordings
+  const handleDeleteSelected = () => {
+    if (selectedRecIds.size === 0) return;
+    const count = selectedRecIds.size;
+    if (confirm(`선택한 ${count}개의 낭독 녹음 파일을 모두 삭제하시겠습니까?`)) {
+      selectedRecIds.forEach((id) => {
+        deleteUserRecordingFromStore(id);
+        deleteAudioFromStorage(id).catch(() => {});
+        onDeleteRecording(id);
+      });
+      setAllRecordings((prev) => prev.filter((r) => !selectedRecIds.has(r.id)));
+      if (playingId && selectedRecIds.has(playingId)) {
+        if (audioPlayerRef.current) audioPlayerRef.current.pause();
+        setPlayingId(null);
+      }
+      setSelectedRecIds(new Set());
+      setIsSelectMode(false);
+      setToastMsg(`선택한 ${count}개의 낭독 녹음이 삭제되었습니다.`);
+      setTimeout(() => setToastMsg(null), 3000);
+      window.dispatchEvent(new CustomEvent('superbible_recordings_changed'));
     }
   };
 
@@ -1134,16 +1193,76 @@ export const StatsView: React.FC<StatsViewProps> = ({
         )}
       </div>
 
-      {/* 4. 나의 낭독 녹음 보관함 (사용자가 낭독한 실제 음원 파일 목록) */}
+      {/* 4. 나의 낭독 녹음 보관함 (사용자가 낭독한 실제 음원 파일 목록 - 선택 삭제 기능 지원) */}
       <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-100 shadow-soft space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             <Award className="w-4 h-4 text-blue-600" />
             <h3 className="text-xs sm:text-sm font-black text-slate-800">나의 낭독 녹음 보관함</h3>
+            <span className="text-xs font-black text-[#0083e3] bg-blue-50 px-2 py-0.5 rounded-full">
+              {allRecordings.length}편
+            </span>
           </div>
-          <span className="text-xs font-black text-[#0083e3]">
-            {allRecordings.length}편 저장됨
-          </span>
+
+          {allRecordings.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              {isSelectMode ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleToggleSelectAll}
+                    className="px-2.5 py-1 text-xs font-bold rounded-xl border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100 transition cursor-pointer flex items-center gap-1"
+                  >
+                    {selectedRecIds.size === allRecordings.length ? (
+                      <>
+                        <CheckSquare className="w-3.5 h-3.5 text-[#0083e3]" />
+                        <span>전체 해제</span>
+                      </>
+                    ) : (
+                      <>
+                        <Square className="w-3.5 h-3.5 text-slate-400" />
+                        <span>전체 선택</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDeleteSelected}
+                    disabled={selectedRecIds.size === 0}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1 ${
+                      selectedRecIds.size > 0
+                        ? 'bg-red-500 hover:bg-red-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                    }`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>선택 삭제 ({selectedRecIds.size})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSelectMode(false);
+                      setSelectedRecIds(new Set());
+                    }}
+                    className="px-2.5 py-1 text-xs font-bold rounded-xl text-slate-500 hover:bg-slate-100 transition cursor-pointer"
+                  >
+                    취소
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsSelectMode(true)}
+                  className="px-2.5 py-1 text-xs font-bold rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition cursor-pointer flex items-center gap-1"
+                >
+                  <CheckSquare className="w-3.5 h-3.5 text-[#0083e3]" />
+                  <span>선택 삭제</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {allRecordings.length === 0 ? (
@@ -1163,16 +1282,48 @@ export const StatsView: React.FC<StatsViewProps> = ({
           <div className="space-y-2.5">
             {allRecordings.map((rec) => {
               const isPlaying = playingId === rec.id;
+              const isSelected = selectedRecIds.has(rec.id);
               return (
                 <div
                   key={rec.id}
-                  className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between transition hover:bg-slate-100/70 group"
+                  onClick={() => {
+                    if (isSelectMode) {
+                      handleToggleSelect(rec.id);
+                    }
+                  }}
+                  className={`p-3 rounded-2xl border transition flex items-center justify-between group ${
+                    isSelected
+                      ? 'bg-blue-50/90 border-[#0083e3] ring-1 ring-[#0083e3]/40 shadow-xs'
+                      : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100/70'
+                  } ${isSelectMode ? 'cursor-pointer' : ''}`}
                 >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    {/* Checkbox in selection mode */}
+                    {isSelectMode && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleSelect(rec.id);
+                        }}
+                        className={`w-6 h-6 rounded-lg flex items-center justify-center transition flex-shrink-0 cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#0083e3] text-white shadow-xs'
+                            : 'border-2 border-slate-300 hover:border-slate-400 bg-white'
+                        }`}
+                        title={isSelected ? '선택 해제' : '선택'}
+                      >
+                        {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                      </button>
+                    )}
+
                     {/* Blue circular Play button */}
                     <button
                       type="button"
-                      onClick={() => togglePlayAudio(rec)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        togglePlayAudio(rec);
+                      }}
                       className="w-9 h-9 rounded-full bg-[#0083e3] hover:bg-blue-600 active:scale-95 text-white flex items-center justify-center transition cursor-pointer shadow-xs flex-shrink-0"
                       title={isPlaying ? '일시정지' : '재생'}
                     >
@@ -1199,7 +1350,10 @@ export const StatsView: React.FC<StatsViewProps> = ({
                   </div>
 
                   {/* Actions: Share & Delete */}
-                  <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                  <div
+                    className="flex items-center gap-1 flex-shrink-0 ml-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <button
                       type="button"
                       onClick={() => handleOpenShare(rec)}
@@ -1220,6 +1374,23 @@ export const StatsView: React.FC<StatsViewProps> = ({
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Floating Bottom Action Bar when items are selected */}
+        {isSelectMode && selectedRecIds.size > 0 && (
+          <div className="sticky bottom-2 z-30 bg-slate-900/95 backdrop-blur-xs text-white p-3 rounded-2xl shadow-xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-2 duration-200 border border-slate-700">
+            <span className="text-xs font-bold pl-1">
+              총 <strong className="text-amber-400 font-black">{selectedRecIds.size}개</strong> 녹음 선택됨
+            </span>
+            <button
+              type="button"
+              onClick={handleDeleteSelected}
+              className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-black rounded-xl transition shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>선택 항목 일괄 삭제</span>
+            </button>
           </div>
         )}
       </div>
