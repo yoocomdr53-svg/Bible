@@ -2610,7 +2610,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
               </div>
 
               <div className="mt-6 pt-3 border-t border-amber-200 text-xs text-slate-600 font-bold flex items-center justify-between">
-                <span>발행: 로고스 수퍼바이블</span>
+                <span>발행: 로고스 SuperBible</span>
                 <span>{new Date().toLocaleDateString('ko-KR')}</span>
               </div>
             </div>

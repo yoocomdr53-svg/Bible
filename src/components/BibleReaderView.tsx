@@ -3015,7 +3015,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
             <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-3">
               <Heart className="w-6 h-6 fill-red-500" />
             </div>
-            <h3 className="text-base font-extrabold text-slate-900 mb-1">수퍼바이블 사역 선교 헌금</h3>
+            <h3 className="text-base font-extrabold text-slate-900 mb-1">SuperBible 사역 선교 헌금</h3>
             <p className="text-xs text-slate-600 mb-4 leading-relaxed">
               전 세계 성도들의 말씀 통독과 음성 녹음 사역을 후원해 주셔서 감사합니다.
             </p>

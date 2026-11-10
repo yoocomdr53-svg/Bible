@@ -20,6 +20,8 @@ import {
   generateAppsScriptCode,
 } from '../services/googleSheetsSync';
 import { getActiveSessionInfo } from '../services/authService';
+import { convertBlobToMp3 } from '../utils/audioToMp3';
+import { APP_NAME, APP_VERSION } from '../version';
 
 export interface AudioShareData {
   title: string;
@@ -106,28 +108,38 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
   }, [data]);
 
   const effectivePassageName = (customPassageName || data?.verseRef || data?.title || '성경낭독').trim();
-  const rawBase = effectivePassageName.replace(/\.(mp3|webm)$/i, '');
+  const rawBase = effectivePassageName.replace(/\.(mp3|webm|wav|ogg|m4a)$/i, '');
   const targetFileName = `${rawBase}.mp3`;
 
-  const getAudioFile = (): File | null => {
+  const getAudioFile = async (): Promise<File | null> => {
     if (!data) return null;
-    const blobToUse = data.audioBlob || loadedBlob;
-    if (data.audioFile) {
-      if (data.audioFile.name.endsWith('.webm') || data.audioFile.name !== targetFileName) {
-        return new File([data.audioFile], targetFileName, { type: 'audio/mp3' });
+    let blobToUse = data.audioBlob || loadedBlob;
+    if (!blobToUse && data.audioUrl) {
+      try {
+        const r = await fetch(data.audioUrl);
+        blobToUse = await r.blob();
+        setLoadedBlob(blobToUse);
+      } catch (e) {}
+    }
+    if (!blobToUse && data.audioFile) {
+      blobToUse = data.audioFile;
+    }
+    if (!blobToUse) return null;
+
+    // Convert WebM/OGG to genuine MP3 if needed
+    if (blobToUse.type.includes('webm') || blobToUse.type.includes('ogg')) {
+      try {
+        blobToUse = await convertBlobToMp3(blobToUse, 128);
+      } catch (e) {
+        console.warn('MP3 conversion fallback', e);
       }
-      return data.audioFile;
     }
-    if (blobToUse) {
-      return new File([blobToUse], targetFileName, {
-        type: 'audio/mp3',
-      });
-    }
-    return null;
+
+    return new File([blobToUse], targetFileName, { type: 'audio/mpeg' });
   };
 
   const getSubmissionText = () => {
-    return `[수퍼바이블 성경 낭독 과제 제출]\n👤 성도명: ${effectiveUserName} (${selectedTeam})\n📜 낭독 본문: ${effectivePassageName}\n⏱️ 녹음 시간: ${displayDuration}\n📅 제출 일시: ${displayDate}\n🎵 첨부 음원: ${targetFileName}\nhttps://bible-9lrz.vercel.app/`;
+    return `[${APP_NAME} ${APP_VERSION} 성경 낭독 과제 제출]\n👤 성도명: ${effectiveUserName} (${selectedTeam})\n📜 낭독 본문: ${effectivePassageName}\n⏱️ 녹음 시간: ${displayDuration}\n📅 제출 일시: ${displayDate}\n🎵 첨부 음원: ${targetFileName}\nhttps://bible-9lrz.vercel.app/`;
   };
 
   // 1. Automatically Sync to Google Drive (성경낭독녹음 > [이름_아이디] 폴더) and Google Sheets
@@ -181,7 +193,7 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
 
   // 2. Pure Telegram Share Function ("순수 텔레그램 공유기능")
   const handleShareToTelegram = async () => {
-    const file = getAudioFile();
+    const file = await getAudioFile();
     const canShareFiles =
       typeof navigator !== 'undefined' &&
       navigator.canShare &&
@@ -232,7 +244,7 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
 
   // 3. Smartphone general app share (KakaoTalk / Drive / Telegram)
   const handleNativeShare = async () => {
-    const file = getAudioFile();
+    const file = await getAudioFile();
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -252,7 +264,7 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
         if (e.name !== 'AbortError') console.warn(e);
       }
     } else {
-      handleDownloadAudio();
+      await handleDownloadAudio();
     }
   };
 
@@ -268,8 +280,8 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
   };
 
   // 5. Download MP3
-  const handleDownloadAudio = () => {
-    const file = getAudioFile();
+  const handleDownloadAudio = async () => {
+    const file = await getAudioFile();
     const downloadUrl = file ? URL.createObjectURL(file) : data?.audioUrl;
     if (downloadUrl) {
       const a = document.createElement('a');

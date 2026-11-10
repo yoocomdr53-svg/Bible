@@ -239,10 +239,10 @@ export default function App() {
         <button
           onClick={() => setCurrentView(currentView === 'login' ? 'dashboard' : 'login')}
           className="px-2 py-0.5 rounded-full text-slate-300 hover:text-white font-medium transition cursor-pointer flex items-center gap-1.5"
-          title={currentView === 'login' ? '수퍼바이블 바로보기' : '로그인 포털로'}
+          title={currentView === 'login' ? 'SuperBible Ver 0.3 바로보기' : '로그인 포털로'}
         >
           <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-          <span>{currentView === 'login' ? '수퍼바이블 바로보기' : '로그인 포털로'}</span>
+          <span>{currentView === 'login' ? 'SuperBible Ver 0.3 바로보기' : '로그인 포털로'}</span>
         </button>
       </div>
 

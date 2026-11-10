@@ -16,6 +16,7 @@ import {
   User as UserIcon,
 } from 'lucide-react';
 import { ActiveModal, User } from '../types';
+import { APP_NAME, APP_VERSION } from '../version';
 import {
   loginUser,
   registerUser,
@@ -165,9 +166,9 @@ export const LoginView: React.FC<LoginViewProps> = ({
       {/* Top Status Bar */}
       <header className="w-full pt-1 pb-2 flex justify-between items-center z-20">
         <div className="flex items-center text-[13px] font-medium tracking-tight text-slate-300 pl-1">
-          <span>수퍼바이블</span>
+          <span className="font-bold text-white">{APP_NAME}</span>
           <span className="text-[10px] bg-blue-500/30 text-blue-300 px-1.5 py-0.2 rounded-full ml-1.5 font-bold">
-            온라인 3.0
+            {APP_VERSION}
           </span>
         </div>
 
@@ -225,8 +226,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
         </div>
 
         {/* Main Title */}
-        <h1 className="text-[22px] sm:text-[24px] font-black tracking-tight text-white font-sans drop-shadow-sm">
-          수퍼바이블
+        <h1 className="text-[22px] sm:text-[24px] font-black tracking-tight text-white font-sans drop-shadow-sm flex items-center justify-center gap-1.5">
+          <span>{APP_NAME}</span>
+          <span className="text-sm font-extrabold text-amber-400 bg-amber-400/20 px-2 py-0.5 rounded-full border border-amber-400/40">
+            {APP_VERSION}
+          </span>
         </h1>
 
         {/* Subtitle */}
@@ -644,7 +648,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
         </nav>
 
         <p className="text-[11px] text-slate-400/80 mt-3 tracking-normal">
-          © 2026 수퍼바이블 Logos Academy System. All rights reserved.
+          © 2026 {APP_NAME} {APP_VERSION} Logos Academy System. All rights reserved.
         </p>
 
         {/* Mobile Home indicator bar */}

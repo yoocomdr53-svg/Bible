@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { LogOut, Bell, Shield, Smartphone, Globe, RefreshCw, CheckCircle2, User as UserIcon } from 'lucide-react';
 import { User } from '../types';
+import { AppInstallModal } from './AppInstallModal';
+import { APP_NAME, APP_VERSION, APP_BUILD_DATE } from '../version';
 
 interface SettingsViewProps {
   user: User;
@@ -14,6 +16,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, onLogout, onOp
   const [readingSpeed, setReadingSpeed] = useState('1.0x');
   const [offlineCache, setOfflineCache] = useState(true);
   const [syncNotice, setSyncNotice] = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
 
   const triggerManualSync = () => {
     setSyncNotice(true);
@@ -25,7 +28,34 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, onLogout, onOp
       {/* Title */}
       <div>
         <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">시스템 및 계정 설정</h2>
-        <p className="text-xs text-slate-500">수퍼바이블 & 로고스 학사 ERP 연동 관리</p>
+        <p className="text-xs text-slate-500">{APP_NAME} {APP_VERSION} & 로고스 학사 ERP 연동 관리</p>
+      </div>
+
+      {/* Official App Installation Card (Android APK / Tablet / PWA) */}
+      <div className="bg-gradient-to-r from-[#0052cc] via-[#0284c7] to-[#071739] text-white rounded-2xl p-4 shadow-soft">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-12 h-12 rounded-2xl p-0.5 bg-gradient-to-br from-amber-300 to-amber-500 shadow-md flex-shrink-0">
+              <img src="/app-icon-512.png" alt="SuperBible" className="w-full h-full rounded-xl object-cover" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h4 className="text-sm font-black text-white truncate">{APP_NAME}</h4>
+                <span className="text-[10px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded-full flex-shrink-0">
+                  {APP_VERSION}
+                </span>
+              </div>
+              <p className="text-[11px] text-blue-100/90 mt-0.5 truncate">스마트폰 · 태블릿 홈화면 앱 설치 & APK 안내</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowInstallModal(true)}
+            className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs active:scale-95 transition shadow-xs cursor-pointer flex-shrink-0"
+          >
+            앱 설치 안내
+          </button>
+        </div>
       </div>
 
       {/* User Profile Card */}
@@ -188,9 +218,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, onLogout, onOp
 
       {/* System Version */}
       <div className="text-center pt-2 text-[11px] text-slate-400">
-        <p className="font-semibold text-slate-500">LOGOS ERP 2.0 & 수퍼바이블 v2.4.0</p>
+        <p className="font-semibold text-slate-500">
+          LOGOS ERP 2.0 & {APP_NAME} {APP_VERSION} (Build {APP_BUILD_DATE})
+        </p>
         <p>© 2026 Logos Academy System. All rights reserved.</p>
       </div>
+
+      {/* SuperBible App Installation & APK Modal */}
+      <AppInstallModal
+        isOpen={showInstallModal}
+        onClose={() => setShowInstallModal(false)}
+      />
     </div>
   );
 };

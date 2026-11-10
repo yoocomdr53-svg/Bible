@@ -138,7 +138,7 @@ export const HelpModals: React.FC<HelpModalsProps> = ({ modal, onClose }) => {
                   <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-950 text-xs">
                     <div className="flex items-center gap-1.5 font-bold mb-1">
                       <Sheet className="w-4 h-4 text-blue-700" />
-                      <span>수퍼바이블 초간단 회원가입 안내</span>
+                      <span>SuperBible 초간단 회원가입 안내</span>
                     </div>
                     <span>
                       로그인 화면 상단의 <strong>[간편 회원가입]</strong> 탭에서 <strong>아이디와 비밀번호</strong>만 입력하시면 3초 만에 가입이 완료됩니다. 상세 직분 및 소속은 관리자가 회원관리 폼에서 배정합니다.

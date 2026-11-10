@@ -36,6 +36,8 @@ import { SettingsView } from './SettingsView';
 import { BibleSelectorView } from './BibleSelectorView';
 import { AdminBibleManagementView } from './AdminBibleManagementView';
 import { HymnView } from './HymnView';
+import { AppInstallModal } from './AppInstallModal';
+import { APP_NAME, APP_VERSION } from '../version';
 
 interface BibleDashboardProps {
   user: User;
@@ -63,6 +65,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
   onDeleteRecording,
 }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('home');
+  const [showInstallModal, setShowInstallModal] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -255,33 +258,38 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
     >
       {/* Top App Header (Brand Logo, Search, User Avatar) */}
       {activeTab !== 'bible' && activeTab !== 'admin' && activeTab !== 'hymn' && (
-        <header className="flex-shrink-0 bg-white border-b border-slate-100 z-30 px-4 pt-2.5 pb-2 flex items-center justify-between">
-          {/* Brand: 수퍼바이블 */}
+        <header className="flex-shrink-0 bg-white border-b border-slate-100 z-30 px-3.5 sm:px-4 pt-2.5 pb-2 flex items-center justify-between">
+          {/* Brand: SuperBible Ver 0.3 with High Quality App Icon */}
           <button
             onClick={() => setActiveTab('home')}
             className="flex items-center gap-2 cursor-pointer focus:outline-none"
           >
-            {/* Super Bible emblem */}
-            <div className="relative w-8 h-8 flex items-center justify-center">
-              <svg
-                className="w-7 h-7 text-blue-600"
-                fill="none"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-              >
-                <path className="text-amber-500 stroke-amber-500" d="M12 2v8m-4-4h8" strokeWidth="2.5" />
-                <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 9 9" stroke="#1d4ed8" strokeWidth="2" />
-                <path d="M3 20c3.5-2 6-2 9 0 3-2 5.5-2 9 0" stroke="#1d4ed8" strokeWidth="2.5" />
-              </svg>
+            <img
+              src="/icon-192.png"
+              alt="SuperBible"
+              className="w-8 h-8 rounded-xl shadow-xs object-cover border border-blue-100"
+            />
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[19px] font-black tracking-tight text-[#0083e3]">{APP_NAME}</span>
+              <span className="text-[10px] font-extrabold bg-blue-50 text-[#0083e3] px-1.5 py-0.5 rounded-full border border-blue-200/80">
+                {APP_VERSION}
+              </span>
             </div>
-            <span className="text-[19px] font-black tracking-tight text-[#0083e3]">수퍼바이블</span>
           </button>
 
           {/* Header Action Icons */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
+            {/* App Install Button (Android APK / Tablet / PWA) */}
+            <button
+              type="button"
+              onClick={() => setShowInstallModal(true)}
+              className="bg-[#fef3c7] hover:bg-[#fde68a] active:scale-95 border border-amber-300 text-amber-900 text-[11px] font-bold px-2.5 py-1 rounded-xl flex items-center gap-1 shadow-2xs transition cursor-pointer"
+              title="SuperBible 모바일 / 태블릿 앱 설치 (APK / PWA)"
+            >
+              <span>📱</span>
+              <span>앱 설치</span>
+            </button>
+
             {/* Back to ERP / Logout */}
             <button
               id="logoutBackBtn"
@@ -680,7 +688,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                       <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                     </svg>
                     <h3 className="text-sm font-black text-slate-900 leading-tight">
-                      수퍼바이블 제작동참하기
+                      SuperBible 제작동참하기
                     </h3>
                   </div>
                   <p className="text-[11px] font-medium text-slate-800 leading-snug">
@@ -1078,6 +1086,12 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* SuperBible App Installation & APK Modal */}
+      <AppInstallModal
+        isOpen={showInstallModal}
+        onClose={() => setShowInstallModal(false)}
+      />
     </div>
   );
 };

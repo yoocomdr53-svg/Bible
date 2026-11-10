@@ -3,15 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>LOGOS ERP 2.0 - 교직원 통합 로그인 & 수퍼바이블</title>
-    <meta name="description" content="LOGOS ERP 2.0 교직원 통합 로그인 포털 및 수퍼바이블 스마트 학사관리 & 성경 통독 시스템" />
-    <meta property="og:title" content="LOGOS ERP 2.0 - 교직원 통합 로그인 & 수퍼바이블" />
-    <meta property="og:description" content="LOGOS ERP 2.0 교직원 통합 로그인 포털 및 수퍼바이블 스마트 학사관리 & 성경 통독 시스템" />
+    <title>SuperBible Ver 0.3 - 스마트 성경 통독 & 낭독 녹음</title>
+    <meta name="description" content="SuperBible Ver 0.3 - 스마트 성경 통독 & 말씀 낭독 녹음 플랫폼" />
+    
+    <!-- PWA / App Manifest & Icons -->
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0083e3" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="SuperBible" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="SuperBible Ver 0.3 - 스마트 성경 통독 & 낭독 녹음" />
+    <meta property="og:description" content="SuperBible Ver 0.3 - 스마트 성경 통독 & 말씀 낭독 녹음 플랫폼" />
+    <meta property="og:image" content="/app-icon-512.png" />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- No Cache for live updates -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
+
+    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Nanum+Gothic:wght@400;700;800&family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet" />
@@ -19,6 +37,14 @@
   <body class="bg-slate-950 text-slate-100 antialiased selection:bg-amber-400 selection:text-slate-900 min-h-screen">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch((err) => {
+            console.log('SW registration fallback:', err);
+          });
+        });
+      }
+    </script>
   </body>
 </html>
-

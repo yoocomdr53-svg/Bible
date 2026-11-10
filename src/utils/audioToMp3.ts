@@ -93,7 +93,7 @@ export async function convertBlobToMp3(
       return audioBlob;
     }
 
-    return new Blob(mp3Data, { type: 'audio/mp3' });
+    return new Blob(mp3Data, { type: 'audio/mpeg' });
   } catch (err) {
     console.warn('MP3 conversion fallback to raw blob:', err);
     return audioBlob;

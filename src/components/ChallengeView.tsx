@@ -32,6 +32,8 @@ import {
   setChapterInProgress,
 } from '../data/bibleData';
 import { ReadingDayPlan, User } from '../types';
+import { AppInstallModal } from './AppInstallModal';
+import { APP_NAME, APP_VERSION } from '../version';
 
 export const READINGS_COUNT_KEY = 'superbible_completed_readings_count';
 
@@ -113,6 +115,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
 
   // Update notice banner toggle on plan screen (matching Image 1)
   const [showUpdateNotice, setShowUpdateNotice] = useState(true);
+  const [showInstallModal, setShowInstallModal] = useState(false);
 
   // Sync with prop changes (e.g. when user taps '도전!일독' at bottom navigation bar)
   useEffect(() => {
@@ -775,6 +778,12 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           {toastMessage}
         </div>
       )}
+
+      {/* SuperBible App Installation & APK Modal */}
+      <AppInstallModal
+        isOpen={showInstallModal}
+        onClose={() => setShowInstallModal(false)}
+      />
     </>
   );
 
@@ -901,22 +910,28 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
   if (subScreen === 'total-progress') {
     return (
       <div className="flex-1 flex flex-col h-full bg-[#f8fafc] relative overflow-hidden select-none text-slate-800">
-        {/* 1. Top Bar (수퍼바이블 + 앱 설치 + 아이콘들) */}
+        {/* 1. Top Bar (SuperBible Ver 0.3 + 앱 설치 + 아이콘들) */}
         <div className="bg-white px-3 sm:px-4 py-2 border-b border-slate-100 flex items-center justify-between flex-shrink-0 z-30">
-          <div className="flex items-center gap-1.5">
-            <div className="w-6 h-6 rounded-md bg-rose-50 flex items-center justify-center text-rose-500">
-              <svg className="w-5 h-5 fill-rose-500" viewBox="0 0 24 24">
-                <path d="M12 2L2 9h3v11h14V9h3L12 2zm0 3.5L17 9H7l5-3.5zM7 11h3v7H7v-7zm7 0h3v7h-3v-7z" />
-              </svg>
+          <div className="flex items-center gap-2">
+            <img
+              src="/icon-192.png"
+              alt="SuperBible"
+              className="w-7 h-7 rounded-lg shadow-xs object-cover border border-blue-100"
+            />
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[17px] font-black tracking-tight text-[#0083e3]">{APP_NAME}</span>
+              <span className="text-[9.5px] font-extrabold bg-blue-50 text-[#0083e3] px-1.5 py-0.5 rounded-full border border-blue-200/80">
+                {APP_VERSION}
+              </span>
             </div>
-            <span className="text-[17px] font-black tracking-tight text-[#0284c7]">수퍼바이블</span>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => alert('수퍼바이블 모바일 웹앱 설치 안내')}
-              className="bg-[#fef3c7] hover:bg-[#fde68a] border border-amber-300 text-amber-900 text-[11px] font-bold px-2.5 py-1 rounded-xl flex items-center gap-1 shadow-2xs transition cursor-pointer"
+              onClick={() => setShowInstallModal(true)}
+              className="bg-[#fef3c7] hover:bg-[#fde68a] active:scale-95 border border-amber-300 text-amber-900 text-[11px] font-bold px-2.5 py-1 rounded-xl flex items-center gap-1 shadow-2xs transition cursor-pointer"
+              title="SuperBible 모바일 / 태블릿 앱 설치 (APK / PWA)"
             >
               <span>📱</span>
               <span>앱 설치</span>
@@ -971,10 +986,15 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span>BIBLEONLINE 3.0</span>
             </div>
-            <div className="text-amber-300 text-[11px] font-bold flex items-center gap-1 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowInstallModal(true)}
+              className="text-amber-300 hover:text-amber-200 text-[11px] font-bold flex items-center gap-1 flex-shrink-0 cursor-pointer"
+              title="SuperBible 모바일 / 태블릿 앱 설치 (APK / PWA)"
+            >
               <span>📱</span>
               <span>앱 설치</span>
-            </div>
+            </button>
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0 ml-2">
