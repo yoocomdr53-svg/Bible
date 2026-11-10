@@ -231,19 +231,21 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
       {/* Top App Header (Brand Logo, Search, User Avatar) */}
       {activeTab !== 'bible' && activeTab !== 'admin' && activeTab !== 'hymn' && (
         <header className="flex-shrink-0 bg-white border-b border-slate-100 z-30 px-3.5 sm:px-4 pt-2.5 pb-2 flex items-center justify-between">
-          {/* Brand: SuperBible Ver 0.3 with High Quality App Icon */}
+          {/* Brand: SuperBible Ver with High Quality App Icon */}
           <button
             onClick={() => setActiveTab('home')}
-            className="flex items-center gap-2 cursor-pointer focus:outline-none"
+            className="flex items-center gap-2 cursor-pointer focus:outline-none text-left"
           >
             <img
               src="/icon-192.png"
               alt="SuperBible"
-              className="w-8 h-8 rounded-xl shadow-xs object-cover border border-blue-100"
+              className="w-8 h-8 rounded-xl shadow-xs object-cover border border-blue-100 flex-shrink-0"
             />
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-[19px] font-black tracking-tight text-[#0083e3]">{APP_NAME}</span>
-              <span className="text-[10px] font-extrabold bg-blue-50 text-[#0083e3] px-1.5 py-0.5 rounded-full border border-blue-200/80">
+            <div className="flex flex-col items-start leading-none">
+              <span className="text-[18px] sm:text-[19px] font-black tracking-tight text-[#0083e3]">
+                {APP_NAME}
+              </span>
+              <span className="text-[10px] font-extrabold text-blue-500/85 mt-0.5 tracking-wide">
                 {APP_VERSION}
               </span>
             </div>
@@ -384,14 +386,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                     title="다른 은혜의 말씀으로 자동 교체"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">다른 말씀</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onOpenVerseCard(todayVerse)}
-                    className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer active:scale-95 border border-red-100"
-                  >
-                    <span>💌 말씀카드</span>
+                    <span>다른 말씀</span>
                   </button>
                 </div>
               </div>

@@ -918,9 +918,9 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               alt="SuperBible"
               className="w-7 h-7 rounded-lg shadow-xs object-cover border border-blue-100"
             />
-            <div className="flex items-baseline gap-1.5">
+            <div className="flex flex-col text-left leading-none">
               <span className="text-[17px] font-black tracking-tight text-[#0083e3]">{APP_NAME}</span>
-              <span className="text-[9.5px] font-extrabold bg-blue-50 text-[#0083e3] px-1.5 py-0.5 rounded-full border border-blue-200/80">
+              <span className="text-[9.5px] font-extrabold text-blue-500/85 mt-0.5 tracking-wide">
                 {APP_VERSION}
               </span>
             </div>
