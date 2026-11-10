@@ -1247,13 +1247,18 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
       saveAudioToStorage(recId, finalBlob).catch(() => {});
     }
 
-    if (session) {
-      // 2. 관리자 음원 검수 목록 및 누적 녹음 건수 갱신
-      addMemberRecordingToAdmin(session, newRecItem);
+    // 2. 관리자 음원 검수 목록 및 누적 녹음 건수 갱신 (비로그인 상태라도 관리자 검수 목록에 등록)
+    const effectiveSession = session || ({
+      id: 'yoocomdr57',
+      name: '로고스 관리자',
+      email: 'yoocomdr57@gmail.com',
+      department: '지벳팀',
+      role: 'admin',
+    } as any);
+    addMemberRecordingToAdmin(effectiveSession, newRecItem);
 
-      // 3. 관리자 회원_낭독진도 명부 및 구글 스프레드시트에 즉시 낭독진도 실시간 동기화
-      updateMemberReadingProgress(session.email, selectedBook, maxCh, chapterCount);
-    }
+    // 3. 관리자 회원_낭독진도 명부 및 구글 스프레드시트에 즉시 낭독진도 실시간 동기화
+    updateMemberReadingProgress(effectiveSession.email, selectedBook, maxCh, chapterCount);
 
     // 4. 로컬 사용자 녹음 보관함에도 저장
     try {

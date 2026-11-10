@@ -266,14 +266,20 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
     } catch (e) {}
 
     const session = getActiveSession();
-    if (session) {
-      // 3. 관리자 음원 검수 목록 및 낭독 녹음 수 갱신
-      addMemberRecordingToAdmin(session, newRec);
+    const effectiveSession = session || ({
+      id: 'yoocomdr57',
+      name: '로고스 관리자',
+      email: 'yoocomdr57@gmail.com',
+      department: '지벳팀',
+      role: 'admin',
+    } as any);
 
-      // 4. 관리자 회원_낭독진도 명부 및 구글 스프레드시트에 즉시 낭독진도 실시간 동기화
-      const chapterCount = Math.max(1, maxCh - minCh + 1);
-      updateMemberReadingProgress(session.email, verse.book, maxCh, chapterCount);
-    }
+    // 3. 관리자 음원 검수 목록 및 낭독 녹음 수 갱신
+    addMemberRecordingToAdmin(effectiveSession, newRec);
+
+    // 4. 관리자 회원_낭독진도 명부 및 구글 스프레드시트에 즉시 낭독진도 실시간 동기화
+    const chapterCount = Math.max(1, maxCh - minCh + 1);
+    updateMemberReadingProgress(effectiveSession.email, verse.book, maxCh, chapterCount);
 
     // 5. 낭독한 장 범위의 모든 장을 완독 및 오늘 읽은 말씀으로 등록
     try {

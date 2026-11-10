@@ -35,6 +35,7 @@ import {
   Link,
 } from 'lucide-react';
 import { User } from '../types';
+import { getAudioFromStorage } from '../utils/audioStorage';
 import { BIBLE_BOOKS } from '../data/bibleData';
 import {
   MemberReadingProfile,
@@ -176,8 +177,133 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     return INITIAL_MEMBER_RECORDINGS;
   });
   const [playingRecId, setPlayingRecId] = useState<string | null>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const [feedbackModalRec, setFeedbackModalRec] = useState<MemberRecordingItem | null>(null);
   const [feedbackInput, setFeedbackInput] = useState('');
+
+  // 낭독 음원 재생 및 중지 핸들러 (실제 녹음된 MP3 오디오 재생 지원)
+  const handleTogglePlayRec = async (rec: MemberRecordingItem) => {
+    if (playingRecId === rec.id) {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current = null;
+      }
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      setPlayingRecId(null);
+      return;
+    }
+
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current = null;
+    }
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    setPlayingRecId(rec.id);
+
+    // 1. IndexedDB에 영구 보관된 녹음 MP3 복원
+    let streamUrl = rec.audioBlobUrl;
+    try {
+      const storedBlob = await getAudioFromStorage(rec.id);
+      if (storedBlob && storedBlob.size > 0) {
+        streamUrl = URL.createObjectURL(storedBlob);
+      }
+    } catch (e) {}
+
+    // 2. 음원 URL이 있는 경우 Audio 객체로 실제 고음질 MP3 음성 재생
+    if (streamUrl) {
+      const audio = new Audio(streamUrl);
+      audioPlayerRef.current = audio;
+      audio.onended = () => {
+        setPlayingRecId(null);
+        audioPlayerRef.current = null;
+      };
+      audio.onerror = () => {
+        console.warn('Audio play error, falling back to TTS', rec);
+        playTtsFallback(rec);
+      };
+      audio.play().catch((err) => {
+        console.warn('Audio play catch, falling back to TTS', err);
+        playTtsFallback(rec);
+      });
+    } else {
+      // 3. 녹음 파일이 없는 초기 샘플의 경우 성경 본문 낭독 음성으로 출력
+      playTtsFallback(rec);
+    }
+  };
+
+  const playTtsFallback = (rec: MemberRecordingItem) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const text = rec.passageSnippet || `${rec.verseRef} 말씀 낭독입니다.`;
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'ko-KR';
+      utterance.rate = 0.95;
+      utterance.onend = () => {
+        setPlayingRecId(null);
+      };
+      utterance.onerror = () => {
+        setPlayingRecId(null);
+      };
+      window.speechSynthesis.speak(utterance);
+    } else {
+      setTimeout(() => setPlayingRecId(null), 3000);
+    }
+  };
+
+  const handleDownloadRec = async (rec: MemberRecordingItem) => {
+    let blob: Blob | null = null;
+    try {
+      blob = await getAudioFromStorage(rec.id);
+    } catch (e) {}
+
+    const url = blob ? URL.createObjectURL(blob) : rec.audioBlobUrl;
+    if (url) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${rec.verseRef || rec.title}.mp3`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } else {
+      alert('저장된 녹음 음원 파일이 없습니다.');
+    }
+  };
+
+  // 탭 이동 또는 언마운트 시 오디오 재생 즉시 중단
+  useEffect(() => {
+    return () => {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current = null;
+      }
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      setPlayingRecId(null);
+    };
+  }, [adminTab]);
+
+  // 실시간 녹음 추가 감지
+  useEffect(() => {
+    const handleRecsChanged = () => {
+      try {
+        const saved = localStorage.getItem(ADMIN_RECORDINGS_KEY);
+        if (saved) {
+          setRecordings(JSON.parse(saved));
+        }
+      } catch (e) {}
+    };
+    window.addEventListener('superbible_recordings_changed', handleRecsChanged);
+    handleRecsChanged();
+    return () => {
+      window.removeEventListener('superbible_recordings_changed', handleRecsChanged);
+    };
+  }, [adminTab]);
 
   // Campaigns state (localStorage 연동 지속 보관)
   const [campaigns, setCampaigns] = useState<ReadingCampaign[]>(() => {
@@ -1505,22 +1631,32 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                       "{rec.passageSnippet}"
                     </p>
 
-                    {/* Audio Player Simulated Bar */}
+                    {/* Audio Player Simulated Bar -> Real MP3 Player */}
                     <div className="bg-slate-900 text-white rounded-xl p-3 flex items-center justify-between gap-3 shadow-inner">
                       <button
                         type="button"
-                        onClick={() => setPlayingRecId(isPlaying ? null : rec.id)}
+                        onClick={() => handleTogglePlayRec(rec)}
                         className={`w-9 h-9 rounded-full flex items-center justify-center transition cursor-pointer flex-shrink-0 ${
-                          isPlaying ? 'bg-amber-400 text-slate-950' : 'bg-blue-600 text-white hover:bg-blue-500'
+                          isPlaying ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-200 shadow-md scale-105' : 'bg-blue-600 text-white hover:bg-blue-500'
                         }`}
+                        title={isPlaying ? '일시 정지' : '음원 재생'}
                       >
                         {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
                       </button>
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between text-[11px] text-slate-300 font-bold mb-1">
-                          <span className="truncate">{rec.memberName} ({rec.department})</span>
-                          <span>{rec.duration}</span>
+                          <span className="truncate flex items-center gap-1.5">
+                            {rec.memberName} ({rec.department})
+                            {isPlaying ? (
+                              <span className="text-amber-400 font-black animate-pulse flex items-center gap-1">
+                                <Volume2 className="w-3 h-3 inline" /> 낭독 음원 재생 중...
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">낭독 음원 청취</span>
+                            )}
+                          </span>
+                          <span className="text-slate-400 font-medium">{rec.duration}</span>
                         </div>
                         {/* Audio Wave representation */}
                         <div className="w-full h-3 flex items-center gap-0.5">
@@ -1530,7 +1666,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                             return (
                               <div
                                 key={i}
-                                className={`flex-1 rounded-full transition-all ${
+                                className={`flex-1 rounded-full transition-all duration-150 ${
                                   isPlaying ? 'bg-amber-400 animate-pulse' : 'bg-slate-600'
                                 }`}
                                 style={{ height: `${h}%` }}
@@ -1552,6 +1688,15 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                     <div className="flex items-center justify-between pt-1">
                       <span className="text-[11px] text-slate-400">{rec.date} 등록</span>
                       <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadRec(rec)}
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg border border-slate-200 transition cursor-pointer flex items-center gap-1"
+                          title="MP3 음원 다운로드"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>다운로드</span>
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleToggleFeatured(rec.id)}
