@@ -1,5 +1,6 @@
 import { User } from '../types';
 import { MemberReadingProfile, MemberRecordingItem, INITIAL_MEMBERS } from '../data/adminData';
+import { getCompletedChapters } from '../data/bibleData';
 import {
   syncMemberRegistrationToGoogleSheet,
   syncProgressToGoogleSheet,
@@ -284,25 +285,76 @@ export function updateMemberReadingProgress(
 ): void {
   try {
     const members = getOrSyncAdminMembers();
-    const idx = members.findIndex(
-      (m) => m.email.toLowerCase() === userEmail.toLowerCase()
+    const searchEmail = (userEmail || '').toLowerCase().trim();
+    const session = getActiveSession();
+    const searchName = (session?.name || '').toLowerCase().trim();
+
+    let idx = members.findIndex(
+      (m) =>
+        (searchEmail && m.email.toLowerCase().trim() === searchEmail) ||
+        (searchName && m.name.toLowerCase().trim() === searchName)
     );
-    let totalRead = 1;
+
+    let realCompletedChaptersCount = 1;
+    try {
+      realCompletedChaptersCount = getCompletedChapters().size;
+    } catch (e) {}
+
     if (idx !== -1) {
       members[idx].currentBook = bookName;
       members[idx].currentChapter = chapterNumber;
-      members[idx].totalReadChapters = (members[idx].totalReadChapters || 0) + deltaChapters;
+      members[idx].totalReadChapters = Math.max(
+        realCompletedChaptersCount,
+        (members[idx].totalReadChapters || 0) + deltaChapters
+      );
       members[idx].lastActive = '방금 낭독';
-      members[idx].consecutiveDays = (members[idx].consecutiveDays || 0) + 1;
-      totalRead = members[idx].totalReadChapters;
+      members[idx].consecutiveDays = Math.max(1, (members[idx].consecutiveDays || 0) + 1);
+      localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(members));
+    } else {
+      const isMasterAdmin = searchEmail.includes('yoocomdr') || searchName.includes('관리자');
+      const newMember: MemberReadingProfile = {
+        id: `M-${String(members.length + 1).padStart(2, '0')}`,
+        name: session?.name || '성도',
+        department: session?.department || '새가족 성경통독부',
+        role: isMasterAdmin ? '관리자' : '성도',
+        phone: '010-미등록',
+        email: userEmail || 'user@superbible.app',
+        registeredDate: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
+        birthdate: '1990.01.01',
+        baptismStatus: '세례교인',
+        smallGroup: '믿음 1구역',
+        accountRole: isMasterAdmin ? 'admin' : 'member',
+        accountStatus: 'active',
+        avatarColor: isMasterAdmin ? 'bg-amber-500' : 'bg-blue-500',
+        avatarText: session?.avatarText || '성도',
+        currentReadingRound: 1,
+        targetRounds: 12,
+        currentBook: bookName,
+        currentChapter: chapterNumber,
+        totalReadChapters: Math.max(1, realCompletedChaptersCount),
+        recordingsCount: 1,
+        lastActive: '방금 낭독',
+        status: 'active',
+        consecutiveDays: 1,
+        featuredCount: 0,
+        memo: '낭독 녹음 성경관리 자동 등록',
+      };
+      members.push(newMember);
+      idx = members.length - 1;
       localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(members));
     }
 
+    const totalRead = members[idx]?.totalReadChapters || realCompletedChaptersCount;
+
     // Update active session user if matching
-    const session = getActiveSession();
-    if (session && session.email.toLowerCase() === userEmail.toLowerCase()) {
+    if (session) {
       session.todayVersesRead = (session.todayVersesRead || 0) + deltaChapters;
       saveActiveSession(session);
+    }
+
+    // Dispatch global event for instant UI sync
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('superbible_members_changed'));
     }
 
     // Realtime sync to Google Sheet (yoocomdr57@gmail.com)
@@ -338,13 +390,27 @@ export function addMemberRecordingToAdmin(
     const updated = [newRecItem, ...currentRecs];
     localStorage.setItem(ADMIN_RECORDINGS_KEY, JSON.stringify(updated));
 
-    // Also update member recordingsCount
+    // Also update member recordingsCount, currentBook, currentChapter
     const members = getOrSyncAdminMembers();
-    const mIdx = members.findIndex((m) => m.email.toLowerCase() === user.email.toLowerCase());
+    const searchEmail = (user.email || '').toLowerCase().trim();
+    const searchName = (user.name || '').toLowerCase().trim();
+    let mIdx = members.findIndex(
+      (m) =>
+        (searchEmail && m.email.toLowerCase().trim() === searchEmail) ||
+        (searchName && m.name.toLowerCase().trim() === searchName)
+    );
     if (mIdx !== -1) {
       members[mIdx].recordingsCount = (members[mIdx].recordingsCount || 0) + 1;
       members[mIdx].lastActive = '방금 낭독';
+      const match = rec.verseRef.match(/^([^\d]+)\s*(\d+)/);
+      if (match) {
+        members[mIdx].currentBook = match[1].trim();
+        members[mIdx].currentChapter = parseInt(match[2], 10);
+      }
       localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(members));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('superbible_members_changed'));
+      }
     }
 
     // Update active session user recordingsCount

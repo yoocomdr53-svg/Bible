@@ -1103,6 +1103,14 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
       if (!recordedVerses.includes(activeRecordVerse)) {
         setRecordedVerses((prev) => [...prev, activeRecordVerse]);
       }
+      // 녹음한 성경 절이 성경관리 및 통독 데이터에 자동 등록 (이중 등록 불필요)
+      try {
+        toggleVerseCompleted(selectedBook, selectedChapter, activeRecordVerse);
+        setCompletedVerses(getCompletedVerses());
+        setCompletedChapters(getCompletedChapters());
+        window.dispatchEvent(new CustomEvent('superbible_verse_read_changed'));
+      } catch (e) {}
+
       // If continuous recording, advance to next verse
       if (isContinuousRecording && activeRecordVerse < verses.length) {
         setActiveRecordVerse((prev) => prev + 1);
@@ -1267,16 +1275,18 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
       localStorage.setItem('superbible_user_recordings_v2', JSON.stringify([newRecItem, ...userRecs]));
     } catch (e) {}
 
-    // 5. 낭독한 장 범위의 모든 장을 완독 및 오늘 읽은 말씀으로 등록
+    // 5. 낭독한 장 범위의 모든 장과 절을 성경관리 데이터에 완독으로 자동 등록 (이중 등록 완전 제거)
     try {
       markChapterRangeCompleted(selectedBook, minCh, maxCh, true);
       for (let ch = minCh; ch <= maxCh; ch++) {
         addTodayReadChapter(selectedBook, ch);
       }
+      setCompletedVerses(getCompletedVerses());
       setCompletedChapters(getCompletedChapters());
       window.dispatchEvent(new CustomEvent('superbible_verse_read_changed'));
       window.dispatchEvent(new CustomEvent('superbible_today_read_changed'));
       window.dispatchEvent(new CustomEvent('superbible_recordings_changed'));
+      window.dispatchEvent(new CustomEvent('superbible_members_changed'));
     } catch (e) {}
 
     // Open Share Modal immediately for seamless Telegram / Team 과제제출방 sharing
@@ -1310,6 +1320,15 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
             <button
               type="button"
               onClick={() => {
+                setIsRecordingNow(false);
+                if (recordedVerses.length > 0) {
+                  for (const vNum of recordedVerses) {
+                    toggleVerseCompleted(selectedBook, selectedChapter, vNum);
+                  }
+                  setCompletedVerses(getCompletedVerses());
+                  setCompletedChapters(getCompletedChapters());
+                  window.dispatchEvent(new CustomEvent('superbible_verse_read_changed'));
+                }
                 if (onBack) {
                   onBack();
                 } else {
@@ -1365,6 +1384,14 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
               type="button"
               onClick={() => {
                 setIsRecordingNow(false);
+                if (recordedVerses.length > 0) {
+                  for (const vNum of recordedVerses) {
+                    toggleVerseCompleted(selectedBook, selectedChapter, vNum);
+                  }
+                  setCompletedVerses(getCompletedVerses());
+                  setCompletedChapters(getCompletedChapters());
+                  window.dispatchEvent(new CustomEvent('superbible_verse_read_changed'));
+                }
                 if (onBack) {
                   onBack();
                 } else {

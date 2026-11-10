@@ -1,7 +1,7 @@
 import React, { useState, Component, ReactNode, ErrorInfo } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { User, ActiveModal, BibleVerse, ReadingDayPlan, UserRecording } from './types';
-import { TODAY_VERSE, INITIAL_READING_PLANS, INITIAL_RECORDINGS, addTodayReadChapter } from './data/bibleData';
+import { TODAY_VERSE, INITIAL_READING_PLANS, INITIAL_RECORDINGS, addTodayReadChapter, markChapterRangeCompleted } from './data/bibleData';
 import { LoginView } from './components/LoginView';
 import { BibleDashboard } from './components/BibleDashboard';
 import { HelpModals } from './components/HelpModals';
@@ -197,13 +197,21 @@ export default function App() {
       saveActiveSession(nextUser);
       return nextUser;
     });
-    // Extract book and chapter from newRec.verseRef to add to today's read/recited scriptures
+    // Extract book, start chapter, end chapter from newRec.verseRef to register in Bible reading & management data
     try {
-      const match = newRec.verseRef.match(/^([^\d]+)\s*(\d+)/);
-      if (match) {
-        const book = match[1].trim();
-        const ch = parseInt(match[2], 10);
-        addTodayReadChapter(book, ch);
+      const rangeMatch = newRec.verseRef.match(/^([^\d]+)\s*(\d+)(?:[~-](\d+))?/);
+      if (rangeMatch) {
+        const book = rangeMatch[1].trim();
+        const startCh = parseInt(rangeMatch[2], 10);
+        const endCh = rangeMatch[3] ? parseInt(rangeMatch[3], 10) : startCh;
+        markChapterRangeCompleted(book, startCh, endCh, true);
+        for (let c = startCh; c <= endCh; c++) {
+          addTodayReadChapter(book, c);
+        }
+        updateMemberReadingProgress(user.email, book, endCh, Math.max(1, endCh - startCh + 1));
+        window.dispatchEvent(new CustomEvent('superbible_verse_read_changed'));
+        window.dispatchEvent(new CustomEvent('superbible_today_read_changed'));
+        window.dispatchEvent(new CustomEvent('superbible_members_changed'));
       }
     } catch (e) {}
     // Sync recording to Admin Inspection List in real-time

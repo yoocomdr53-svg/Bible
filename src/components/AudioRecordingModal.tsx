@@ -290,6 +290,7 @@ export const AudioRecordingModal: React.FC<AudioRecordingModalProps> = ({
       window.dispatchEvent(new CustomEvent('superbible_verse_read_changed'));
       window.dispatchEvent(new CustomEvent('superbible_today_read_changed'));
       window.dispatchEvent(new CustomEvent('superbible_recordings_changed'));
+      window.dispatchEvent(new CustomEvent('superbible_members_changed'));
     } catch (e) {}
 
     setSavedSuccess(true);

@@ -288,7 +288,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     };
   }, [adminTab]);
 
-  // 실시간 녹음 추가 감지
+  // 실시간 낭독 녹음 및 성경관리 명부(진도/장/절) 자동 반영 감지
   useEffect(() => {
     const handleRecsChanged = () => {
       try {
@@ -298,10 +298,22 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
         }
       } catch (e) {}
     };
+
+    const handleMembersChanged = () => {
+      try {
+        setMembers(getOrSyncAdminMembers());
+      } catch (e) {}
+    };
+
     window.addEventListener('superbible_recordings_changed', handleRecsChanged);
+    window.addEventListener('superbible_members_changed', handleMembersChanged);
+    window.addEventListener('superbible_verse_read_changed', handleMembersChanged);
     handleRecsChanged();
+    handleMembersChanged();
     return () => {
       window.removeEventListener('superbible_recordings_changed', handleRecsChanged);
+      window.removeEventListener('superbible_members_changed', handleMembersChanged);
+      window.removeEventListener('superbible_verse_read_changed', handleMembersChanged);
     };
   }, [adminTab]);
 
@@ -1514,11 +1526,14 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                       {/* Middle: Current reading & progress bar */}
                       <div className="bg-slate-50 rounded-xl p-2.5 space-y-1.5">
                         <div className="flex items-center justify-between text-xs">
-                          <span className="text-slate-600 font-bold">
-                            현재 읽는 말씀:{' '}
+                          <span className="text-slate-600 font-bold flex items-center gap-1.5">
+                            <span>현재 낭독·통독 진도:</span>
                             <strong className="text-slate-900 font-black">
                               {member.currentBook} {member.currentChapter}장
                             </strong>
+                            <span className="text-[9.5px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 font-bold">
+                              녹음 자동연동
+                            </span>
                           </span>
                           <span className="text-xs font-black text-emerald-700">
                             {member.totalReadChapters} / 1,189장 ({percent}%)
@@ -2315,8 +2330,13 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
 
               <div className="bg-slate-50 rounded-2xl p-3 space-y-1.5 border border-slate-100">
                 <span className="font-black text-slate-900 block text-xs">현재 진행 진도</span>
-                <p className="text-slate-600 font-medium">
-                  성경 본문: <strong className="text-slate-900">{selectedMember.currentBook} {selectedMember.currentChapter}장</strong>
+                <p className="text-slate-600 font-medium flex items-center justify-between">
+                  <span>
+                    성경 본문: <strong className="text-slate-900">{selectedMember.currentBook} {selectedMember.currentChapter}장</strong>
+                  </span>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
+                    ✓ 낭독 녹음 자동 등록됨
+                  </span>
                 </p>
                 <p className="text-slate-500 text-[11px]">마지막 활동: {selectedMember.lastActive} (연속 {selectedMember.consecutiveDays}일)</p>
                 {selectedMember.memo && (
