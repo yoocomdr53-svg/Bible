@@ -46,6 +46,7 @@ interface BibleDashboardProps {
   onTogglePlan: (day: number) => void;
   recordings: UserRecording[];
   onDeleteRecording: (id: string) => void;
+  onOpenInstall?: () => void;
 }
 
 export const BibleDashboard: React.FC<BibleDashboardProps> = ({
@@ -59,6 +60,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
   onTogglePlan,
   recordings,
   onDeleteRecording,
+  onOpenInstall,
 }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('home');
   const [showInstallModal, setShowInstallModal] = useState(false);
@@ -252,7 +254,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
             {/* App Install Button (Android APK / Tablet / PWA) */}
             <button
               type="button"
-              onClick={() => setShowInstallModal(true)}
+              onClick={() => (onOpenInstall ? onOpenInstall() : setShowInstallModal(true))}
               className="bg-[#fef3c7] hover:bg-[#fde68a] active:scale-95 border border-amber-300 text-amber-900 text-[11px] font-bold px-2.5 py-1 rounded-xl flex items-center gap-1 shadow-2xs transition cursor-pointer"
               title="SuperBible 모바일 / 태블릿 앱 설치 (APK / PWA)"
             >
@@ -399,6 +401,34 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                 <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-white group-hover:translate-x-0.5 transition flex-shrink-0 ml-2" />
               </section>
             )}
+
+            {/* Dedicated Mobile & Tablet App Install Banner on Home */}
+            <section
+              onClick={() => (onOpenInstall ? onOpenInstall() : setShowInstallModal(true))}
+              className="bg-gradient-to-r from-blue-600 via-[#0083e3] to-sky-500 rounded-2xl p-3 sm:p-3.5 text-white shadow-soft flex items-center justify-between gap-3 cursor-pointer hover:shadow-md transition active:scale-[0.99] border border-blue-400/30"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-xl flex-shrink-0 shadow-inner">
+                  📲
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-black bg-amber-300 text-slate-950 px-1.5 py-0.5 rounded-md shadow-2xs">
+                      스마트폰·태블릿
+                    </span>
+                    <span className="text-xs font-bold text-blue-100">SuperBible 전용 앱 설치</span>
+                  </div>
+                  <p className="text-[12px] font-bold text-white truncate mt-0.5">
+                    홈 화면에 바로가기 추가 및 APK 파일 설치하기
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex-shrink-0 bg-white hover:bg-slate-50 text-[#0083e3] text-xs font-black px-3 py-1.5 rounded-xl shadow-xs flex items-center gap-1">
+                <span>앱설치</span>
+                <span>→</span>
+              </div>
+            </section>
 
             {/* Top Sponsor Card: 갑자기 날아든 폭탄 */}
             <section className="bg-slate-100 rounded-xl border border-slate-200 overflow-hidden shadow-soft">

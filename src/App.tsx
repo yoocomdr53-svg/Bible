@@ -6,6 +6,7 @@ import { BibleDashboard } from './components/BibleDashboard';
 import { HelpModals } from './components/HelpModals';
 import { VerseCardModal } from './components/VerseCardModal';
 import { AudioRecordingModal } from './components/AudioRecordingModal';
+import { AppInstallModal } from './components/AppInstallModal';
 import {
   getActiveSession,
   saveActiveSession,
@@ -94,16 +95,14 @@ function getSavedUser(): User {
 }
 
 function getSavedView(): 'login' | 'dashboard' {
-  const sessionUser = getActiveSession();
-  if (sessionUser && sessionUser.id) {
-    return 'dashboard';
-  }
-  return 'dashboard';
+  // 앱 실행 / 재실행 시 반드시 로그인 화면을 첫 화면으로 표시하여 보안 유지
+  return 'login';
 }
 
 export default function App() {
   const [currentView, setCurrentView] = useState<'login' | 'dashboard'>(getSavedView);
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
+  const [showInstallModal, setShowInstallModal] = useState(false);
 
   // User session state
   const [user, setUser] = useState<User>(getSavedUser);
@@ -251,6 +250,7 @@ export default function App() {
             onLoginSuccess={handleLoginSuccess}
             openModal={handleOpenModal}
             onOpenSettings={() => setCurrentView('dashboard')}
+            onOpenInstall={() => setShowInstallModal(true)}
           />
         ) : (
           <ErrorBoundary>
@@ -265,6 +265,7 @@ export default function App() {
               onTogglePlan={handleTogglePlan}
               recordings={recordings}
               onDeleteRecording={handleDeleteRecording}
+              onOpenInstall={() => setShowInstallModal(true)}
             />
           </ErrorBoundary>
         )}
@@ -284,6 +285,12 @@ export default function App() {
         onClose={handleCloseModal}
         verse={verseForRecorder}
         onSaveRecording={handleSaveRecording}
+      />
+
+      {/* SuperBible App Installation & APK Modal (로그인 및 대시보드 전 화면 공용) */}
+      <AppInstallModal
+        isOpen={showInstallModal}
+        onClose={() => setShowInstallModal(false)}
       />
     </div>
   );

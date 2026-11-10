@@ -1,8 +1,8 @@
 {
   "name": "superbible",
   "private": true,
-  "version": "0.5.0",
-  "description": "SuperBible Ver 0.5 - 스마트 성경 통독 & 말씀 낭독 녹음 플랫폼",
+  "version": "0.6.0",
+  "description": "SuperBible Ver 0.6 - 스마트 성경 통독 & 말씀 낭독 녹음 플랫폼",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
