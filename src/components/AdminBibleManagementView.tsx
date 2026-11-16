@@ -49,6 +49,7 @@ import {
 import {
   getGoogleSheetConfig,
   saveGoogleSheetConfig,
+  saveGoogleSheetConfigAsync,
   initGoogleSheetConfigFromServer,
   pullMembersFromGoogleSheet,
   syncBidirectionalWithGoogleSheets,
@@ -62,6 +63,7 @@ import {
 } from '../services/googleSheetsSync';
 import {
   getOrSyncAdminMembers,
+  deleteMemberCompletely,
   ADMIN_MEMBERS_KEY,
   ADMIN_RECORDINGS_KEY,
 } from '../services/authService';
@@ -133,6 +135,17 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
   // Google Sheets Sync state (yoocomdr57@gmail.com 계정 연동)
   const [sheetConfig, setSheetConfig] = useState<GoogleSheetConfig>(() => getGoogleSheetConfig());
   const [scriptUrlInput, setScriptUrlInput] = useState<string>(() => getGoogleSheetConfig().scriptUrl || '');
+  const [sheetUrlInput, setSheetUrlInput] = useState<string>(() => getGoogleSheetConfig().sheetUrl || '');
+
+  // Synchronize inputs when sheetConfig is fetched from cloud server
+  useEffect(() => {
+    if (sheetConfig.scriptUrl) {
+      setScriptUrlInput(sheetConfig.scriptUrl);
+    }
+    if (sheetConfig.sheetUrl) {
+      setSheetUrlInput(sheetConfig.sheetUrl);
+    }
+  }, [sheetConfig.scriptUrl, sheetConfig.sheetUrl]);
   const [pendingQueue, setPendingQueue] = useState<PendingSyncItem[]>(() => getPendingSyncQueue());
   const [isFlushingQueue, setIsFlushingQueue] = useState(false);
   const [syncLogs, setSyncLogs] = useState<SheetSyncLog[]>(() => getSheetSyncLogs());
@@ -487,11 +500,12 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     setEditingMember(null);
   };
 
-  // Delete Member Handler
-  const handleDeleteMember = (memberId: string, memberName: string) => {
-    if (confirm(`'${memberName}' 회원을 회원 명부에서 삭제하시겠습니까?`)) {
-      setMembers((prev) => prev.filter((m) => m.id !== memberId));
-      showToast(`'${memberName}' 회원이 삭제되었습니다.`);
+  // Delete Member Handler (영구 삭제)
+  const handleDeleteMember = async (memberId: string, memberName: string, memberEmail?: string) => {
+    if (confirm(`'${memberName}' 회원을 회원 명부에서 영구 삭제하시겠습니까?\n\n※ 클라우드 서버와 구글 시트에서도 완전히 삭제되며, 다시 나타나지 않습니다.`)) {
+      setMembers((prev) => prev.filter((m) => m.id !== memberId && (!memberEmail || m.email !== memberEmail)));
+      const res = await deleteMemberCompletely(memberId, memberEmail, memberName);
+      showToast(res.message);
     }
   };
 
@@ -634,19 +648,40 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     }
   };
 
-  // Save Google Apps Script Web App URL for yoocomdr57@gmail.com
-  const handleSaveScriptUrl = () => {
-    const url = scriptUrlInput.trim();
+  // Save Google Sheet URL & Apps Script Web App URL for yoocomdr57@gmail.com
+  const handleSaveGoogleSheetUrls = async () => {
+    let scriptUrl = scriptUrlInput.trim();
+    let sheetUrl = sheetUrlInput.trim();
+
+    // Auto-swap if user pasted spreadsheet URL into scriptUrl box
+    if (scriptUrl.includes('docs.google.com/spreadsheets') && !sheetUrl) {
+      sheetUrl = scriptUrl;
+      scriptUrl = '';
+    }
+
+    // Auto-extract sheetId from spreadsheet URL
+    let sheetId = sheetConfig.sheetId;
+    const match = sheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    if (match) {
+      sheetId = match[1];
+    }
+
     const updated: GoogleSheetConfig = {
       ...sheetConfig,
-      scriptUrl: url,
-      lastSyncMessage: url
-        ? 'Google Apps Script Web App URL 등록 완료 (실시간 동기화 준비)'
-        : 'Web App URL 미입력',
+      scriptUrl,
+      sheetUrl: sheetUrl || sheetConfig.sheetUrl,
+      sheetId,
+      lastSyncMessage: scriptUrl
+        ? 'Google Apps Script 및 스프레드시트 URL 등록 완료 (실시간 동기화 가동중)'
+        : '스프레드시트 URL 저장 완료 (Web App URL 등록 대기)',
     };
-    saveGoogleSheetConfig(updated);
+
     setSheetConfig(updated);
-    showToast(url ? 'Apps Script Web App URL이 저장되었습니다! 💾' : 'URL이 초기화되었습니다.');
+    setScriptUrlInput(scriptUrl);
+    setSheetUrlInput(sheetUrl || sheetConfig.sheetUrl);
+
+    const res = await saveGoogleSheetConfigAsync(updated);
+    showToast(res.message);
   };
 
   // Flush pending sync queue
@@ -1434,9 +1469,9 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDeleteMember(m.id, m.name)}
+                            onClick={() => handleDeleteMember(m.id, m.name, m.email)}
                             className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-lg border border-rose-200 transition cursor-pointer"
-                            title="회원 삭제"
+                            title="회원 영구 삭제"
                           >
                             <span>🗑️</span>
                           </button>
@@ -2007,8 +2042,8 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
               </div>
             </div>
 
-            {/* 1.5. Web App URL Input & Connection Card */}
-            <div className="bg-white rounded-3xl p-4 sm:p-5 border-2 border-emerald-500/50 shadow-md space-y-3.5">
+            {/* 1.5. Web App URL & Google Spreadsheet URL Input Card */}
+            <div className="bg-white rounded-3xl p-4 sm:p-5 border-2 border-emerald-500/50 shadow-md space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-center gap-2.5">
                   <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-xl shadow-xs flex-shrink-0">
@@ -2017,7 +2052,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="text-base font-black text-slate-900 tracking-tight">
-                        구글 웹 앱(Web App) 배포 URL 설정
+                        구글 스프레드시트 및 실시간 웹 앱 연동 설정
                       </h4>
                       {sheetConfig.scriptUrl ? (
                         <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
@@ -2031,7 +2066,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                       )}
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Apps Script 배포 URL (<code className="text-emerald-700 font-semibold font-mono">https://script.google.com/macros/s/.../exec</code>)을 입력하면 회원가입·진도·음원이 <strong className="text-slate-800">yoocomdr57@gmail.com</strong> 시트에 즉시 실시간 저장됩니다.
+                      스프레드시트 주소와 Apps Script 배포 URL을 저장하면 모든 기기(스마트폰·태블릿·PC)에 즉시 공유되며 실시간 반영됩니다.
                     </p>
                   </div>
                 </div>
@@ -2049,27 +2084,72 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                 )}
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+              {/* 1) Google Spreadsheet Document URL Input */}
+              <div className="space-y-1.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-slate-700 flex items-center gap-1.5">
+                    <span>📊 1. 구글 스프레드시트 문서 주소 (Google Sheet URL)</span>
+                  </label>
+                  {sheetUrlInput && (
+                    <a
+                      href={sheetUrlInput}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] font-bold text-emerald-700 hover:underline flex items-center gap-1"
+                    >
+                      <span>새 탭에서 시트 열기 ↗</span>
+                    </a>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={sheetUrlInput}
+                    onChange={(e) => setSheetUrlInput(e.target.value)}
+                    placeholder="https://docs.google.com/spreadsheets/d/1yoocomdr57.../edit (구글 시트 브라우저 주소)"
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono bg-white"
+                  />
+                  {sheetUrlInput && (
+                    <button
+                      type="button"
+                      onClick={() => window.open(sheetUrlInput, '_blank')}
+                      className="px-3 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold transition cursor-pointer flex-shrink-0"
+                    >
+                      시트 보기
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 2) Google Apps Script Web App Exec URL Input */}
+              <div className="space-y-1.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                <label className="text-xs font-black text-slate-700 flex items-center gap-1.5">
+                  <span>⚡ 2. Google Apps Script 웹 앱 배포 URL (실시간 API 주소)</span>
+                </label>
                 <input
                   type="url"
                   value={scriptUrlInput}
                   onChange={(e) => setScriptUrlInput(e.target.value)}
-                  placeholder="https://script.google.com/macros/s/AKfycb.../exec (Apps Script 배포 URL 붙여넣기)"
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono bg-slate-50 focus:bg-white"
+                  placeholder="https://script.google.com/macros/s/AKfycb.../exec (Apps Script 웹 앱 URL)"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono bg-white"
                 />
+              </div>
+
+              {/* Combined Save Button */}
+              <div className="flex justify-end pt-1">
                 <button
                   type="button"
-                  onClick={handleSaveScriptUrl}
-                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-md transition cursor-pointer flex items-center justify-center gap-1.5 flex-shrink-0"
+                  onClick={handleSaveGoogleSheetUrls}
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black shadow-md transition cursor-pointer flex items-center justify-center gap-2"
                 >
                   <Save className="w-4 h-4" />
-                  <span>💾 URL 저장 및 실시간 연동</span>
+                  <span>💾 구글 스프레드시트 & Apps Script URL 전체 저장 (모든 기기 실시간 공유)</span>
                 </button>
               </div>
 
               {sheetConfig.lastSyncMessage && (
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px] text-slate-600 flex items-center gap-2">
-                  <span className="font-bold text-slate-700">상태:</span>
+                <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-200/80 text-[11px] text-emerald-900 flex items-center gap-2">
+                  <span className="font-bold text-emerald-800">상태:</span>
                   <span>{sheetConfig.lastSyncMessage}</span>
                 </div>
               )}

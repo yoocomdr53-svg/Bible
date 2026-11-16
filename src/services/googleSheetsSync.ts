@@ -56,22 +56,57 @@ export function getGoogleSheetConfig(): GoogleSheetConfig {
 export function saveGoogleSheetConfig(config: GoogleSheetConfig): void {
   try {
     localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
-    // Share scriptUrl with Vercel central sync hub so all mobile/PC devices automatically know it
-    if (config.scriptUrl && config.scriptUrl.startsWith('http')) {
-      fetch('/api/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'setScriptUrl', scriptUrl: config.scriptUrl }),
-      }).catch(() => {});
-    }
+    // Asynchronously update cloud hub
+    fetch('/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'setConfig',
+        scriptUrl: config.scriptUrl,
+        sheetUrl: config.sheetUrl,
+        sheetId: config.sheetId,
+      }),
+    }).catch(() => {});
   } catch (e) {
     console.error('Failed to save Google Sheet config', e);
   }
 }
 
 /**
- * Auto-initialize Google Apps Script URL from central server hub
- * Ensures smart phones, tablets, and PCs automatically share the same scriptUrl
+ * Async save that waits for cloud hub confirmation
+ * Guarantees scriptUrl and sheetUrl are broadcasted to all devices (smartphone, tablet, PC)
+ */
+export async function saveGoogleSheetConfigAsync(
+  config: GoogleSheetConfig
+): Promise<{ success: boolean; message: string }> {
+  try {
+    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
+    const res = await fetch('/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'setConfig',
+        scriptUrl: config.scriptUrl,
+        sheetUrl: config.sheetUrl,
+        sheetId: config.sheetId,
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        success: true,
+        message: data.message || '클라우드 서버 및 모든 기기에 구글 연동 설정이 저장되었습니다.',
+      };
+    }
+  } catch (e) {
+    console.error('Failed to save config to cloud hub:', e);
+  }
+  return { success: true, message: '로컬에 설정이 안전하게 저장되었습니다.' };
+}
+
+/**
+ * Auto-initialize Google Apps Script & Sheet URL from central server hub
+ * Ensures smart phones, tablets, and PCs automatically share the same URLs
  */
 export async function initGoogleSheetConfigFromServer(): Promise<GoogleSheetConfig> {
   const current = getGoogleSheetConfig();
@@ -79,9 +114,25 @@ export async function initGoogleSheetConfigFromServer(): Promise<GoogleSheetConf
     const res = await fetch('/api/sync?action=getConfig');
     if (res.ok) {
       const data = await res.json();
+      let modified = false;
       if (data.scriptUrl && (!current.scriptUrl || current.scriptUrl !== data.scriptUrl)) {
         current.scriptUrl = data.scriptUrl;
-        current.lastSyncMessage = '중앙 서버에서 Google Apps Script URL 자동 연동 완료';
+        modified = true;
+      }
+      if (data.sheetUrl && (!current.sheetUrl || current.sheetUrl !== data.sheetUrl)) {
+        current.sheetUrl = data.sheetUrl;
+        modified = true;
+      }
+      if (data.sheetId && (!current.sheetId || current.sheetId !== data.sheetId)) {
+        current.sheetId = data.sheetId;
+        modified = true;
+      }
+
+      if (modified) {
+        current.lastSyncMessage = '중앙 서버에서 구글 시트 연동 설정 자동 동기화 완료';
+        saveGoogleSheetConfig(current);
+      } else if (current.scriptUrl && !data.scriptUrl) {
+        // If local client already has scriptUrl but server was cold-started without it, repopulate server!
         saveGoogleSheetConfig(current);
       }
     }
@@ -497,8 +548,20 @@ export async function pullMembersFromGoogleSheet(): Promise<{
   const config = getGoogleSheetConfig();
   const scriptUrl = config.scriptUrl;
 
+  // Read local blacklist of deleted members
+  let deletedList: string[] = [];
   try {
-    const url = `/api/sync?action=pull${scriptUrl ? `&scriptUrl=${encodeURIComponent(scriptUrl)}` : ''}`;
+    const rawDel = localStorage.getItem('superbible_deleted_members_v2');
+    if (rawDel) {
+      const parsed = JSON.parse(rawDel);
+      if (Array.isArray(parsed)) deletedList = parsed.map((k) => String(k).toLowerCase().trim());
+    }
+  } catch (e) {}
+
+  try {
+    const url = `/api/sync?action=pull${scriptUrl ? `&scriptUrl=${encodeURIComponent(scriptUrl)}` : ''}${
+      deletedList.length > 0 ? `&deleted=${encodeURIComponent(deletedList.join(','))}` : ''
+    }`;
     const res = await fetch(url, {
       method: 'GET',
       headers: {
@@ -509,8 +572,17 @@ export async function pullMembersFromGoogleSheet(): Promise<{
 
     if (res.ok) {
       const data = await res.json();
-      if (data.success && Array.isArray(data.members) && data.members.length > 0) {
-        // Read current local members
+      if (data.deletedMembers && Array.isArray(data.deletedMembers)) {
+        // Merge server deleted members with local blacklist
+        data.deletedMembers.forEach((d: string) => {
+          const norm = String(d).toLowerCase().trim();
+          if (norm && !deletedList.includes(norm)) deletedList.push(norm);
+        });
+        localStorage.setItem('superbible_deleted_members_v2', JSON.stringify(deletedList));
+      }
+
+      if (data.success && Array.isArray(data.members)) {
+        // Read current local members (filtering out deleted members)
         let localMembers: MemberReadingProfile[] = [];
         try {
           const raw = localStorage.getItem('superbible_admin_members_v4');
@@ -520,13 +592,17 @@ export async function pullMembersFromGoogleSheet(): Promise<{
         const map = new Map<string, MemberReadingProfile>();
         localMembers.forEach((m) => {
           const key = (m.email || m.name || '').toLowerCase().trim();
-          if (key) map.set(key, m);
+          const idKey = (m.id || '').toLowerCase().trim();
+          if (key && !deletedList.includes(key) && !deletedList.includes(idKey)) {
+            map.set(key, m);
+          }
         });
 
-        // Smart merge remote members
+        // Smart merge remote members (strictly skip deleted members)
         data.members.forEach((remoteM: MemberReadingProfile) => {
           const key = (remoteM.email || remoteM.name || '').toLowerCase().trim();
-          if (!key) return;
+          const idKey = (remoteM.id || '').toLowerCase().trim();
+          if (!key || deletedList.includes(key) || (idKey && deletedList.includes(idKey))) return;
 
           if (map.has(key)) {
             const cur = map.get(key)!;
@@ -575,13 +651,22 @@ export async function pullMembersFromGoogleSheet(): Promise<{
         const mergedList = Array.from(map.values());
         localStorage.setItem('superbible_admin_members_v4', JSON.stringify(mergedList));
 
-        // Sync missing users into local user registry so they can log in
+        // Sync missing users into local user registry so they can log in (strictly skip deleted)
         try {
           const regRaw = localStorage.getItem('superbible_user_registry_v2');
           let accounts: any[] = regRaw ? JSON.parse(regRaw) : [];
+          // Purge deleted from accounts
+          accounts = accounts.filter((acc) => {
+            const login = (acc.loginId || '').toLowerCase().trim();
+            const email = (acc.user?.email || '').toLowerCase().trim();
+            const name = (acc.user?.name || '').toLowerCase().trim();
+            return !deletedList.includes(login) && !deletedList.includes(email) && !deletedList.includes(name);
+          });
+
           let regChanged = false;
           mergedList.forEach((m) => {
             const mKey = (m.email || m.name || '').toLowerCase().trim();
+            if (deletedList.includes(mKey)) return;
             const exists = accounts.some((a) => (a.loginId || a.user?.email || '').toLowerCase().trim() === mKey);
             if (!exists) {
               accounts.push({
@@ -628,11 +713,18 @@ export async function pullMembersFromGoogleSheet(): Promise<{
     console.warn('[SyncService] pullMembersFromGoogleSheet error:', err);
   }
 
-  // Fallback to local members
+  // Fallback to local members (excluding deleted members)
   let fallbackMembers: MemberReadingProfile[] = [];
   try {
     const raw = localStorage.getItem('superbible_admin_members_v4');
-    if (raw) fallbackMembers = JSON.parse(raw);
+    if (raw) {
+      const parsed: MemberReadingProfile[] = JSON.parse(raw);
+      fallbackMembers = parsed.filter((m) => {
+        const k = (m.email || m.name || '').toLowerCase().trim();
+        const idKey = (m.id || '').toLowerCase().trim();
+        return !deletedList.includes(k) && !deletedList.includes(idKey);
+      });
+    }
   } catch (e) {}
 
   return {
@@ -665,15 +757,27 @@ export async function syncBidirectionalWithGoogleSheets(
   // Step 1: Pull remote members first so any members registered on other devices are preserved!
   const pullResult = await pullMembersFromGoogleSheet();
 
-  // Combine input members with pulled members
+  // Read local blacklist of deleted members
+  let deletedList: string[] = [];
+  try {
+    const rawDel = localStorage.getItem('superbible_deleted_members_v2');
+    if (rawDel) {
+      const parsed = JSON.parse(rawDel);
+      if (Array.isArray(parsed)) deletedList = parsed.map((k) => String(k).toLowerCase().trim());
+    }
+  } catch (e) {}
+
+  // Combine input members with pulled members (filtering out deleted members)
   const memberMap = new Map<string, MemberReadingProfile>();
   pullResult.members.forEach((m) => {
     const k = (m.email || m.name || '').toLowerCase().trim();
-    if (k) memberMap.set(k, m);
+    const idKey = (m.id || '').toLowerCase().trim();
+    if (k && !deletedList.includes(k) && !deletedList.includes(idKey)) memberMap.set(k, m);
   });
   members.forEach((m) => {
     const k = (m.email || m.name || '').toLowerCase().trim();
-    if (!k) return;
+    const idKey = (m.id || '').toLowerCase().trim();
+    if (!k || deletedList.includes(k) || (idKey && deletedList.includes(idKey))) return;
     if (memberMap.has(k)) {
       const cur = memberMap.get(k)!;
       memberMap.set(k, {
@@ -709,11 +813,13 @@ export async function syncBidirectionalWithGoogleSheets(
         adminEmail: config.adminEmail,
         sheetId: config.sheetId,
         scriptUrl: scriptUrl || undefined,
+        deletedList,
         timestamp: new Date().toISOString(),
         data: {
           members: mergedMembers,
           recordings,
           campaigns,
+          deletedList,
         },
       }),
     });
