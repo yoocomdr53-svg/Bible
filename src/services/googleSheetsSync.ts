@@ -1783,6 +1783,8 @@ function doGet(e) {
     rosterCount: rosterRows.length > 0 ? rosterRows.length - 1 : 0,
     memberProgressCount: memberRows.length > 0 ? memberRows.length - 1 : 0,
     adminEmail: "${adminEmail}",
+    sheetUrl: ss.getUrl(),
+    sheetId: ss.getId(),
     timestamp: new Date().toISOString()
   })).setMimeType(ContentService.MimeType.JSON);
 }

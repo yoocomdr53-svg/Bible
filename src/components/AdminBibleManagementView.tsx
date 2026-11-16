@@ -724,6 +724,23 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     }
   };
 
+  // Open real Google Spreadsheet in new tab with validation
+  const handleOpenSheet = () => {
+    const url = sheetConfig.sheetUrl;
+    if (!url || url.includes('1yoocomdr57_SuperBible_MasterRoster_2026')) {
+      alert(
+        '【구글 스프레드시트 주소 등록 안내】\n\n' +
+        '현재 연결된 주소는 가상의 임시 주소여서 구글에서 "요청한 파일이 없습니다" 오류가 발생합니다.\n\n' +
+        '사용자님께서 구글 드라이브에서 만드신 실제 스프레드시트의 브라우저 주소(URL)를 복사한 후, ' +
+        '아래 [⚙️ 연동 상세 설정]의 [구글 스프레드시트 문서 주소] 칸에 붙여넣고 [설정 저장]을 눌러주시면 즉시 정상 연결됩니다.'
+      );
+      setAdminTab('sheets');
+      setShowSheetSettings(true);
+      return;
+    }
+    window.open(url, '_blank');
+  };
+
   // Copy Google Apps Script code for yoocomdr57@gmail.com
   const handleCopyAppsScript = () => {
     const code = generateAppsScriptCode('yoocomdr57@gmail.com');
@@ -827,7 +844,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
             type="button"
-            onClick={() => window.open(sheetConfig.sheetUrl || 'https://docs.google.com/spreadsheets/d/1yoocomdr57_SuperBible_MasterRoster_2026/edit', '_blank')}
+            onClick={handleOpenSheet}
             className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white text-xs font-black rounded-xl flex items-center gap-1.5 shadow-sm transition cursor-pointer whitespace-nowrap"
             title="yoocomdr57 구글 스프레드시트 바로 열기 (새 탭)"
           >
@@ -2085,7 +2102,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                   {/* One-Click Direct Open Sheet Button */}
                   <button
                     type="button"
-                    onClick={() => window.open(sheetConfig.sheetUrl || 'https://docs.google.com/spreadsheets/d/1yoocomdr57_SuperBible_MasterRoster_2026/edit', '_blank')}
+                    onClick={handleOpenSheet}
                     className="flex-1 sm:flex-none px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-sm shadow-md transition cursor-pointer flex items-center justify-center gap-2"
                     title="새 창에서 구글 스프레드시트 열기"
                   >

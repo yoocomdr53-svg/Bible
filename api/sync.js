@@ -83,6 +83,15 @@ export default async function handler(req, res) {
 
         if (gasRes.ok) {
           const gasData = await gasRes.json();
+          if (gasData && gasData.sheetUrl && (!serverCachedSheetUrl || serverCachedSheetUrl.includes('1yoocomdr57_SuperBible_MasterRoster_2026'))) {
+            serverCachedSheetUrl = gasData.sheetUrl;
+            globalThis.__SUPERBIBLE_SHEET_URL__ = gasData.sheetUrl;
+          }
+          if (gasData && gasData.sheetId && (!serverCachedSheetId || serverCachedSheetId.includes('1yoocomdr57_SuperBible_MasterRoster_2026'))) {
+            serverCachedSheetId = gasData.sheetId;
+            globalThis.__SUPERBIBLE_SHEET_ID__ = gasData.sheetId;
+          }
+
           if (gasData && Array.isArray(gasData.members) && gasData.members.length > 0) {
             // Smart Merge Google Sheets members with server cache (excluding deleted members)
             const map = new Map();
