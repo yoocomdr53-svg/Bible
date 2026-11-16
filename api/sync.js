@@ -6,14 +6,17 @@ let serverCachedSheetUrl = globalThis.__SUPERBIBLE_SHEET_URL__ || process.env.GO
 let serverCachedSheetId = globalThis.__SUPERBIBLE_SHEET_ID__ || process.env.GOOGLE_SHEET_ID || '';
 let serverCachedMembers = globalThis.__SUPERBIBLE_MEMBERS__ || [];
 let serverCachedRecordings = globalThis.__SUPERBIBLE_RECORDINGS__ || [];
-let serverDeletedMembers = globalThis.__SUPERBIBLE_DELETED_MEMBERS__ || [];
+// Purge any sequential M-XX ids from serverDeletedMembers
+let serverDeletedMembers = (globalThis.__SUPERBIBLE_DELETED_MEMBERS__ || []).filter(
+  d => d && !/^m-\d+$/i.test(String(d).trim())
+);
 
 function isMemberInDeletedList(m, deletedList) {
   if (!m || !deletedList || deletedList.length === 0) return false;
-  const k1 = (m.email || '').toLowerCase().trim();
-  const k2 = (m.name || '').toLowerCase().trim();
-  const k3 = (m.id || '').toLowerCase().trim();
-  return (k1 && deletedList.includes(k1)) || (k2 && deletedList.includes(k2)) || (k3 && deletedList.includes(k3));
+  const kEmail = (m.email || '').toLowerCase().trim();
+  const kLogin = (m.loginId || '').toLowerCase().trim();
+  // NEVER use sequential M-XX or plain names as permanent deletion identifiers!
+  return Boolean((kEmail && deletedList.includes(kEmail)) || (kLogin && deletedList.includes(kLogin)));
 }
 
 export default async function handler(req, res) {
@@ -49,7 +52,9 @@ export default async function handler(req, res) {
     if (deleted) {
       const items = String(deleted).split(',').map(s => s.toLowerCase().trim()).filter(Boolean);
       items.forEach(it => {
-        if (!serverDeletedMembers.includes(it)) serverDeletedMembers.push(it);
+        if (!/^m-\d+$/i.test(it) && !serverDeletedMembers.includes(it)) {
+          serverDeletedMembers.push(it);
+        }
       });
       globalThis.__SUPERBIBLE_DELETED_MEMBERS__ = serverDeletedMembers;
     }
@@ -180,12 +185,27 @@ export default async function handler(req, res) {
     if (Array.isArray(deletedList)) {
       deletedList.forEach(k => {
         const norm = String(k).toLowerCase().trim();
-        if (norm && !serverDeletedMembers.includes(norm)) serverDeletedMembers.push(norm);
+        // NEVER treat sequential M-XX as deletion keys
+        if (norm && !/^m-\d+$/i.test(norm) && !serverDeletedMembers.includes(norm)) {
+          serverDeletedMembers.push(norm);
+        }
       });
       globalThis.__SUPERBIBLE_DELETED_MEMBERS__ = serverDeletedMembers;
     }
 
     const targetScriptUrl = scriptUrl || serverCachedScriptUrl || req.headers['x-script-url'] || '';
+
+    // Action: Clear / Reset Blacklist
+    if (action === 'clearBlacklist' || action === 'resetDeletedList') {
+      serverDeletedMembers = [];
+      globalThis.__SUPERBIBLE_DELETED_MEMBERS__ = [];
+      res.status(200).json({
+        success: true,
+        message: '영구 삭제 블랙리스트가 초기화되었습니다. 기존 회원이 안전하게 복구됩니다.',
+        deletedMembers: []
+      });
+      return;
+    }
 
     // Action: Set / Save Google Apps Script & Sheet URL globally for all devices
     if (action === 'setConfig' || action === 'setScriptUrl') {
@@ -216,10 +236,9 @@ export default async function handler(req, res) {
     // Action: Permanently Delete Member
     if (action === 'deleteMember') {
       const delEmail = (body.email || '').toLowerCase().trim();
-      const delName = (body.name || '').toLowerCase().trim();
-      const delId = (body.memberId || body.id || '').toLowerCase().trim();
+      const delLoginId = (body.loginId || '').toLowerCase().trim();
 
-      [delEmail, delName, delId].filter(Boolean).forEach(k => {
+      [delEmail, delLoginId].filter(Boolean).forEach(k => {
         if (!serverDeletedMembers.includes(k)) serverDeletedMembers.push(k);
       });
       globalThis.__SUPERBIBLE_DELETED_MEMBERS__ = serverDeletedMembers;
@@ -227,11 +246,9 @@ export default async function handler(req, res) {
       // Filter out permanently from serverCachedMembers
       serverCachedMembers = serverCachedMembers.filter(m => {
         const mEmail = (m.email || '').toLowerCase().trim();
-        const mName = (m.name || '').toLowerCase().trim();
-        const mId = (m.id || '').toLowerCase().trim();
-        if (delId && mId === delId) return false;
+        const mLogin = (m.loginId || '').toLowerCase().trim();
         if (delEmail && mEmail === delEmail) return false;
-        if (delName && mName === delName) return false;
+        if (delLoginId && mLogin === delLoginId) return false;
         return true;
       });
       globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
@@ -267,14 +284,21 @@ export default async function handler(req, res) {
     if (action === 'registerMember' || action === 'registerUser') {
       const incomingMember = body.member;
       if (incomingMember) {
-        const k = (incomingMember.email || incomingMember.name || '').toLowerCase().trim();
-        // Remove from deleted blacklist if intentionally registering again
-        serverDeletedMembers = serverDeletedMembers.filter(d => d !== k && d !== (incomingMember.id || '').toLowerCase().trim());
+        const kEmail = (incomingMember.email || '').toLowerCase().trim();
+        const kName = (incomingMember.name || '').toLowerCase().trim();
+        const kLogin = (body.loginId || incomingMember.loginId || '').toLowerCase().trim();
+
+        // Remove from deleted blacklist if registering or already active
+        serverDeletedMembers = serverDeletedMembers.filter(
+          d => d !== kEmail && d !== kLogin && d !== kName && !/^m-\d+$/i.test(d)
+        );
         globalThis.__SUPERBIBLE_DELETED_MEMBERS__ = serverDeletedMembers;
 
-        const existingIdx = serverCachedMembers.findIndex(m =>
-          (m.email || m.name || '').toLowerCase().trim() === k
-        );
+        const existingIdx = serverCachedMembers.findIndex(m => {
+          const me = (m.email || '').toLowerCase().trim();
+          const mn = (m.name || '').toLowerCase().trim();
+          return (kEmail && me === kEmail) || (kName && mn === kName);
+        });
         if (existingIdx !== -1) {
           serverCachedMembers[existingIdx] = { ...serverCachedMembers[existingIdx], ...incomingMember };
         } else {
@@ -287,16 +311,29 @@ export default async function handler(req, res) {
     // Action: Bulk Bidirectional Sync
     if (action === 'sync') {
       const incomingList = body.data?.members || body.members || [];
+
+      // Any member present in incomingList is actively alive -> un-blacklist them!
+      incomingList.forEach(m => {
+        const me = (m.email || '').toLowerCase().trim();
+        const ml = (m.loginId || '').toLowerCase().trim();
+        if (me) serverDeletedMembers = serverDeletedMembers.filter(d => d !== me);
+        if (ml) serverDeletedMembers = serverDeletedMembers.filter(d => d !== ml);
+      });
+      serverDeletedMembers = serverDeletedMembers.filter(d => !/^m-\d+$/i.test(d));
+      globalThis.__SUPERBIBLE_DELETED_MEMBERS__ = serverDeletedMembers;
+
       const map = new Map();
       serverCachedMembers.forEach(m => {
         if (!isMemberInDeletedList(m, serverDeletedMembers)) {
-          map.set((m.email || m.name).toLowerCase().trim(), m);
+          const k = (m.email || m.name || '').toLowerCase().trim();
+          if (k) map.set(k, m);
         }
       });
 
       incomingList.forEach(m => {
         if (isMemberInDeletedList(m, serverDeletedMembers)) return;
         const k = (m.email || m.name || '').toLowerCase().trim();
+        if (!k) return;
         if (map.has(k)) {
           const cur = map.get(k);
           map.set(k, {
@@ -304,6 +341,7 @@ export default async function handler(req, res) {
             ...m,
             totalReadChapters: Math.max(cur.totalReadChapters || 0, m.totalReadChapters || 0),
             currentReadingRound: Math.max(cur.currentReadingRound || 0, m.currentReadingRound || 0),
+            recordingsCount: Math.max(cur.recordingsCount || 0, m.recordingsCount || 0),
           });
         } else {
           map.set(k, m);

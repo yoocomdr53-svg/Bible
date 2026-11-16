@@ -32,6 +32,29 @@ const CONFIG_STORAGE_KEY = 'superbible_googlesheet_config_v2';
 const LOGS_STORAGE_KEY = 'superbible_googlesheet_logs_v2';
 const PENDING_QUEUE_KEY = 'superbible_pending_sheet_sync_v2';
 
+/**
+ * Resolves absolute URL for Central Sync Hub API
+ * Essential for Android APK (Capacitor/Cordova) and local mobile environments
+ */
+export function getSyncApiUrl(endpoint: string = '/api/sync'): string {
+  if (typeof window !== 'undefined') {
+    const origin = window.location.origin;
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    // Android APK, iOS native wrapper, local file, or localhost dev without backend
+    if (
+      protocol === 'capacitor:' ||
+      protocol === 'file:' ||
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      !origin.includes('vercel.app')
+    ) {
+      return `https://bible-9lrz.vercel.app${endpoint}`;
+    }
+  }
+  return endpoint;
+}
+
 export const DEFAULT_SHEET_CONFIG: GoogleSheetConfig = {
   sheetId: '',
   sheetUrl: 'https://docs.google.com/spreadsheets/u/0/',
@@ -58,7 +81,7 @@ export function saveGoogleSheetConfig(config: GoogleSheetConfig): void {
   try {
     localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
     // Asynchronously update cloud hub
-    fetch('/api/sync', {
+    fetch(getSyncApiUrl('/api/sync'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -82,7 +105,7 @@ export async function saveGoogleSheetConfigAsync(
 ): Promise<{ success: boolean; message: string }> {
   try {
     localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
-    const res = await fetch('/api/sync', {
+    const res = await fetch(getSyncApiUrl('/api/sync'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -112,7 +135,7 @@ export async function saveGoogleSheetConfigAsync(
 export async function initGoogleSheetConfigFromServer(): Promise<GoogleSheetConfig> {
   const current = getGoogleSheetConfig();
   try {
-    const res = await fetch('/api/sync?action=getConfig');
+    const res = await fetch(getSyncApiUrl('/api/sync?action=getConfig'));
     if (res.ok) {
       const data = await res.json();
       let modified = false;
@@ -225,7 +248,7 @@ export async function sendPayloadToGoogleScript(
 
   // 1. First priority: Send to Vercel /api/sync Hub (works from ALL devices without CORS/redirect issues)
   try {
-    const res = await fetch('/api/sync', {
+    const res = await fetch(getSyncApiUrl('/api/sync'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -549,20 +572,24 @@ export async function pullMembersFromGoogleSheet(): Promise<{
   const config = getGoogleSheetConfig();
   const scriptUrl = config.scriptUrl;
 
-  // Read local blacklist of deleted members
+  // Read local blacklist of deleted members (strictly exclude sequential M-XX ids)
   let deletedList: string[] = [];
   try {
     const rawDel = localStorage.getItem('superbible_deleted_members_v2');
     if (rawDel) {
       const parsed = JSON.parse(rawDel);
-      if (Array.isArray(parsed)) deletedList = parsed.map((k) => String(k).toLowerCase().trim());
+      if (Array.isArray(parsed)) {
+        deletedList = parsed
+          .map((k) => String(k).toLowerCase().trim())
+          .filter((k) => k && !/^m-\d+$/i.test(k));
+      }
     }
   } catch (e) {}
 
   try {
-    const url = `/api/sync?action=pull${scriptUrl ? `&scriptUrl=${encodeURIComponent(scriptUrl)}` : ''}${
+    const url = getSyncApiUrl(`/api/sync?action=pull${scriptUrl ? `&scriptUrl=${encodeURIComponent(scriptUrl)}` : ''}${
       deletedList.length > 0 ? `&deleted=${encodeURIComponent(deletedList.join(','))}` : ''
-    }`;
+    }`);
     const res = await fetch(url, {
       method: 'GET',
       headers: {
@@ -574,16 +601,16 @@ export async function pullMembersFromGoogleSheet(): Promise<{
     if (res.ok) {
       const data = await res.json();
       if (data.deletedMembers && Array.isArray(data.deletedMembers)) {
-        // Merge server deleted members with local blacklist
+        // Merge server deleted members with local blacklist (only non-sequential IDs)
         data.deletedMembers.forEach((d: string) => {
           const norm = String(d).toLowerCase().trim();
-          if (norm && !deletedList.includes(norm)) deletedList.push(norm);
+          if (norm && !/^m-\d+$/i.test(norm) && !deletedList.includes(norm)) deletedList.push(norm);
         });
         localStorage.setItem('superbible_deleted_members_v2', JSON.stringify(deletedList));
       }
 
       if (data.success && Array.isArray(data.members)) {
-        // Read current local members (filtering out deleted members)
+        // Read current local members
         let localMembers: MemberReadingProfile[] = [];
         try {
           const raw = localStorage.getItem('superbible_admin_members_v4');
@@ -593,17 +620,20 @@ export async function pullMembersFromGoogleSheet(): Promise<{
         const map = new Map<string, MemberReadingProfile>();
         localMembers.forEach((m) => {
           const key = (m.email || m.name || '').toLowerCase().trim();
-          const idKey = (m.id || '').toLowerCase().trim();
-          if (key && !deletedList.includes(key) && !deletedList.includes(idKey)) {
+          if (key && !deletedList.includes(key)) {
             map.set(key, m);
           }
         });
 
-        // Smart merge remote members (strictly skip deleted members)
+        // Smart merge remote members (members in Google Sheets are active -> keep them safe)
         data.members.forEach((remoteM: MemberReadingProfile) => {
           const key = (remoteM.email || remoteM.name || '').toLowerCase().trim();
-          const idKey = (remoteM.id || '').toLowerCase().trim();
-          if (!key || deletedList.includes(key) || (idKey && deletedList.includes(idKey))) return;
+          if (!key) return;
+          // If remote member is in Google Sheets, un-blacklist if previously marked
+          if (deletedList.includes(key)) {
+            deletedList = deletedList.filter((d) => d !== key);
+            localStorage.setItem('superbible_deleted_members_v2', JSON.stringify(deletedList));
+          }
 
           if (map.has(key)) {
             const cur = map.get(key)!;
@@ -652,7 +682,7 @@ export async function pullMembersFromGoogleSheet(): Promise<{
         const mergedList = Array.from(map.values());
         localStorage.setItem('superbible_admin_members_v4', JSON.stringify(mergedList));
 
-        // Sync missing users into local user registry so they can log in (strictly skip deleted)
+        // Sync missing users into local user registry so they can log in
         try {
           const regRaw = localStorage.getItem('superbible_user_registry_v2');
           let accounts: any[] = regRaw ? JSON.parse(regRaw) : [];
@@ -722,8 +752,7 @@ export async function pullMembersFromGoogleSheet(): Promise<{
       const parsed: MemberReadingProfile[] = JSON.parse(raw);
       fallbackMembers = parsed.filter((m) => {
         const k = (m.email || m.name || '').toLowerCase().trim();
-        const idKey = (m.id || '').toLowerCase().trim();
-        return !deletedList.includes(k) && !deletedList.includes(idKey);
+        return !deletedList.includes(k);
       });
     }
   } catch (e) {}
@@ -758,13 +787,17 @@ export async function syncBidirectionalWithGoogleSheets(
   // Step 1: Pull remote members first so any members registered on other devices are preserved!
   const pullResult = await pullMembersFromGoogleSheet();
 
-  // Read local blacklist of deleted members
+  // Read local blacklist of deleted members (strictly exclude sequential M-XX ids)
   let deletedList: string[] = [];
   try {
     const rawDel = localStorage.getItem('superbible_deleted_members_v2');
     if (rawDel) {
       const parsed = JSON.parse(rawDel);
-      if (Array.isArray(parsed)) deletedList = parsed.map((k) => String(k).toLowerCase().trim());
+      if (Array.isArray(parsed)) {
+        deletedList = parsed
+          .map((k) => String(k).toLowerCase().trim())
+          .filter((k) => k && !/^m-\d+$/i.test(k));
+      }
     }
   } catch (e) {}
 
@@ -772,13 +805,11 @@ export async function syncBidirectionalWithGoogleSheets(
   const memberMap = new Map<string, MemberReadingProfile>();
   pullResult.members.forEach((m) => {
     const k = (m.email || m.name || '').toLowerCase().trim();
-    const idKey = (m.id || '').toLowerCase().trim();
-    if (k && !deletedList.includes(k) && !deletedList.includes(idKey)) memberMap.set(k, m);
+    if (k && !deletedList.includes(k)) memberMap.set(k, m);
   });
   members.forEach((m) => {
     const k = (m.email || m.name || '').toLowerCase().trim();
-    const idKey = (m.id || '').toLowerCase().trim();
-    if (!k || deletedList.includes(k) || (idKey && deletedList.includes(idKey))) return;
+    if (!k || deletedList.includes(k)) return;
     if (memberMap.has(k)) {
       const cur = memberMap.get(k)!;
       memberMap.set(k, {
@@ -803,7 +834,7 @@ export async function syncBidirectionalWithGoogleSheets(
 
   // Step 2: Push merged roster to Vercel /api/sync Hub (Works across all devices with zero CORS)
   try {
-    const syncRes = await fetch('/api/sync', {
+    const syncRes = await fetch(getSyncApiUrl('/api/sync'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -827,8 +858,65 @@ export async function syncBidirectionalWithGoogleSheets(
 
     if (syncRes.ok) {
       const syncData = await syncRes.json();
-      const finalMembers = (syncData.members && syncData.members.length > 0) ? syncData.members : mergedMembers;
+      // UNION MERGE: never let a server response with fewer members drop known members!
+      const finalMap = new Map<string, MemberReadingProfile>();
+      mergedMembers.forEach((m) => {
+        const k = (m.email || m.name || '').toLowerCase().trim();
+        if (k) finalMap.set(k, m);
+      });
+      if (syncData && Array.isArray(syncData.members)) {
+        syncData.members.forEach((sm: MemberReadingProfile) => {
+          const k = (sm.email || sm.name || '').toLowerCase().trim();
+          if (k && !deletedList.includes(k)) {
+            if (finalMap.has(k)) {
+              finalMap.set(k, { ...finalMap.get(k)!, ...sm });
+            } else {
+              finalMap.set(k, sm);
+            }
+          }
+        });
+      }
+      const finalMembers = Array.from(finalMap.values());
       localStorage.setItem('superbible_admin_members_v4', JSON.stringify(finalMembers));
+
+      // Also ensure all members are registered in local superbible_user_registry_v2 so login & profile are preserved
+      try {
+        const regRaw = localStorage.getItem('superbible_user_registry_v2');
+        let accounts: any[] = regRaw ? JSON.parse(regRaw) : [];
+        let regChanged = false;
+        finalMembers.forEach((m) => {
+          const mKey = (m.email || m.name || '').toLowerCase().trim();
+          const exists = accounts.some(
+            (a) => (a.loginId || a.user?.email || '').toLowerCase().trim() === mKey
+          );
+          if (!exists) {
+            accounts.push({
+              loginId: m.email || m.name,
+              passwordHash: '1234',
+              user: {
+                id: `user-${m.id || Date.now()}`,
+                name: m.name,
+                email: m.email,
+                phone: m.phone,
+                avatarText: m.avatarText || m.name?.slice(0, 2) || '성도',
+                role: m.role === '관리자' ? 'admin' : 'saint',
+                provider: 'standard',
+                schoolName: '로고스 수퍼바이블 공동체',
+                department: m.department || '다이나믹팀',
+                consecutiveDays: m.consecutiveDays || 1,
+                ntProgress: 0,
+                todayVersesRead: 0,
+                recordingsCount: m.recordingsCount || 0,
+              },
+              createdAt: new Date().toISOString(),
+            });
+            regChanged = true;
+          }
+        });
+        if (regChanged) {
+          localStorage.setItem('superbible_user_registry_v2', JSON.stringify(accounts));
+        }
+      } catch (regErr) {}
 
       saveGoogleSheetConfig({
         ...config,
@@ -1439,21 +1527,20 @@ function doPost(e) {
       var memberSheet = ss.getSheetByName("회원_낭독진도");
       var logSheet = ss.getSheetByName("실시간_동기화로그");
 
-      // 4-0. 삭제 대기 목록(deletedList)에 포함된 회원을 구글 시트에서 먼저 완전 삭제
+      // 4-0. 삭제 대기 목록(deletedList)에 포함된 회원을 구글 시트에서 먼저 완전 삭제 (절대 순번 M-XX 기준 삭제 금지, 고유 이메일/성명만 삭제)
       if (deletedList && deletedList.length > 0) {
         var delMap = {};
         for (var d = 0; d < deletedList.length; d++) {
           var dk = String(deletedList[d] || "").toLowerCase().trim();
-          if (dk) delMap[dk] = true;
+          if (dk && !/^m-\d+$/i.test(dk)) delMap[dk] = true;
         }
 
         if (rosterSheet) {
           var rInitData = rosterSheet.getDataRange().getValues();
           for (var ri = rInitData.length - 1; ri >= 1; ri--) {
-            var rId = String(rInitData[ri][0] || "").toLowerCase().trim();
             var rName = String(rInitData[ri][1] || "").toLowerCase().trim();
             var rEmail = String(rInitData[ri][5] || "").toLowerCase().trim();
-            if (delMap[rId] || delMap[rName] || delMap[rEmail]) {
+            if ((rEmail && delMap[rEmail]) || (rName && delMap[rName])) {
               rosterSheet.deleteRow(ri + 1);
             }
           }
@@ -1462,10 +1549,9 @@ function doPost(e) {
         if (memberSheet) {
           var mInitData = memberSheet.getDataRange().getValues();
           for (var mi = mInitData.length - 1; mi >= 1; mi--) {
-            var mId = String(mInitData[mi][0] || "").toLowerCase().trim();
             var mName = String(mInitData[mi][1] || "").toLowerCase().trim();
             var mEmail = String(mInitData[mi][5] || "").toLowerCase().trim();
-            if (delMap[mId] || delMap[mName] || delMap[mEmail]) {
+            if ((mEmail && delMap[mEmail]) || (mName && delMap[mName])) {
               memberSheet.deleteRow(mi + 1);
             }
           }

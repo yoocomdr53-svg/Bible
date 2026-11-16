@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 2.0';
+export const APP_VERSION = 'Ver 2.1';
 export const APP_BUILD_DATE = '2026.11.16';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,18 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 2.1',
+    name: 'SuperBible',
+    releaseDate: '2026.11.16',
+    changes: [
+      '스마트폰·태블릿·PC 3대 기기 간 신규 가입 회원 동기화 소멸 버그 완전 해결: 스마트폰에서 가입 후 태블릿/PC에서 [지금 동기화] 클릭 시 가입 회원이 사라지던 현상 원천 해결',
+      '순번 ID(M-03, M-04) 블랙리스트 오작동 제거: 회원의 순번 ID가 아닌 고유 계정(이메일/로그인ID) 기반으로만 삭제 관리하여 신규 등록 회원이 절대 지워지지 않도록 수정',
+      '클라이언트-서버 합집합(UNION) 스마트 병합 엔진 적용: 서버나 로컬 어느 한 쪽에 회원이 존재하더라도 다른 기기의 동기화 시 회원이 탈락하거나 덮어쓰여 사라지지 않고 100% 안전 보존',
+      '모바일 APK 및 웹 전 기기 중앙 동기화 허브(https://bible-9lrz.vercel.app/api/sync) 연동 보장: 앱 내부 상대경로 실패 방지 및 CORS 완벽 지원',
+      '신규 가입 회원 전 기기 계정 레지스트리 자동 전파로 가입 즉시 모든 기기에서 로그인 지원',
+    ],
+  },
   {
     version: 'Ver 2.0',
     name: 'SuperBible',

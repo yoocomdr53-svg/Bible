@@ -26,7 +26,12 @@ export function getDeletedMembers(): string[] {
     const raw = localStorage.getItem(DELETED_MEMBERS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed.map((k) => String(k).toLowerCase().trim());
+      if (Array.isArray(parsed)) {
+        // Exclude sequential IDs like m-01, m-02, m-03
+        return parsed
+          .map((k) => String(k).toLowerCase().trim())
+          .filter((k) => k && !/^m-\d+$/i.test(k));
+      }
     }
   } catch (e) {}
   return [];
@@ -40,11 +45,11 @@ export function isMemberDeleted(identifier: {
 }): boolean {
   const deleted = getDeletedMembers();
   if (deleted.length === 0) return false;
+  // NEVER use sequential M-XX as deletion identifiers! Only unique email or unique loginId
   const checks = [
     identifier.email,
-    identifier.name,
-    identifier.id,
     identifier.loginId,
+    identifier.id && !/^m-\d+$/i.test(identifier.id) ? identifier.id : undefined,
   ]
     .filter(Boolean)
     .map((s) => String(s).toLowerCase().trim());
@@ -62,9 +67,8 @@ export function addDeletedMember(identifier: {
     const deleted = getDeletedMembers();
     const toAdd = [
       identifier.email,
-      identifier.name,
-      identifier.id,
       identifier.loginId,
+      identifier.id && !/^m-\d+$/i.test(identifier.id) ? identifier.id : undefined,
     ]
       .filter(Boolean)
       .map((s) => String(s).toLowerCase().trim());
@@ -91,9 +95,21 @@ export function removeDeletedMember(identifier: {
       .filter(Boolean)
       .map((s) => String(s).toLowerCase().trim());
 
-    const updated = deleted.filter((d) => !toRemove.includes(d));
+    const updated = deleted.filter((d) => !toRemove.includes(d) && !/^m-\d+$/i.test(d));
     localStorage.setItem(DELETED_MEMBERS_KEY, JSON.stringify(updated));
   } catch (e) {}
+}
+
+/**
+ * Generate collision-free next sequential member ID (M-01, M-02, M-03...)
+ */
+export function generateNextMemberId(existingMembers: MemberReadingProfile[]): string {
+  const maxNum = (existingMembers || []).reduce((max, m) => {
+    const match = (m.id || '').match(/\d+/);
+    const n = match ? parseInt(match[0], 10) : 0;
+    return Math.max(max, n);
+  }, 0);
+  return `M-${String(maxNum + 1).padStart(2, '0')}`;
 }
 
 /**
@@ -109,8 +125,8 @@ export async function deleteMemberCompletely(
     const nameNorm = (memberName || '').toLowerCase().trim();
     const idNorm = (memberId || '').toLowerCase().trim();
 
-    // 1. Add to permanent deletion blacklist
-    addDeletedMember({ id: memberId, email: memberEmail, name: memberName });
+    // 1. Add to permanent deletion blacklist (ONLY email & unique loginId, never sequential M-XX)
+    addDeletedMember({ email: memberEmail, loginId: memberEmail, name: memberName });
 
     // 2. Remove from ADMIN_MEMBERS_KEY
     const rawMembers = localStorage.getItem(ADMIN_MEMBERS_KEY);
@@ -334,7 +350,7 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
             : '다이나믹팀';
 
         const newProfile: MemberReadingProfile = {
-          id: `M-${String(currentMembers.length + 1).padStart(2, '0')}`,
+          id: generateNextMemberId(currentMembers),
           name: acc.user.name,
           department: dept,
           role: isMasterAdmin ? '관리자' : '성도',
@@ -417,7 +433,7 @@ export function syncMemberToAdminRoster(
       : '다이나믹팀';
 
     const newMember: MemberReadingProfile = {
-      id: `M-${String(currentMembers.length + 1).padStart(2, '0')}`,
+      id: generateNextMemberId(currentMembers),
       name: user.name,
       department: validDept,
       role: isMasterAdmin ? '관리자' : '성도',
