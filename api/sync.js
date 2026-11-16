@@ -6,6 +6,8 @@ let serverCachedSheetUrl = globalThis.__SUPERBIBLE_SHEET_URL__ || process.env.GO
 let serverCachedSheetId = globalThis.__SUPERBIBLE_SHEET_ID__ || process.env.GOOGLE_SHEET_ID || '';
 let serverCachedMembers = globalThis.__SUPERBIBLE_MEMBERS__ || [];
 let serverCachedRecordings = globalThis.__SUPERBIBLE_RECORDINGS__ || [];
+// Explicit Admin-Designated Blacklist (관리자가 직접 지정한 차단 목록만 관리)
+let serverAdminBlacklist = globalThis.__SUPERBIBLE_ADMIN_BLACKLIST__ || [];
 
 export default async function handler(req, res) {
   // CORS Headers
@@ -20,7 +22,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  // 1. GET: Fetch latest members and config from Google Sheets / Central Server
+  // 1. GET: Fetch latest members, config, and admin-designated blacklist
   if (req.method === 'GET') {
     const { action = 'pull', scriptUrl, sheetUrl, sheetId } = req.query || {};
 
@@ -47,6 +49,16 @@ export default async function handler(req, res) {
         sheetId: serverCachedSheetId,
         adminEmail: 'yoocomdr57@gmail.com',
         membersCount: serverCachedMembers.length,
+        blacklistCount: serverAdminBlacklist.length,
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
+
+    if (action === 'getBlacklist') {
+      res.status(200).json({
+        success: true,
+        blacklist: serverAdminBlacklist,
         timestamp: new Date().toISOString()
       });
       return;
@@ -113,6 +125,7 @@ export default async function handler(req, res) {
               source: 'google_sheets',
               members: serverCachedMembers,
               recordings: gasData.recordings || serverCachedRecordings,
+              blacklist: serverAdminBlacklist,
               scriptUrl: targetScriptUrl,
               sheetUrl: serverCachedSheetUrl,
               timestamp: new Date().toISOString()
@@ -133,6 +146,7 @@ export default async function handler(req, res) {
       source: 'server_cache',
       members: serverCachedMembers,
       recordings: serverCachedRecordings,
+      blacklist: serverAdminBlacklist,
       scriptUrl: serverCachedScriptUrl,
       sheetUrl: serverCachedSheetUrl,
       timestamp: new Date().toISOString()
@@ -140,7 +154,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  // 2. POST: Member registration, progress, deletion, sync, or config
+  // 2. POST: Member registration, progress, deletion, sync, or blacklist management
   if (req.method === 'POST') {
     let body = req.body || {};
     if (typeof body === 'string') {
@@ -162,6 +176,63 @@ export default async function handler(req, res) {
     }
 
     const targetScriptUrl = scriptUrl || serverCachedScriptUrl || req.headers['x-script-url'] || '';
+
+    // Action: Add Admin-Designated Blacklist (관리자 지정 차단)
+    if (action === 'addBlacklist') {
+      const target = (body.target || '').toLowerCase().trim();
+      const targetName = body.targetName || '';
+      const reason = body.reason || '관리자 수동 차단';
+      const createdBy = body.createdBy || '로고스 관리자';
+      if (target) {
+        serverAdminBlacklist = serverAdminBlacklist.filter(item => item.target.toLowerCase().trim() !== target);
+        const newItem = {
+          id: body.id || `bl-${Date.now()}`,
+          target,
+          targetName,
+          reason,
+          createdAt: new Date().toISOString(),
+          createdBy
+        };
+        serverAdminBlacklist.push(newItem);
+        globalThis.__SUPERBIBLE_ADMIN_BLACKLIST__ = serverAdminBlacklist;
+      }
+      res.status(200).json({
+        success: true,
+        message: `'${targetName || target}' 계정이 관리자 블랙리스트에 등록되었습니다.`,
+        blacklist: serverAdminBlacklist
+      });
+      return;
+    }
+
+    // Action: Remove Admin-Designated Blacklist (관리자 차단 해제)
+    if (action === 'removeBlacklist') {
+      const target = (body.target || '').toLowerCase().trim();
+      const id = (body.id || '').trim();
+      serverAdminBlacklist = serverAdminBlacklist.filter(item => {
+        if (id && item.id === id) return false;
+        if (target && item.target.toLowerCase().trim() === target) return false;
+        return true;
+      });
+      globalThis.__SUPERBIBLE_ADMIN_BLACKLIST__ = serverAdminBlacklist;
+      res.status(200).json({
+        success: true,
+        message: '블랙리스트에서 정상적으로 차단 해제되었습니다.',
+        blacklist: serverAdminBlacklist
+      });
+      return;
+    }
+
+    // Action: Clear All Blacklist (등록된 블랙리스트 전체 완전 삭제/초기화)
+    if (action === 'clearBlacklist' || action === 'clearAllBlacklist') {
+      serverAdminBlacklist = [];
+      globalThis.__SUPERBIBLE_ADMIN_BLACKLIST__ = [];
+      res.status(200).json({
+        success: true,
+        message: '등록된 블랙리스트가 전체 완전 삭제되었습니다. 모든 회원이 원활하게 회원가입 및 동기화됩니다.',
+        blacklist: []
+      });
+      return;
+    }
 
     // Action: Set / Save Google Apps Script & Sheet URL globally for all devices
     if (action === 'setConfig' || action === 'setScriptUrl') {
@@ -189,14 +260,14 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Action: Permanently Delete Member
+    // Action: Completely and Cleanly Delete Member (완전 삭제 - 블랙리스트에 남지 않음!)
     if (action === 'deleteMember') {
       const delEmail = (body.email || '').toLowerCase().trim();
       const delLoginId = (body.loginId || '').toLowerCase().trim();
       const delName = (body.name || '').toLowerCase().trim();
       const delId = (body.memberId || body.id || '').toLowerCase().trim();
 
-      // Filter out immediately from serverCachedMembers
+      // Completely remove from serverCachedMembers
       serverCachedMembers = serverCachedMembers.filter(m => {
         const mEmail = (m.email || '').toLowerCase().trim();
         const mLogin = (m.loginId || '').toLowerCase().trim();
@@ -210,7 +281,7 @@ export default async function handler(req, res) {
       });
       globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
 
-      // Forward deletion to Google Apps Script if URL is present
+      // Forward deletion to Google Apps Script (deletes rows in Google Sheets)
       if (targetScriptUrl && targetScriptUrl.startsWith('http')) {
         try {
           const controller = new AbortController();
@@ -229,7 +300,7 @@ export default async function handler(req, res) {
 
       res.status(200).json({
         success: true,
-        message: '회원이 중앙 서버 및 구글 스프레드시트에서 완전히 영구 삭제되었습니다.',
+        message: '회원이 중앙 서버 및 구글 스프레드시트에서 흔적 없이 완전 삭제되었습니다. (블랙리스트에 남지 않음)',
         members: serverCachedMembers,
         timestamp: new Date().toISOString()
       });
@@ -356,6 +427,7 @@ export default async function handler(req, res) {
       message: gasResult?.message || '중앙 서버에 안전하게 실시간 동기화되었습니다.',
       gasResult,
       members: serverCachedMembers,
+      blacklist: serverAdminBlacklist,
       scriptUrl: serverCachedScriptUrl,
       sheetUrl: serverCachedSheetUrl,
       sheetId: serverCachedSheetId,

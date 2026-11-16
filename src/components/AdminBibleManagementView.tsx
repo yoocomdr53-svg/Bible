@@ -33,6 +33,9 @@ import {
   Layers,
   Save,
   Link,
+  Ban,
+  ShieldAlert,
+  UserX,
 } from 'lucide-react';
 import { User } from '../types';
 import { getAudioFromStorage } from '../utils/audioStorage';
@@ -57,6 +60,7 @@ import {
   getSheetSyncLogs,
   getPendingSyncQueue,
   flushPendingSyncQueue,
+  getSyncApiUrl,
   PendingSyncItem,
   GoogleSheetConfig,
   SheetSyncLog,
@@ -66,6 +70,11 @@ import {
   deleteMemberCompletely,
   ADMIN_MEMBERS_KEY,
   ADMIN_RECORDINGS_KEY,
+  AdminBlacklistItem,
+  getAdminDesignatedBlacklist,
+  addAdminDesignatedBlacklist,
+  removeAdminDesignatedBlacklist,
+  clearAllAdminBlacklist,
 } from '../services/authService';
 
 interface AdminBibleManagementViewProps {
@@ -81,8 +90,36 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
   onBack,
   onNavigateToBible,
 }) => {
-  // Navigation Sub-tabs: 'overview' | 'roster' | 'members' | 'recordings' | 'campaigns' | 'reports' | 'sheets'
-  const [adminTab, setAdminTab] = useState<'overview' | 'roster' | 'members' | 'recordings' | 'campaigns' | 'reports' | 'sheets'>('overview');
+  // Navigation Sub-tabs: 'overview' | 'roster' | 'members' | 'recordings' | 'campaigns' | 'reports' | 'sheets' | 'blacklist'
+  const [adminTab, setAdminTab] = useState<'overview' | 'roster' | 'members' | 'recordings' | 'campaigns' | 'reports' | 'sheets' | 'blacklist'>('overview');
+
+  // Admin-Designated Blacklist State (관리자 수동 지정 차단 목록 관리)
+  const [adminBlacklist, setAdminBlacklist] = useState<AdminBlacklistItem[]>(() => {
+    return getAdminDesignatedBlacklist();
+  });
+  const [showAddBlacklistModal, setShowAddBlacklistModal] = useState(false);
+  const [newBlTarget, setNewBlTarget] = useState('');
+  const [newBlName, setNewBlName] = useState('');
+  const [newBlReason, setNewBlReason] = useState('관리자 수동 차단');
+  const [isBlLoading, setIsBlLoading] = useState(false);
+
+  // Sync / fetch blacklist from central server
+  const fetchBlacklistFromServer = async () => {
+    try {
+      const res = await fetch(getSyncApiUrl('/api/sync?action=getBlacklist'));
+      if (res.ok) {
+        const data = await res.json();
+        if (data.blacklist && Array.isArray(data.blacklist)) {
+          setAdminBlacklist(data.blacklist);
+          localStorage.setItem('superbible_admin_designated_blacklist_v1', JSON.stringify(data.blacklist));
+        }
+      }
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    fetchBlacklistFromServer();
+  }, [adminTab]);
 
   // Navigation scroll management for PC mouse wheel and left/right arrows
   const navRef = useRef<HTMLDivElement>(null);
@@ -522,11 +559,88 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     setEditingMember(null);
   };
 
-  // Delete Member Handler (영구 삭제)
+  // Delete Member Handler (완전 삭제 - 블랙리스트에 남지 않음!)
   const handleDeleteMember = async (memberId: string, memberName: string, memberEmail?: string) => {
-    if (confirm(`'${memberName}' 회원을 회원 명부에서 영구 삭제하시겠습니까?\n\n※ 클라우드 서버와 구글 시트에서도 완전히 삭제되며, 다시 나타나지 않습니다.`)) {
+    if (
+      confirm(
+        `'${memberName}' 회원을 회원 명부에서 완전히 영구 삭제하시겠습니까?\n\n※ 명부, 계정, 구글 시트에서 흔적 없이 완전히 삭제되며 블랙리스트에 남지 않습니다.\n(삭제 후에도 필요 시 언제든 재가입 및 동기화가 가능합니다)`
+      )
+    ) {
       setMembers((prev) => prev.filter((m) => m.id !== memberId && (!memberEmail || m.email !== memberEmail)));
       const res = await deleteMemberCompletely(memberId, memberEmail, memberName);
+      showToast(res.message);
+    }
+  };
+
+  // Designate Member to Blacklist (관리자가 회원을 직접 차단 목록에 지정)
+  const handleDesignateMemberToBlacklist = async (m: MemberReadingProfile) => {
+    const reason = prompt(
+      `'${m.name}' (${m.email}) 회원을 관리자 블랙리스트(가입/이용 차단)로 지정하시겠습니까?\n\n차단 사유를 입력하세요:`,
+      '비인가 접근 또는 관리자 지정 차단'
+    );
+    if (reason !== null) {
+      const res = await addAdminDesignatedBlacklist(
+        m.email,
+        m.name,
+        reason || '관리자 수동 차단',
+        user?.name || '로고스 관리자'
+      );
+      setAdminBlacklist(res.blacklist);
+      showToast(res.message);
+    }
+  };
+
+  // Add Blacklist Submit Handler
+  const handleAddBlacklistSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBlTarget.trim()) {
+      alert('차단할 아이디 또는 이메일을 입력해주세요.');
+      return;
+    }
+    setIsBlLoading(true);
+    const res = await addAdminDesignatedBlacklist(
+      newBlTarget.trim(),
+      newBlName.trim(),
+      newBlReason.trim(),
+      user?.name || '로고스 관리자'
+    );
+    setIsBlLoading(false);
+    if (res.success) {
+      setAdminBlacklist(res.blacklist);
+      setShowAddBlacklistModal(false);
+      setNewBlTarget('');
+      setNewBlName('');
+      setNewBlReason('관리자 수동 차단');
+      showToast(res.message);
+    } else {
+      showToast(res.message);
+    }
+  };
+
+  // Remove Blacklist Handler (차단 해제)
+  const handleRemoveBlacklist = async (idOrTarget: string, targetDisplay: string) => {
+    if (
+      confirm(
+        `'${targetDisplay}' 계정을 블랙리스트에서 차단 해제하시겠습니까?\n\n차단 해제 후 즉시 정상적인 회원가입 및 로그인이 가능해집니다.`
+      )
+    ) {
+      const res = await removeAdminDesignatedBlacklist(idOrTarget);
+      setAdminBlacklist(res.blacklist);
+      showToast(res.message);
+    }
+  };
+
+  // Clear All Blacklist Handler (등록된 블랙리스트 전체 완전 삭제/초기화)
+  const handleClearAllBlacklist = async () => {
+    if (
+      confirm(
+        '⚠️ 등록된 모든 블랙리스트를 완전히 삭제(초기화)하시겠습니까?\n\n※ 과거 차단 기록이 모두 삭제되어 모든 회원이 원활하게 가입하고 동기화할 수 있습니다.'
+      )
+    ) {
+      setIsBlLoading(true);
+      const res = await clearAllAdminBlacklist();
+      setIsBlLoading(false);
+      setAdminBlacklist([]);
       showToast(res.message);
     }
   };
@@ -1027,6 +1141,24 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span>📊 구글 시트 연동</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAdminTab('blacklist')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
+              adminTab === 'blacklist'
+                ? 'bg-rose-600 text-white shadow-md ring-2 ring-rose-300'
+                : 'text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-300'
+            }`}
+            title="관리자 지정 차단/블랙리스트 관리"
+          >
+            <span>🚫 차단/블랙리스트</span>
+            {adminBlacklist.length > 0 && (
+              <span className="bg-rose-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-black">
+                {adminBlacklist.length}
+              </span>
+            )}
           </button>
         </nav>
 
@@ -1544,15 +1676,23 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                             onClick={() => setEditingMember(m)}
                             className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold rounded-lg border border-sky-200 transition cursor-pointer flex items-center gap-1"
                           >
-                            <span>✏️ 정보 수정</span>
+                            <span>✏️ 수정</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDesignateMemberToBlacklist(m)}
+                            className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold rounded-lg border border-amber-300 transition cursor-pointer flex items-center gap-1"
+                            title="관리자 지정 차단 (블랙리스트 등록)"
+                          >
+                            <span>🚫 차단</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDeleteMember(m.id, m.name, m.email)}
-                            className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-lg border border-rose-200 transition cursor-pointer"
-                            title="회원 영구 삭제"
+                            className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-lg border border-rose-200 transition cursor-pointer flex items-center gap-1"
+                            title="회원 완전 삭제 (블랙리스트에 남지 않고 100% 영구 삭제)"
                           >
-                            <span>🗑️</span>
+                            <span>🗑️ 삭제</span>
                           </button>
                         </div>
                       </div>
@@ -2543,6 +2683,151 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
             </div>
           </div>
         )}
+
+        {/* ========================================================
+            TAB 8: 관리자 지정 블랙리스트 관리 (Admin Blacklist)
+           ======================================================== */}
+        {adminTab === 'blacklist' && (
+          <div className="space-y-4">
+            {/* Header Control Card */}
+            <div className="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600 flex-shrink-0">
+                    <Ban className="w-5 h-5 stroke-[2.5]" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                      <span>관리자 지정 차단 (블랙리스트) 관리</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold">
+                        {adminBlacklist.length}건 차단 중
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      관리자가 직접 차단할 계정(이메일/아이디)을 지정하고 해제합니다.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleClearAllBlacklist}
+                    disabled={isBlLoading}
+                    className="px-3 py-2 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 font-bold rounded-xl border border-slate-200 hover:border-rose-300 transition cursor-pointer text-xs flex items-center gap-1.5"
+                    title="등록된 블랙리스트 전체를 삭제하고 원활한 회원가입을 보장합니다"
+                  >
+                    <span>🗑️</span>
+                    <span>블랙리스트 전체 완전 삭제 (초기화)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowAddBlacklistModal(true)}
+                    className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl shadow-xs transition cursor-pointer text-xs flex items-center gap-1.5"
+                  >
+                    <Plus className="w-4 h-4 stroke-[2.5]" />
+                    <span>새 블랙리스트 직접 등록</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Policy Notice Box */}
+              <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900 space-y-1.5">
+                <div className="flex items-center gap-2 font-black text-amber-950">
+                  <ShieldAlert className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                  <span>수퍼바이블 회원 삭제 및 블랙리스트 정책 안내</span>
+                </div>
+                <ul className="list-disc list-inside space-y-1 text-[11px] text-amber-900/90 pl-1">
+                  <li>
+                    <strong className="text-amber-950">[회원 관리 명부]에서 [삭제] 버튼을 누르면</strong>: 구글 스프레드시트와 앱에서 <strong>흔적 없이 100% 완전 삭제</strong>되며, 블랙리스트에 남지 않습니다. (언제든 재가입 가능)
+                  </li>
+                  <li>
+                    <strong className="text-amber-950">[블랙리스트 지정]</strong>: 악의적인 스팸 가입이나 부적절한 계정을 영구 차단해야 할 때만 관리자가 수동으로 등록합니다.
+                  </li>
+                  <li>
+                    블랙리스트에 등록된 아이디/이메일은 신규 회원가입 및 로그인이 즉시 차단되며, [차단 해제] 시 다시 자유롭게 이용할 수 있습니다.
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Blacklist Items Table / Cards */}
+            <div className="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-black text-slate-800">
+                  차단 목록 ({adminBlacklist.length}명)
+                </h4>
+                <button
+                  type="button"
+                  onClick={fetchBlacklistFromServer}
+                  className="text-xs text-slate-500 hover:text-slate-800 font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>새로고침</span>
+                </button>
+              </div>
+
+              {adminBlacklist.length === 0 ? (
+                <div className="py-12 text-center space-y-2">
+                  <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                    <CheckCircle2 className="w-6 h-6 stroke-[2.5]" />
+                  </div>
+                  <h4 className="text-sm font-black text-slate-800">현재 관리자가 지정한 블랙리스트가 없습니다</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    모든 회원이 아무런 제약 없이 원활하게 간편가입하고 기기 간 동기화를 진행할 수 있습니다.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {adminBlacklist.map((item) => (
+                    <div
+                      key={item.id}
+                      className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5"
+                    >
+                      <div className="flex items-start sm:items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center flex-shrink-0 text-xs font-black">
+                          <UserX className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-slate-900 text-xs">{item.target}</span>
+                            {item.targetName && (
+                              <span className="text-[11px] text-slate-600 font-semibold bg-slate-100 px-1.5 py-0.2 rounded">
+                                {item.targetName}
+                              </span>
+                            )}
+                            <span className="text-[10px] bg-rose-100 text-rose-700 font-black px-1.5 py-0.2 rounded-full">
+                              차단됨
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5 flex-wrap">
+                            <span>사유: {item.reason}</span>
+                            <span>•</span>
+                            <span>등록: {item.createdAt}</span>
+                            <span>•</span>
+                            <span>등록자: {item.createdBy}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-auto">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveBlacklist(item.id, item.targetName || item.target)}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 font-bold rounded-xl border border-slate-200 hover:border-emerald-300 transition cursor-pointer text-xs flex items-center gap-1"
+                        >
+                          <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+                          <span>차단 해제</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ========================================================
@@ -3505,6 +3790,91 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                 </span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: 새 블랙리스트 지정 추가 모달 */}
+      {showAddBlacklistModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowAddBlacklistModal(false);
+          }}
+        >
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-200">
+            <div className="bg-[#0f172a] text-white p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Ban className="w-5 h-5 text-rose-400" />
+                <h3 className="text-base font-black text-white">블랙리스트(차단) 지정 등록</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddBlacklistModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddBlacklistSubmit} className="p-4 sm:p-5 space-y-3.5 text-xs">
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">
+                  차단 대상 아이디 또는 이메일 <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="예: user123 또는 spam@example.com"
+                  value={newBlTarget}
+                  onChange={(e) => setNewBlTarget(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">
+                  대상 성명 / 이름 (선택)
+                </label>
+                <input
+                  type="text"
+                  placeholder="예: 홍길동"
+                  value={newBlName}
+                  onChange={(e) => setNewBlName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">
+                  차단 사유
+                </label>
+                <input
+                  type="text"
+                  placeholder="예: 관리자 수동 차단, 비인가 접근 등"
+                  value={newBlReason}
+                  onChange={(e) => setNewBlReason(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 font-medium"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddBlacklistModal(false)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl cursor-pointer"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={isBlLoading}
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl shadow-xs transition cursor-pointer"
+                >
+                  {isBlLoading ? '등록 중...' : '블랙리스트 등록'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

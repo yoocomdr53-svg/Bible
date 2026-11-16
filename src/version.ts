@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 2.2';
+export const APP_VERSION = 'Ver 2.3';
 export const APP_BUILD_DATE = '2026.11.16';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,17 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 2.3',
+    name: 'SuperBible',
+    releaseDate: '2026.11.16',
+    changes: [
+      '관리자 지정 차단(블랙리스트) 전용 관리 시스템 탑재: 악의적 계정만 관리자가 직접 지정/해제할 수 있도록 개선',
+      '일반 회원 삭제 시 100% 완전 삭제 보장: 회원을 삭제해도 블랙리스트에 남지 않고 명부 및 구글 시트에서 흔적 없이 완전 삭제되어 언제든 재가입 및 원활한 동기화 지원',
+      '등록된 블랙리스트 전체 즉시 완전 삭제(초기화) 기능 탑재: 모든 과거 차단 기록을 완전 초기화하여 원활한 회원가입 보장',
+      '회원 관리 명부 행별 [✏️ 수정] | [🚫 차단] | [🗑️ 삭제] 3단 독립 액션 버튼 분리',
+    ],
+  },
   {
     version: 'Ver 2.2',
     name: 'SuperBible',

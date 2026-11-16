@@ -20,6 +20,138 @@ export const ADMIN_MEMBERS_KEY = 'superbible_admin_members_v4';
 export const ADMIN_RECORDINGS_KEY = 'superbible_admin_recordings_v4';
 export const REMEMBERED_ID_KEY = 'superbible_remembered_id_v3';
 export const DELETED_MEMBERS_KEY = 'superbible_deleted_members_v2';
+export const ADMIN_DESIGNATED_BLACKLIST_KEY = 'superbible_admin_designated_blacklist_v1';
+
+export interface AdminBlacklistItem {
+  id: string;
+  target: string; // 이메일 또는 아이디
+  targetName?: string; // 성명
+  reason: string; // 차단 사유
+  createdAt: string; // 등록 일시
+  createdBy: string; // 등록자
+}
+
+// Read Admin-Designated Blacklist
+export function getAdminDesignatedBlacklist(): AdminBlacklistItem[] {
+  try {
+    const raw = localStorage.getItem(ADMIN_DESIGNATED_BLACKLIST_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {}
+  return [];
+}
+
+// Check if an email or loginId is in the admin-designated blacklist
+export function isAccountInAdminBlacklist(target?: string, secondaryTarget?: string): boolean {
+  const list = getAdminDesignatedBlacklist();
+  if (list.length === 0) return false;
+  const t1 = (target || '').toLowerCase().trim();
+  const t2 = (secondaryTarget || '').toLowerCase().trim();
+  return list.some((item) => {
+    const k = (item.target || '').toLowerCase().trim();
+    return (t1 && k === t1) || (t2 && k === t2);
+  });
+}
+
+// Add an entry to the Admin-Designated Blacklist (관리자가 직접 지정)
+export async function addAdminDesignatedBlacklist(
+  target: string,
+  targetName?: string,
+  reason: string = '관리자 수동 차단',
+  createdBy: string = '로고스 관리자'
+): Promise<{ success: boolean; message: string; blacklist: AdminBlacklistItem[] }> {
+  try {
+    const cleanTarget = target.toLowerCase().trim();
+    if (!cleanTarget) {
+      return { success: false, message: '차단할 아이디 또는 이메일을 입력해주세요.', blacklist: getAdminDesignatedBlacklist() };
+    }
+    const current = getAdminDesignatedBlacklist().filter(
+      (item) => item.target.toLowerCase().trim() !== cleanTarget
+    );
+    const newItem: AdminBlacklistItem = {
+      id: `bl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      target: cleanTarget,
+      targetName: targetName?.trim() || '',
+      reason: reason.trim() || '관리자 수동 차단',
+      createdAt: new Date().toLocaleString('ko-KR'),
+      createdBy: createdBy || '로고스 관리자',
+    };
+    const updated = [newItem, ...current];
+    localStorage.setItem(ADMIN_DESIGNATED_BLACKLIST_KEY, JSON.stringify(updated));
+
+    // Sync to cloud hub
+    try {
+      await sendPayloadToGoogleScript({
+        action: 'addBlacklist',
+        ...newItem,
+      });
+    } catch (e) {}
+
+    return {
+      success: true,
+      message: `'${targetName || cleanTarget}' 계정이 관리자 블랙리스트에 지정되었습니다.`,
+      blacklist: updated,
+    };
+  } catch (err) {
+    return { success: false, message: '블랙리스트 등록 중 오류가 발생했습니다.', blacklist: getAdminDesignatedBlacklist() };
+  }
+}
+
+// Remove an entry from Admin-Designated Blacklist (차단 해제)
+export async function removeAdminDesignatedBlacklist(
+  idOrTarget: string
+): Promise<{ success: boolean; message: string; blacklist: AdminBlacklistItem[] }> {
+  try {
+    const clean = idOrTarget.toLowerCase().trim();
+    const current = getAdminDesignatedBlacklist();
+    const updated = current.filter(
+      (item) => item.id !== idOrTarget && item.target.toLowerCase().trim() !== clean
+    );
+    localStorage.setItem(ADMIN_DESIGNATED_BLACKLIST_KEY, JSON.stringify(updated));
+
+    // Sync to cloud hub
+    try {
+      await sendPayloadToGoogleScript({
+        action: 'removeBlacklist',
+        id: idOrTarget,
+        target: clean,
+      });
+    } catch (e) {}
+
+    return {
+      success: true,
+      message: '블랙리스트에서 정상적으로 차단 해제되었습니다.',
+      blacklist: updated,
+    };
+  } catch (err) {
+    return { success: false, message: '블랙리스트 해제 중 오류가 발생했습니다.', blacklist: getAdminDesignatedBlacklist() };
+  }
+}
+
+// Completely clear ALL blacklists everywhere (등록된 블랙리스트 전체 완전 삭제/초기화)
+export async function clearAllAdminBlacklist(): Promise<{ success: boolean; message: string }> {
+  try {
+    localStorage.removeItem(ADMIN_DESIGNATED_BLACKLIST_KEY);
+    localStorage.removeItem(DELETED_MEMBERS_KEY);
+    localStorage.removeItem('superbible_deleted_members_v1');
+
+    // Sync to cloud hub
+    try {
+      await sendPayloadToGoogleScript({
+        action: 'clearAllBlacklist',
+      });
+    } catch (e) {}
+
+    return {
+      success: true,
+      message: '등록된 블랙리스트가 전체 완전 삭제되었습니다. 모든 회원이 원활하게 회원가입 및 동기화됩니다.',
+    };
+  } catch (err) {
+    return { success: false, message: '블랙리스트 초기화 중 오류가 발생했습니다.' };
+  }
+}
 
 export function getDeletedMembers(): string[] {
   return [];
@@ -40,7 +172,7 @@ export function addDeletedMember(identifier: {
   id?: string;
   loginId?: string;
 }): void {
-  // Obsolete: deletions are handled authoritatively via Google Sheets and central server
+  // Obsolete: normal deletions are clean and never remain in any blacklist
 }
 
 export function removeDeletedMember(identifier: {
@@ -68,6 +200,7 @@ export function generateNextMemberId(existingMembers: MemberReadingProfile[]): s
 
 /**
  * Permanently delete member from Admin Roster, Accounts Registry, Server Cache, and Google Sheets
+ * ※ Clean and Complete Deletion: Does NOT remain in any blacklist!
  */
 export async function deleteMemberCompletely(
   memberId: string,
@@ -79,10 +212,7 @@ export async function deleteMemberCompletely(
     const nameNorm = (memberName || '').toLowerCase().trim();
     const idNorm = (memberId || '').toLowerCase().trim();
 
-    // 1. Add to permanent deletion blacklist (ONLY email & unique loginId, never sequential M-XX)
-    addDeletedMember({ email: memberEmail, loginId: memberEmail, name: memberName });
-
-    // 2. Remove from ADMIN_MEMBERS_KEY
+    // 1. Remove from ADMIN_MEMBERS_KEY
     const rawMembers = localStorage.getItem(ADMIN_MEMBERS_KEY);
     if (rawMembers) {
       const parsed: MemberReadingProfile[] = JSON.parse(rawMembers);
@@ -98,7 +228,7 @@ export async function deleteMemberCompletely(
       localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(filtered));
     }
 
-    // 3. Remove from REGISTRY_KEY (accounts)
+    // 2. Remove from REGISTRY_KEY (accounts)
     const rawAccs = localStorage.getItem(REGISTRY_KEY);
     if (rawAccs) {
       const accounts: RegisteredAccount[] = JSON.parse(rawAccs);
@@ -115,12 +245,12 @@ export async function deleteMemberCompletely(
       localStorage.setItem(REGISTRY_KEY, JSON.stringify(filteredAccs));
     }
 
-    // 4. Dispatch global change event for instant local UI update
+    // 3. Dispatch global change event for instant local UI update
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('superbible_members_changed'));
     }
 
-    // 5. Notify central sync hub and Google Sheets (실시간 양방향 영구 삭제)
+    // 4. Notify central sync hub and Google Sheets (완전 삭제 - 블랙리스트에 남지 않음!)
     try {
       await sendPayloadToGoogleScript({
         action: 'deleteMember',
@@ -135,7 +265,7 @@ export async function deleteMemberCompletely(
 
     return {
       success: true,
-      message: `'${memberName || memberEmail || memberId}' 회원이 명부 및 클라우드에서 안전하게 영구 삭제되었습니다.`,
+      message: `'${memberName || memberEmail || memberId}' 회원이 명부 및 구글 시트에서 완전히 영구 삭제되었습니다. (블랙리스트에 남지 않음)`,
     };
   } catch (err: any) {
     console.error('deleteMemberCompletely error:', err);
@@ -711,6 +841,14 @@ export function registerUser(
     return { success: false, message: '비밀번호를 4자리 이상 입력해주세요.' };
   }
 
+  // Check admin-designated blacklist
+  if (isAccountInAdminBlacklist(loginId)) {
+    return {
+      success: false,
+      message: '관리자에 의해 가입이 제한(차단)된 계정입니다. 관리자에게 문의해주세요.',
+    };
+  }
+
   const accounts = getRegisteredAccounts();
   const existing = accounts.find(
     (a) => a.loginId.toLowerCase() === loginId.toLowerCase()
@@ -792,6 +930,14 @@ export function loginUser(
   }
   if (!password) {
     return { success: false, message: '비밀번호를 입력해주세요.' };
+  }
+
+  // Check admin-designated blacklist
+  if (isAccountInAdminBlacklist(loginId)) {
+    return {
+      success: false,
+      message: '관리자에 의해 로그인이 제한(차단)된 계정입니다. 관리자에게 문의해주세요.',
+    };
   }
 
   const accounts = getRegisteredAccounts();
