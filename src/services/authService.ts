@@ -22,18 +22,6 @@ export const REMEMBERED_ID_KEY = 'superbible_remembered_id_v3';
 export const DELETED_MEMBERS_KEY = 'superbible_deleted_members_v2';
 
 export function getDeletedMembers(): string[] {
-  try {
-    const raw = localStorage.getItem(DELETED_MEMBERS_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        // Exclude sequential IDs like m-01, m-02, m-03
-        return parsed
-          .map((k) => String(k).toLowerCase().trim())
-          .filter((k) => k && !/^m-\d+$/i.test(k));
-      }
-    }
-  } catch (e) {}
   return [];
 }
 
@@ -43,18 +31,7 @@ export function isMemberDeleted(identifier: {
   id?: string;
   loginId?: string;
 }): boolean {
-  const deleted = getDeletedMembers();
-  if (deleted.length === 0) return false;
-  // NEVER use sequential M-XX as deletion identifiers! Only unique email or unique loginId
-  const checks = [
-    identifier.email,
-    identifier.loginId,
-    identifier.id && !/^m-\d+$/i.test(identifier.id) ? identifier.id : undefined,
-  ]
-    .filter(Boolean)
-    .map((s) => String(s).toLowerCase().trim());
-
-  return checks.some((c) => deleted.includes(c));
+  return false;
 }
 
 export function addDeletedMember(identifier: {
@@ -63,19 +40,7 @@ export function addDeletedMember(identifier: {
   id?: string;
   loginId?: string;
 }): void {
-  try {
-    const deleted = getDeletedMembers();
-    const toAdd = [
-      identifier.email,
-      identifier.loginId,
-      identifier.id && !/^m-\d+$/i.test(identifier.id) ? identifier.id : undefined,
-    ]
-      .filter(Boolean)
-      .map((s) => String(s).toLowerCase().trim());
-
-    const updated = Array.from(new Set([...deleted, ...toAdd]));
-    localStorage.setItem(DELETED_MEMBERS_KEY, JSON.stringify(updated));
-  } catch (e) {}
+  // Obsolete: deletions are handled authoritatively via Google Sheets and central server
 }
 
 export function removeDeletedMember(identifier: {
@@ -85,18 +50,7 @@ export function removeDeletedMember(identifier: {
   loginId?: string;
 }): void {
   try {
-    const deleted = getDeletedMembers();
-    const toRemove = [
-      identifier.email,
-      identifier.name,
-      identifier.id,
-      identifier.loginId,
-    ]
-      .filter(Boolean)
-      .map((s) => String(s).toLowerCase().trim());
-
-    const updated = deleted.filter((d) => !toRemove.includes(d) && !/^m-\d+$/i.test(d));
-    localStorage.setItem(DELETED_MEMBERS_KEY, JSON.stringify(updated));
+    localStorage.removeItem(DELETED_MEMBERS_KEY);
   } catch (e) {}
 }
 
@@ -310,11 +264,6 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
       currentMembers = [...INITIAL_MEMBERS];
     }
 
-    // 영구 삭제된 회원은 명부에서 원천 차단
-    currentMembers = currentMembers.filter(
-      (m: MemberReadingProfile) => !isMemberDeleted({ email: m.email, name: m.name, id: m.id })
-    );
-
     // 부서 명칭을 5개 공식 부서(다이나믹팀, 경영팀, 지벳팀, 중고등부, 초등부)로 정규화 및 통독 회차(전체 1,189장 완독 시에만 1독) 정규화
     const validDepts = new Set<string>(OFFICIAL_DEPARTMENTS);
     currentMembers = currentMembers.map((m) => {
@@ -326,12 +275,9 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
       return { ...m, department: dept, currentReadingRound: actualRound };
     });
 
-    // Ensure all registered accounts exist in currentMembers (skip permanently deleted accounts)
+    // Ensure all registered accounts exist in currentMembers
     let changed = false;
     for (const acc of accounts) {
-      if (isMemberDeleted({ email: acc.user?.email, name: acc.user?.name, id: acc.user?.id, loginId: acc.loginId })) {
-        continue;
-      }
       const exists = currentMembers.some(
         (m) =>
           m.email.toLowerCase() === acc.user.email.toLowerCase() ||

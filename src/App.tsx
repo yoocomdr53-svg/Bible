@@ -137,7 +137,19 @@ export default function App() {
       pullMembersFromGoogleSheet();
     };
     window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
+
+    // Real-time automatic background synchronization every 8 seconds
+    // Ensures member signups on Smartphone immediately appear on PC & Tablet
+    const autoSyncTimer = setInterval(() => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        pullMembersFromGoogleSheet().catch(() => {});
+      }
+    }, 8000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(autoSyncTimer);
+    };
   }, []);
 
   // User session state

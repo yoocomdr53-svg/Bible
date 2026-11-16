@@ -6,18 +6,6 @@ let serverCachedSheetUrl = globalThis.__SUPERBIBLE_SHEET_URL__ || process.env.GO
 let serverCachedSheetId = globalThis.__SUPERBIBLE_SHEET_ID__ || process.env.GOOGLE_SHEET_ID || '';
 let serverCachedMembers = globalThis.__SUPERBIBLE_MEMBERS__ || [];
 let serverCachedRecordings = globalThis.__SUPERBIBLE_RECORDINGS__ || [];
-// Purge any sequential M-XX ids from serverDeletedMembers
-let serverDeletedMembers = (globalThis.__SUPERBIBLE_DELETED_MEMBERS__ || []).filter(
-  d => d && !/^m-\d+$/i.test(String(d).trim())
-);
-
-function isMemberInDeletedList(m, deletedList) {
-  if (!m || !deletedList || deletedList.length === 0) return false;
-  const kEmail = (m.email || '').toLowerCase().trim();
-  const kLogin = (m.loginId || '').toLowerCase().trim();
-  // NEVER use sequential M-XX or plain names as permanent deletion identifiers!
-  return Boolean((kEmail && deletedList.includes(kEmail)) || (kLogin && deletedList.includes(kLogin)));
-}
 
 export default async function handler(req, res) {
   // CORS Headers
@@ -34,7 +22,7 @@ export default async function handler(req, res) {
 
   // 1. GET: Fetch latest members and config from Google Sheets / Central Server
   if (req.method === 'GET') {
-    const { action = 'pull', scriptUrl, sheetUrl, sheetId, deleted } = req.query || {};
+    const { action = 'pull', scriptUrl, sheetUrl, sheetId } = req.query || {};
 
     if (scriptUrl) {
       serverCachedScriptUrl = scriptUrl;
@@ -49,16 +37,6 @@ export default async function handler(req, res) {
       globalThis.__SUPERBIBLE_SHEET_ID__ = sheetId;
     }
 
-    if (deleted) {
-      const items = String(deleted).split(',').map(s => s.toLowerCase().trim()).filter(Boolean);
-      items.forEach(it => {
-        if (!/^m-\d+$/i.test(it) && !serverDeletedMembers.includes(it)) {
-          serverDeletedMembers.push(it);
-        }
-      });
-      globalThis.__SUPERBIBLE_DELETED_MEMBERS__ = serverDeletedMembers;
-    }
-
     const targetScriptUrl = scriptUrl || serverCachedScriptUrl || req.headers['x-script-url'] || '';
 
     if (action === 'getConfig') {
@@ -69,7 +47,6 @@ export default async function handler(req, res) {
         sheetId: serverCachedSheetId,
         adminEmail: 'yoocomdr57@gmail.com',
         membersCount: serverCachedMembers.length,
-        deletedCount: serverDeletedMembers.length,
         timestamp: new Date().toISOString()
       });
       return;
@@ -98,25 +75,30 @@ export default async function handler(req, res) {
           }
 
           if (gasData && Array.isArray(gasData.members) && gasData.members.length > 0) {
-            // Smart Merge Google Sheets members with server cache (excluding deleted members)
+            // Google Sheets is the Master Truth: All members in Google Sheets are active!
             const map = new Map();
+            // 1. Add current server cache
             serverCachedMembers.forEach(m => {
-              if (!isMemberInDeletedList(m, serverDeletedMembers)) {
-                map.set((m.email || m.name).toLowerCase().trim(), m);
-              }
+              const k = (m.email || m.name || m.id || '').toLowerCase().trim();
+              if (k) map.set(k, m);
             });
 
+            // 2. Add / update all members from Google Sheets
             gasData.members.forEach(gm => {
-              if (isMemberInDeletedList(gm, serverDeletedMembers)) return;
-              const k = (gm.email || gm.name).toLowerCase().trim();
+              const k = (gm.email || gm.name || gm.id || '').toLowerCase().trim();
+              if (!k) return;
               if (map.has(k)) {
                 const cur = map.get(k);
                 map.set(k, {
                   ...cur,
                   ...gm,
+                  phone: gm.phone && gm.phone !== '010-미등록' ? gm.phone : (cur.phone || gm.phone),
+                  department: gm.department || cur.department,
                   totalReadChapters: Math.max(cur.totalReadChapters || 0, gm.totalReadChapters || 0),
                   currentReadingRound: Math.max(cur.currentReadingRound || 0, gm.currentReadingRound || 0),
                   recordingsCount: Math.max(cur.recordingsCount || 0, gm.recordingsCount || 0),
+                  currentBook: gm.currentBook || cur.currentBook,
+                  currentChapter: gm.currentChapter || cur.currentChapter,
                 });
               } else {
                 map.set(k, gm);
@@ -133,7 +115,6 @@ export default async function handler(req, res) {
               recordings: gasData.recordings || serverCachedRecordings,
               scriptUrl: targetScriptUrl,
               sheetUrl: serverCachedSheetUrl,
-              deletedMembers: serverDeletedMembers,
               timestamp: new Date().toISOString()
             });
             return;
@@ -144,8 +125,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // Fallback: return server cache (purging deleted members)
-    serverCachedMembers = serverCachedMembers.filter(m => !isMemberInDeletedList(m, serverDeletedMembers));
+    // Fallback: return server cache
     globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
 
     res.status(200).json({
@@ -155,7 +135,6 @@ export default async function handler(req, res) {
       recordings: serverCachedRecordings,
       scriptUrl: serverCachedScriptUrl,
       sheetUrl: serverCachedSheetUrl,
-      deletedMembers: serverDeletedMembers,
       timestamp: new Date().toISOString()
     });
     return;
@@ -168,7 +147,7 @@ export default async function handler(req, res) {
       try { body = JSON.parse(body); } catch (e) {}
     }
 
-    const { action, scriptUrl, sheetUrl, sheetId, deletedList } = body;
+    const { action, scriptUrl, sheetUrl, sheetId } = body;
     if (scriptUrl) {
       serverCachedScriptUrl = scriptUrl;
       globalThis.__SUPERBIBLE_SCRIPT_URL__ = scriptUrl;
@@ -182,30 +161,7 @@ export default async function handler(req, res) {
       globalThis.__SUPERBIBLE_SHEET_ID__ = sheetId;
     }
 
-    if (Array.isArray(deletedList)) {
-      deletedList.forEach(k => {
-        const norm = String(k).toLowerCase().trim();
-        // NEVER treat sequential M-XX as deletion keys
-        if (norm && !/^m-\d+$/i.test(norm) && !serverDeletedMembers.includes(norm)) {
-          serverDeletedMembers.push(norm);
-        }
-      });
-      globalThis.__SUPERBIBLE_DELETED_MEMBERS__ = serverDeletedMembers;
-    }
-
     const targetScriptUrl = scriptUrl || serverCachedScriptUrl || req.headers['x-script-url'] || '';
-
-    // Action: Clear / Reset Blacklist
-    if (action === 'clearBlacklist' || action === 'resetDeletedList') {
-      serverDeletedMembers = [];
-      globalThis.__SUPERBIBLE_DELETED_MEMBERS__ = [];
-      res.status(200).json({
-        success: true,
-        message: '영구 삭제 블랙리스트가 초기화되었습니다. 기존 회원이 안전하게 복구됩니다.',
-        deletedMembers: []
-      });
-      return;
-    }
 
     // Action: Set / Save Google Apps Script & Sheet URL globally for all devices
     if (action === 'setConfig' || action === 'setScriptUrl') {
@@ -237,23 +193,24 @@ export default async function handler(req, res) {
     if (action === 'deleteMember') {
       const delEmail = (body.email || '').toLowerCase().trim();
       const delLoginId = (body.loginId || '').toLowerCase().trim();
+      const delName = (body.name || '').toLowerCase().trim();
+      const delId = (body.memberId || body.id || '').toLowerCase().trim();
 
-      [delEmail, delLoginId].filter(Boolean).forEach(k => {
-        if (!serverDeletedMembers.includes(k)) serverDeletedMembers.push(k);
-      });
-      globalThis.__SUPERBIBLE_DELETED_MEMBERS__ = serverDeletedMembers;
-
-      // Filter out permanently from serverCachedMembers
+      // Filter out immediately from serverCachedMembers
       serverCachedMembers = serverCachedMembers.filter(m => {
         const mEmail = (m.email || '').toLowerCase().trim();
         const mLogin = (m.loginId || '').toLowerCase().trim();
+        const mName = (m.name || '').toLowerCase().trim();
+        const mId = (m.id || '').toLowerCase().trim();
+        if (delId && mId === delId) return false;
         if (delEmail && mEmail === delEmail) return false;
         if (delLoginId && mLogin === delLoginId) return false;
+        if (delName && mName === delName) return false;
         return true;
       });
       globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
 
-      // Forward deletion to Google Apps Script if URL is present (await to prevent serverless freeze)
+      // Forward deletion to Google Apps Script if URL is present
       if (targetScriptUrl && targetScriptUrl.startsWith('http')) {
         try {
           const controller = new AbortController();
@@ -274,7 +231,6 @@ export default async function handler(req, res) {
         success: true,
         message: '회원이 중앙 서버 및 구글 스프레드시트에서 완전히 영구 삭제되었습니다.',
         members: serverCachedMembers,
-        deletedMembers: serverDeletedMembers,
         timestamp: new Date().toISOString()
       });
       return;
@@ -286,18 +242,13 @@ export default async function handler(req, res) {
       if (incomingMember) {
         const kEmail = (incomingMember.email || '').toLowerCase().trim();
         const kName = (incomingMember.name || '').toLowerCase().trim();
-        const kLogin = (body.loginId || incomingMember.loginId || '').toLowerCase().trim();
-
-        // Remove from deleted blacklist if registering or already active
-        serverDeletedMembers = serverDeletedMembers.filter(
-          d => d !== kEmail && d !== kLogin && d !== kName && !/^m-\d+$/i.test(d)
-        );
-        globalThis.__SUPERBIBLE_DELETED_MEMBERS__ = serverDeletedMembers;
+        const kId = (incomingMember.id || '').toLowerCase().trim();
 
         const existingIdx = serverCachedMembers.findIndex(m => {
           const me = (m.email || '').toLowerCase().trim();
           const mn = (m.name || '').toLowerCase().trim();
-          return (kEmail && me === kEmail) || (kName && mn === kName);
+          const mi = (m.id || '').toLowerCase().trim();
+          return (kEmail && me === kEmail) || (kName && mn === kName) || (kId && mi === kId);
         });
         if (existingIdx !== -1) {
           serverCachedMembers[existingIdx] = { ...serverCachedMembers[existingIdx], ...incomingMember };
@@ -311,34 +262,21 @@ export default async function handler(req, res) {
     // Action: Bulk Bidirectional Sync
     if (action === 'sync') {
       const incomingList = body.data?.members || body.members || [];
-
-      // Any member present in incomingList is actively alive -> un-blacklist them!
-      incomingList.forEach(m => {
-        const me = (m.email || '').toLowerCase().trim();
-        const ml = (m.loginId || '').toLowerCase().trim();
-        if (me) serverDeletedMembers = serverDeletedMembers.filter(d => d !== me);
-        if (ml) serverDeletedMembers = serverDeletedMembers.filter(d => d !== ml);
-      });
-      serverDeletedMembers = serverDeletedMembers.filter(d => !/^m-\d+$/i.test(d));
-      globalThis.__SUPERBIBLE_DELETED_MEMBERS__ = serverDeletedMembers;
-
       const map = new Map();
       serverCachedMembers.forEach(m => {
-        if (!isMemberInDeletedList(m, serverDeletedMembers)) {
-          const k = (m.email || m.name || '').toLowerCase().trim();
-          if (k) map.set(k, m);
-        }
+        const k = (m.email || m.name || m.id || '').toLowerCase().trim();
+        if (k) map.set(k, m);
       });
 
       incomingList.forEach(m => {
-        if (isMemberInDeletedList(m, serverDeletedMembers)) return;
-        const k = (m.email || m.name || '').toLowerCase().trim();
+        const k = (m.email || m.name || m.id || '').toLowerCase().trim();
         if (!k) return;
         if (map.has(k)) {
           const cur = map.get(k);
           map.set(k, {
             ...cur,
             ...m,
+            phone: m.phone && m.phone !== '010-미등록' ? m.phone : (cur.phone || m.phone),
             totalReadChapters: Math.max(cur.totalReadChapters || 0, m.totalReadChapters || 0),
             currentReadingRound: Math.max(cur.currentReadingRound || 0, m.currentReadingRound || 0),
             recordingsCount: Math.max(cur.recordingsCount || 0, m.recordingsCount || 0),
@@ -383,10 +321,7 @@ export default async function handler(req, res) {
         const gasRes = await fetch(targetScriptUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({
-            ...body,
-            deletedList: serverDeletedMembers
-          }),
+          body: JSON.stringify(body),
           signal: controller.signal
         });
         clearTimeout(timeout);
@@ -394,12 +329,11 @@ export default async function handler(req, res) {
         try {
           gasResult = await gasRes.json();
           if (gasResult && Array.isArray(gasResult.members) && gasResult.members.length > 0) {
-            // Update server cache with Google Sheets merged list (purging deleted members)
+            // Update server cache with Google Sheets merged list
             const gmap = new Map();
-            serverCachedMembers.forEach(m => gmap.set((m.email || m.name).toLowerCase().trim(), m));
+            serverCachedMembers.forEach(m => gmap.set((m.email || m.name || m.id).toLowerCase().trim(), m));
             gasResult.members.forEach(gm => {
-              if (isMemberInDeletedList(gm, serverDeletedMembers)) return;
-              const gk = (gm.email || gm.name).toLowerCase().trim();
+              const gk = (gm.email || gm.name || gm.id).toLowerCase().trim();
               if (gmap.has(gk)) {
                 gmap.set(gk, { ...gmap.get(gk), ...gm });
               } else {
@@ -425,7 +359,6 @@ export default async function handler(req, res) {
       scriptUrl: serverCachedScriptUrl,
       sheetUrl: serverCachedSheetUrl,
       sheetId: serverCachedSheetId,
-      deletedMembers: serverDeletedMembers,
       timestamp: new Date().toISOString()
     });
     return;

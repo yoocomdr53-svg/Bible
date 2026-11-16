@@ -342,10 +342,27 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
       }
     });
 
+    // Real-time polling while viewing Admin panel: automatically updates screen when external members sign up
+    const adminPollTimer = setInterval(() => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        pullMembersFromGoogleSheet().then((res) => {
+          if (res.members && res.members.length > 0) {
+            setMembers((prev) => {
+              if (prev.length !== res.members.length || JSON.stringify(prev) !== JSON.stringify(res.members)) {
+                return res.members;
+              }
+              return prev;
+            });
+          }
+        }).catch(() => {});
+      }
+    }, 6000);
+
     return () => {
       window.removeEventListener('superbible_recordings_changed', handleRecsChanged);
       window.removeEventListener('superbible_members_changed', handleMembersChanged);
       window.removeEventListener('superbible_verse_read_changed', handleMembersChanged);
+      clearInterval(adminPollTimer);
     };
   }, [adminTab]);
 

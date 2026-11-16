@@ -572,134 +572,50 @@ export async function pullMembersFromGoogleSheet(): Promise<{
   const config = getGoogleSheetConfig();
   const scriptUrl = config.scriptUrl;
 
-  // Read local blacklist of deleted members (strictly exclude sequential M-XX ids)
-  let deletedList: string[] = [];
   try {
-    const rawDel = localStorage.getItem('superbible_deleted_members_v2');
-    if (rawDel) {
-      const parsed = JSON.parse(rawDel);
-      if (Array.isArray(parsed)) {
-        deletedList = parsed
-          .map((k) => String(k).toLowerCase().trim())
-          .filter((k) => k && !/^m-\d+$/i.test(k));
-      }
-    }
-  } catch (e) {}
-
-  try {
-    const url = getSyncApiUrl(`/api/sync?action=pull${scriptUrl ? `&scriptUrl=${encodeURIComponent(scriptUrl)}` : ''}${
-      deletedList.length > 0 ? `&deleted=${encodeURIComponent(deletedList.join(','))}` : ''
-    }`);
+    const url = getSyncApiUrl(
+      `/api/sync?action=pull${scriptUrl ? `&scriptUrl=${encodeURIComponent(scriptUrl)}` : ''}`
+    );
     const res = await fetch(url, {
       method: 'GET',
       headers: {
-        'Accept': 'application/json',
+        Accept: 'application/json',
         ...(scriptUrl ? { 'x-script-url': scriptUrl } : {}),
       },
     });
 
     if (res.ok) {
       const data = await res.json();
-      if (data.deletedMembers && Array.isArray(data.deletedMembers)) {
-        // Merge server deleted members with local blacklist (only non-sequential IDs)
-        data.deletedMembers.forEach((d: string) => {
-          const norm = String(d).toLowerCase().trim();
-          if (norm && !/^m-\d+$/i.test(norm) && !deletedList.includes(norm)) deletedList.push(norm);
-        });
-        localStorage.setItem('superbible_deleted_members_v2', JSON.stringify(deletedList));
-      }
 
-      if (data.success && Array.isArray(data.members)) {
-        // Read current local members
-        let localMembers: MemberReadingProfile[] = [];
+      if (data.success && Array.isArray(data.members) && data.members.length > 0) {
+        const remoteMembers: MemberReadingProfile[] = data.members;
+
+        // Clean obsolete deleted blacklist so all active members are preserved
         try {
-          const raw = localStorage.getItem('superbible_admin_members_v4');
-          if (raw) localMembers = JSON.parse(raw);
+          localStorage.removeItem('superbible_deleted_members_v2');
         } catch (e) {}
 
-        const map = new Map<string, MemberReadingProfile>();
-        localMembers.forEach((m) => {
-          const key = (m.email || m.name || '').toLowerCase().trim();
-          if (key && !deletedList.includes(key)) {
-            map.set(key, m);
-          }
-        });
+        // Save authoritative remote roster directly to localStorage
+        localStorage.setItem('superbible_admin_members_v4', JSON.stringify(remoteMembers));
 
-        // Smart merge remote members (members in Google Sheets are active -> keep them safe)
-        data.members.forEach((remoteM: MemberReadingProfile) => {
-          const key = (remoteM.email || remoteM.name || '').toLowerCase().trim();
-          if (!key) return;
-          // If remote member is in Google Sheets, un-blacklist if previously marked
-          if (deletedList.includes(key)) {
-            deletedList = deletedList.filter((d) => d !== key);
-            localStorage.setItem('superbible_deleted_members_v2', JSON.stringify(deletedList));
-          }
-
-          if (map.has(key)) {
-            const cur = map.get(key)!;
-            map.set(key, {
-              ...cur,
-              ...remoteM,
-              department: remoteM.department || cur.department,
-              phone: remoteM.phone && remoteM.phone !== '010-미등록' ? remoteM.phone : cur.phone,
-              totalReadChapters: Math.max(cur.totalReadChapters || 0, remoteM.totalReadChapters || 0),
-              currentReadingRound: Math.max(cur.currentReadingRound || 0, remoteM.currentReadingRound || 0),
-              recordingsCount: Math.max(cur.recordingsCount || 0, remoteM.recordingsCount || 0),
-              currentBook: remoteM.currentBook || cur.currentBook,
-              currentChapter: remoteM.currentChapter || cur.currentChapter,
-            });
-          } else {
-            map.set(key, {
-              id: remoteM.id || `M-${Date.now().toString().slice(-4)}`,
-              name: remoteM.name || '성도',
-              department: remoteM.department || '다이나믹팀',
-              role: remoteM.role || '성도',
-              phone: remoteM.phone || '010-미등록',
-              email: remoteM.email || `${key}@superbible.kr`,
-              registeredDate: remoteM.registeredDate || new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
-              birthdate: remoteM.birthdate || '1995.01.01',
-              baptismStatus: remoteM.baptismStatus || '원입',
-              smallGroup: remoteM.smallGroup || `${remoteM.department || '다이나믹팀'} 1구역`,
-              accountRole: remoteM.accountRole || 'member',
-              accountStatus: remoteM.accountStatus || 'active',
-              avatarColor: remoteM.avatarColor || 'bg-blue-500',
-              avatarText: remoteM.avatarText || remoteM.name?.slice(0, 2) || '성도',
-              currentReadingRound: remoteM.currentReadingRound || 0,
-              targetRounds: 12,
-              currentBook: remoteM.currentBook || '창세기',
-              currentChapter: remoteM.currentChapter || 1,
-              totalReadChapters: remoteM.totalReadChapters || 0,
-              recordingsCount: remoteM.recordingsCount || 0,
-              lastActive: remoteM.lastActive || '방금',
-              status: remoteM.status || 'active',
-              consecutiveDays: remoteM.consecutiveDays || 1,
-              featuredCount: remoteM.featuredCount || 0,
-              memo: remoteM.memo || '구글 시트/중앙 서버 동기화 회원',
-            });
-          }
-        });
-
-        const mergedList = Array.from(map.values());
-        localStorage.setItem('superbible_admin_members_v4', JSON.stringify(mergedList));
-
-        // Sync missing users into local user registry so they can log in
+        // Sync all remote members into local accounts registry so they can log in immediately
         try {
           const regRaw = localStorage.getItem('superbible_user_registry_v2');
           let accounts: any[] = regRaw ? JSON.parse(regRaw) : [];
-          // Purge deleted from accounts
-          accounts = accounts.filter((acc) => {
-            const login = (acc.loginId || '').toLowerCase().trim();
-            const email = (acc.user?.email || '').toLowerCase().trim();
-            const name = (acc.user?.name || '').toLowerCase().trim();
-            return !deletedList.includes(login) && !deletedList.includes(email) && !deletedList.includes(name);
-          });
-
           let regChanged = false;
-          mergedList.forEach((m) => {
-            const mKey = (m.email || m.name || '').toLowerCase().trim();
-            if (deletedList.includes(mKey)) return;
-            const exists = accounts.some((a) => (a.loginId || a.user?.email || '').toLowerCase().trim() === mKey);
+
+          remoteMembers.forEach((m) => {
+            const mEmail = (m.email || '').toLowerCase().trim();
+            const mName = (m.name || '').toLowerCase().trim();
+            const exists = accounts.some((a) => {
+              const aLogin = (a.loginId || '').toLowerCase().trim();
+              const aEmail = (a.user?.email || '').toLowerCase().trim();
+              const aName = (a.user?.name || '').toLowerCase().trim();
+              return (mEmail && (aLogin === mEmail || aEmail === mEmail)) || (mName && aName === mName);
+            });
+
             if (!exists) {
+              const isMasterAdmin = mEmail.includes('yoocomdr') || m.role === '관리자';
               accounts.push({
                 loginId: m.email || m.name,
                 passwordHash: '1234',
@@ -709,7 +625,7 @@ export async function pullMembersFromGoogleSheet(): Promise<{
                   email: m.email,
                   phone: m.phone,
                   avatarText: m.avatarText || m.name?.slice(0, 2) || '성도',
-                  role: m.role === '관리자' ? 'admin' : 'saint',
+                  role: isMasterAdmin ? 'admin' : 'saint',
                   provider: 'standard',
                   schoolName: '로고스 수퍼바이블 공동체',
                   department: m.department || '다이나믹팀',
@@ -718,11 +634,12 @@ export async function pullMembersFromGoogleSheet(): Promise<{
                   todayVersesRead: 0,
                   recordingsCount: m.recordingsCount || 0,
                 },
-                createdAt: new Date().toISOString(),
+                createdAt: m.registeredDate || new Date().toISOString(),
               });
               regChanged = true;
             }
           });
+
           if (regChanged) {
             localStorage.setItem('superbible_user_registry_v2', JSON.stringify(accounts));
           }
@@ -734,9 +651,9 @@ export async function pullMembersFromGoogleSheet(): Promise<{
 
         return {
           success: true,
-          members: mergedList,
+          members: remoteMembers,
           source: data.source,
-          message: `클라우드로부터 ${mergedList.length}명의 회원 명부가 동기화되었습니다.`,
+          message: `클라우드로부터 ${remoteMembers.length}명의 회원 명부가 실시간 동기화되었습니다.`,
         };
       }
     }
@@ -744,16 +661,12 @@ export async function pullMembersFromGoogleSheet(): Promise<{
     console.warn('[SyncService] pullMembersFromGoogleSheet error:', err);
   }
 
-  // Fallback to local members (excluding deleted members)
+  // Fallback to local members
   let fallbackMembers: MemberReadingProfile[] = [];
   try {
     const raw = localStorage.getItem('superbible_admin_members_v4');
     if (raw) {
-      const parsed: MemberReadingProfile[] = JSON.parse(raw);
-      fallbackMembers = parsed.filter((m) => {
-        const k = (m.email || m.name || '').toLowerCase().trim();
-        return !deletedList.includes(k);
-      });
+      fallbackMembers = JSON.parse(raw);
     }
   } catch (e) {}
 
@@ -787,34 +700,21 @@ export async function syncBidirectionalWithGoogleSheets(
   // Step 1: Pull remote members first so any members registered on other devices are preserved!
   const pullResult = await pullMembersFromGoogleSheet();
 
-  // Read local blacklist of deleted members (strictly exclude sequential M-XX ids)
-  let deletedList: string[] = [];
-  try {
-    const rawDel = localStorage.getItem('superbible_deleted_members_v2');
-    if (rawDel) {
-      const parsed = JSON.parse(rawDel);
-      if (Array.isArray(parsed)) {
-        deletedList = parsed
-          .map((k) => String(k).toLowerCase().trim())
-          .filter((k) => k && !/^m-\d+$/i.test(k));
-      }
-    }
-  } catch (e) {}
-
-  // Combine input members with pulled members (filtering out deleted members)
+  // Combine pulled members with input members safely (preserving all members across devices)
   const memberMap = new Map<string, MemberReadingProfile>();
   pullResult.members.forEach((m) => {
-    const k = (m.email || m.name || '').toLowerCase().trim();
-    if (k && !deletedList.includes(k)) memberMap.set(k, m);
+    const k = (m.email || m.name || m.id || '').toLowerCase().trim();
+    if (k) memberMap.set(k, m);
   });
   members.forEach((m) => {
-    const k = (m.email || m.name || '').toLowerCase().trim();
-    if (!k || deletedList.includes(k)) return;
+    const k = (m.email || m.name || m.id || '').toLowerCase().trim();
+    if (!k) return;
     if (memberMap.has(k)) {
       const cur = memberMap.get(k)!;
       memberMap.set(k, {
         ...cur,
         ...m,
+        phone: m.phone && m.phone !== '010-미등록' ? m.phone : (cur.phone || m.phone),
         totalReadChapters: Math.max(cur.totalReadChapters || 0, m.totalReadChapters || 0),
         currentReadingRound: Math.max(cur.currentReadingRound || 0, m.currentReadingRound || 0),
         recordingsCount: Math.max(cur.recordingsCount || 0, m.recordingsCount || 0),
@@ -845,13 +745,11 @@ export async function syncBidirectionalWithGoogleSheets(
         adminEmail: config.adminEmail,
         sheetId: config.sheetId,
         scriptUrl: scriptUrl || undefined,
-        deletedList,
         timestamp: new Date().toISOString(),
         data: {
           members: mergedMembers,
           recordings,
           campaigns,
-          deletedList,
         },
       }),
     });
@@ -861,13 +759,13 @@ export async function syncBidirectionalWithGoogleSheets(
       // UNION MERGE: never let a server response with fewer members drop known members!
       const finalMap = new Map<string, MemberReadingProfile>();
       mergedMembers.forEach((m) => {
-        const k = (m.email || m.name || '').toLowerCase().trim();
+        const k = (m.email || m.name || m.id || '').toLowerCase().trim();
         if (k) finalMap.set(k, m);
       });
       if (syncData && Array.isArray(syncData.members)) {
         syncData.members.forEach((sm: MemberReadingProfile) => {
-          const k = (sm.email || sm.name || '').toLowerCase().trim();
-          if (k && !deletedList.includes(k)) {
+          const k = (sm.email || sm.name || sm.id || '').toLowerCase().trim();
+          if (k) {
             if (finalMap.has(k)) {
               finalMap.set(k, { ...finalMap.get(k)!, ...sm });
             } else {
@@ -1776,39 +1674,6 @@ function doGet(e) {
   setupSuperBibleSheets();
   var rosterSheet = ss.getSheetByName("회원관리");
   var memberSheet = ss.getSheetByName("회원_낭독진도");
-
-  // 삭제 파라미터(deleted)가 전달된 경우 구글 시트에서 해당 행 즉시 자동 삭제
-  var paramDeleted = (e && e.parameter && e.parameter.deleted) ? String(e.parameter.deleted) : "";
-  if (paramDeleted) {
-    var delArr = paramDeleted.split(",");
-    var delMap = {};
-    for (var d = 0; d < delArr.length; d++) {
-      var dk = delArr[d].toLowerCase().trim();
-      if (dk) delMap[dk] = true;
-    }
-    if (rosterSheet) {
-      var rVals = rosterSheet.getDataRange().getValues();
-      for (var ri = rVals.length - 1; ri >= 1; ri--) {
-        var rId = String(rVals[ri][0] || "").toLowerCase().trim();
-        var rName = String(rVals[ri][1] || "").toLowerCase().trim();
-        var rEmail = String(rVals[ri][5] || "").toLowerCase().trim();
-        if (delMap[rId] || delMap[rName] || delMap[rEmail]) {
-          rosterSheet.deleteRow(ri + 1);
-        }
-      }
-    }
-    if (memberSheet) {
-      var mVals = memberSheet.getDataRange().getValues();
-      for (var mi = mVals.length - 1; mi >= 1; mi--) {
-        var mId = String(mVals[mi][0] || "").toLowerCase().trim();
-        var mName = String(mVals[mi][1] || "").toLowerCase().trim();
-        var mEmail = String(mVals[mi][5] || "").toLowerCase().trim();
-        if (delMap[mId] || delMap[mName] || delMap[mEmail]) {
-          memberSheet.deleteRow(mi + 1);
-        }
-      }
-    }
-  }
 
   var rosterRows = rosterSheet ? rosterSheet.getDataRange().getValues() : [];
   var memberRows = memberSheet ? memberSheet.getDataRange().getValues() : [];
