@@ -2,8 +2,8 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 1.7';
-export const APP_BUILD_DATE = '2026.11.10';
+export const APP_VERSION = 'Ver 1.8';
+export const APP_BUILD_DATE = '2026.11.16';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
 
@@ -15,6 +15,18 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 1.8',
+    name: 'SuperBible',
+    releaseDate: '2026.11.16',
+    changes: [
+      '스마트폰·태블릿·PC 멀티 디바이스 실시간 통합 양방향 동기화 허브 구축 (모든 기기 동일 회원 명부 실시간 공유)',
+      'PC에서 동기화 시 스마트폰·외부 가입 회원 명부가 지워지던 구글 시트 clearContent 버그 완전 해결 (안전한 스마트 행 단위 Upsert 병합 도입)',
+      '외부 및 모바일 신규 간편가입 시 Web App URL 설정 유무와 무관하게 중앙 동기화 허브를 통해 구글 시트 즉시 자동 전송',
+      '앱 시작 및 화면 포커스 시 구글 시트 및 클라우드로부터 최신 회원 명부 자동 풀(Pull) 동기화',
+      '관리자 성경관리 동기화 버튼 클릭 시 클라우드-로컬 데이터 안전 병합 및 전원 보존',
+    ],
+  },
   {
     version: 'Ver 1.7',
     name: 'SuperBible',

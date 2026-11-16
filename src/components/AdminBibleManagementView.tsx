@@ -49,6 +49,8 @@ import {
 import {
   getGoogleSheetConfig,
   saveGoogleSheetConfig,
+  initGoogleSheetConfigFromServer,
+  pullMembersFromGoogleSheet,
   syncBidirectionalWithGoogleSheets,
   generateAppsScriptCode,
   getSheetSyncLogs,
@@ -311,6 +313,17 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     window.addEventListener('superbible_verse_read_changed', handleMembersChanged);
     handleRecsChanged();
     handleMembersChanged();
+
+    // Auto-fetch fresh member data and script URL from central cloud hub on view load
+    initGoogleSheetConfigFromServer().then((cfg) => {
+      setSheetConfig(cfg);
+    });
+    pullMembersFromGoogleSheet().then((res) => {
+      if (res.members && res.members.length > 0) {
+        setMembers(res.members);
+      }
+    });
+
     return () => {
       window.removeEventListener('superbible_recordings_changed', handleRecsChanged);
       window.removeEventListener('superbible_members_changed', handleMembersChanged);
@@ -661,6 +674,9 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     setIsSyncing(true);
     try {
       const res = await syncBidirectionalWithGoogleSheets(members, recordings, campaigns);
+      if (res.updatedMembers && res.updatedMembers.length > 0) {
+        setMembers(res.updatedMembers);
+      }
       setSheetConfig(getGoogleSheetConfig());
       setSyncLogs(getSheetSyncLogs());
       setPendingQueue(getPendingSyncQueue());

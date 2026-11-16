@@ -56,9 +56,39 @@ export function getGoogleSheetConfig(): GoogleSheetConfig {
 export function saveGoogleSheetConfig(config: GoogleSheetConfig): void {
   try {
     localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
+    // Share scriptUrl with Vercel central sync hub so all mobile/PC devices automatically know it
+    if (config.scriptUrl && config.scriptUrl.startsWith('http')) {
+      fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'setScriptUrl', scriptUrl: config.scriptUrl }),
+      }).catch(() => {});
+    }
   } catch (e) {
     console.error('Failed to save Google Sheet config', e);
   }
+}
+
+/**
+ * Auto-initialize Google Apps Script URL from central server hub
+ * Ensures smart phones, tablets, and PCs automatically share the same scriptUrl
+ */
+export async function initGoogleSheetConfigFromServer(): Promise<GoogleSheetConfig> {
+  const current = getGoogleSheetConfig();
+  try {
+    const res = await fetch('/api/sync?action=getConfig');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.scriptUrl && (!current.scriptUrl || current.scriptUrl !== data.scriptUrl)) {
+        current.scriptUrl = data.scriptUrl;
+        current.lastSyncMessage = '중앙 서버에서 Google Apps Script URL 자동 연동 완료';
+        saveGoogleSheetConfig(current);
+      }
+    }
+  } catch (e) {
+    // offline or local
+  }
+  return current;
 }
 
 export function getSheetSyncLogs(): SheetSyncLog[] {
@@ -123,7 +153,7 @@ export function clearPendingSyncQueue(): void {
 }
 
 /**
- * Send arbitrary payload to Google Apps Script Web App
+ * Send arbitrary payload to Central Sync Hub & Google Apps Script Web App
  */
 export async function sendPayloadToGoogleScript(
   payload: { action: string; [key: string]: any },
@@ -139,10 +169,53 @@ export async function sendPayloadToGoogleScript(
     ...payload,
   };
 
+  const nowStr = new Date().toLocaleString('ko-KR');
+
+  // 1. First priority: Send to Vercel /api/sync Hub (works from ALL devices without CORS/redirect issues)
+  try {
+    const res = await fetch('/api/sync', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(scriptUrl ? { 'x-script-url': scriptUrl } : {}),
+      },
+      body: JSON.stringify({
+        ...fullPayload,
+        scriptUrl: scriptUrl || undefined,
+      }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      saveGoogleSheetConfig({
+        ...config,
+        lastSynced: `${nowStr} (실시간 동기화 완료)`,
+        syncStatus: 'success',
+        lastSyncMessage: `${config.adminEmail} 중앙 서버 및 구글 시트에 실시간 반영되었습니다.`,
+      });
+
+      addSheetSyncLog({
+        timestamp: nowStr,
+        direction: 'upload',
+        status: 'success',
+        summary: `중앙 동기화 성공: ${payload.action}`,
+        details: `${config.adminEmail} 스프레드시트 갱신 완료`,
+        rowsAffected: 1,
+      });
+
+      return {
+        success: true,
+        message: data.message || '중앙 서버 및 구글 스프레드시트에 성공적으로 저장되었습니다!',
+      };
+    }
+  } catch (apiErr) {
+    console.warn('[SyncService] /api/sync hub failed, attempting direct Google Script:', apiErr);
+  }
+
+  // 2. Second priority: Direct Google Apps Script POST
   if (!scriptUrl || !scriptUrl.startsWith('http')) {
     // Save to pending queue so it can be sent once URL is provided
     enqueuePendingSync(payload.action as any, fullPayload);
-    const nowStr = new Date().toLocaleString('ko-KR');
     addSheetSyncLog({
       timestamp: nowStr,
       direction: 'upload',
@@ -168,7 +241,6 @@ export async function sendPayloadToGoogleScript(
       mode: 'no-cors',
     });
 
-    const nowStr = new Date().toLocaleString('ko-KR');
     saveGoogleSheetConfig({
       ...config,
       lastSynced: `${nowStr} (실시간 동기화 완료)`,
@@ -413,7 +485,168 @@ export async function flushPendingSyncQueue(): Promise<{ success: boolean; flush
 }
 
 /**
+ * Pull latest members from Central Sync Hub / Google Sheets
+ * Ensures PC, tablet, and smartphone are always identical
+ */
+export async function pullMembersFromGoogleSheet(): Promise<{
+  success: boolean;
+  members: MemberReadingProfile[];
+  source?: string;
+  message?: string;
+}> {
+  const config = getGoogleSheetConfig();
+  const scriptUrl = config.scriptUrl;
+
+  try {
+    const url = `/api/sync?action=pull${scriptUrl ? `&scriptUrl=${encodeURIComponent(scriptUrl)}` : ''}`;
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        ...(scriptUrl ? { 'x-script-url': scriptUrl } : {}),
+      },
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.members) && data.members.length > 0) {
+        // Read current local members
+        let localMembers: MemberReadingProfile[] = [];
+        try {
+          const raw = localStorage.getItem('superbible_admin_members_v4');
+          if (raw) localMembers = JSON.parse(raw);
+        } catch (e) {}
+
+        const map = new Map<string, MemberReadingProfile>();
+        localMembers.forEach((m) => {
+          const key = (m.email || m.name || '').toLowerCase().trim();
+          if (key) map.set(key, m);
+        });
+
+        // Smart merge remote members
+        data.members.forEach((remoteM: MemberReadingProfile) => {
+          const key = (remoteM.email || remoteM.name || '').toLowerCase().trim();
+          if (!key) return;
+
+          if (map.has(key)) {
+            const cur = map.get(key)!;
+            map.set(key, {
+              ...cur,
+              ...remoteM,
+              department: remoteM.department || cur.department,
+              phone: remoteM.phone && remoteM.phone !== '010-미등록' ? remoteM.phone : cur.phone,
+              totalReadChapters: Math.max(cur.totalReadChapters || 0, remoteM.totalReadChapters || 0),
+              currentReadingRound: Math.max(cur.currentReadingRound || 0, remoteM.currentReadingRound || 0),
+              recordingsCount: Math.max(cur.recordingsCount || 0, remoteM.recordingsCount || 0),
+              currentBook: remoteM.currentBook || cur.currentBook,
+              currentChapter: remoteM.currentChapter || cur.currentChapter,
+            });
+          } else {
+            map.set(key, {
+              id: remoteM.id || `M-${Date.now().toString().slice(-4)}`,
+              name: remoteM.name || '성도',
+              department: remoteM.department || '다이나믹팀',
+              role: remoteM.role || '성도',
+              phone: remoteM.phone || '010-미등록',
+              email: remoteM.email || `${key}@superbible.kr`,
+              registeredDate: remoteM.registeredDate || new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
+              birthdate: remoteM.birthdate || '1995.01.01',
+              baptismStatus: remoteM.baptismStatus || '원입',
+              smallGroup: remoteM.smallGroup || `${remoteM.department || '다이나믹팀'} 1구역`,
+              accountRole: remoteM.accountRole || 'member',
+              accountStatus: remoteM.accountStatus || 'active',
+              avatarColor: remoteM.avatarColor || 'bg-blue-500',
+              avatarText: remoteM.avatarText || remoteM.name?.slice(0, 2) || '성도',
+              currentReadingRound: remoteM.currentReadingRound || 0,
+              targetRounds: 12,
+              currentBook: remoteM.currentBook || '창세기',
+              currentChapter: remoteM.currentChapter || 1,
+              totalReadChapters: remoteM.totalReadChapters || 0,
+              recordingsCount: remoteM.recordingsCount || 0,
+              lastActive: remoteM.lastActive || '방금',
+              status: remoteM.status || 'active',
+              consecutiveDays: remoteM.consecutiveDays || 1,
+              featuredCount: remoteM.featuredCount || 0,
+              memo: remoteM.memo || '구글 시트/중앙 서버 동기화 회원',
+            });
+          }
+        });
+
+        const mergedList = Array.from(map.values());
+        localStorage.setItem('superbible_admin_members_v4', JSON.stringify(mergedList));
+
+        // Sync missing users into local user registry so they can log in
+        try {
+          const regRaw = localStorage.getItem('superbible_user_registry_v2');
+          let accounts: any[] = regRaw ? JSON.parse(regRaw) : [];
+          let regChanged = false;
+          mergedList.forEach((m) => {
+            const mKey = (m.email || m.name || '').toLowerCase().trim();
+            const exists = accounts.some((a) => (a.loginId || a.user?.email || '').toLowerCase().trim() === mKey);
+            if (!exists) {
+              accounts.push({
+                loginId: m.email || m.name,
+                passwordHash: '1234',
+                user: {
+                  id: `user-${m.id || Date.now()}`,
+                  name: m.name,
+                  email: m.email,
+                  phone: m.phone,
+                  avatarText: m.avatarText || m.name?.slice(0, 2) || '성도',
+                  role: m.role === '관리자' ? 'admin' : 'saint',
+                  provider: 'standard',
+                  schoolName: '로고스 수퍼바이블 공동체',
+                  department: m.department || '다이나믹팀',
+                  consecutiveDays: m.consecutiveDays || 1,
+                  ntProgress: 0,
+                  todayVersesRead: 0,
+                  recordingsCount: m.recordingsCount || 0,
+                },
+                createdAt: new Date().toISOString(),
+              });
+              regChanged = true;
+            }
+          });
+          if (regChanged) {
+            localStorage.setItem('superbible_user_registry_v2', JSON.stringify(accounts));
+          }
+        } catch (regErr) {}
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('superbible_members_changed'));
+        }
+
+        return {
+          success: true,
+          members: mergedList,
+          source: data.source,
+          message: `클라우드로부터 ${mergedList.length}명의 회원 명부가 동기화되었습니다.`,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('[SyncService] pullMembersFromGoogleSheet error:', err);
+  }
+
+  // Fallback to local members
+  let fallbackMembers: MemberReadingProfile[] = [];
+  try {
+    const raw = localStorage.getItem('superbible_admin_members_v4');
+    if (raw) fallbackMembers = JSON.parse(raw);
+  } catch (e) {}
+
+  return {
+    success: true,
+    members: fallbackMembers,
+    source: 'local',
+  };
+}
+
+/**
  * Perform Bulk Bidirectional Sync with Google Spreadsheet
+ * 1. Pulls from server/Google Sheets first to preserve all members
+ * 2. Merges with local changes
+ * 3. Safely upserts to Google Sheets without deleting any row
  */
 export async function syncBidirectionalWithGoogleSheets(
   members: MemberReadingProfile[],
@@ -429,9 +662,99 @@ export async function syncBidirectionalWithGoogleSheets(
   const config = getGoogleSheetConfig();
   const scriptUrl = customScriptUrl || config.scriptUrl;
 
+  // Step 1: Pull remote members first so any members registered on other devices are preserved!
+  const pullResult = await pullMembersFromGoogleSheet();
+
+  // Combine input members with pulled members
+  const memberMap = new Map<string, MemberReadingProfile>();
+  pullResult.members.forEach((m) => {
+    const k = (m.email || m.name || '').toLowerCase().trim();
+    if (k) memberMap.set(k, m);
+  });
+  members.forEach((m) => {
+    const k = (m.email || m.name || '').toLowerCase().trim();
+    if (!k) return;
+    if (memberMap.has(k)) {
+      const cur = memberMap.get(k)!;
+      memberMap.set(k, {
+        ...cur,
+        ...m,
+        totalReadChapters: Math.max(cur.totalReadChapters || 0, m.totalReadChapters || 0),
+        currentReadingRound: Math.max(cur.currentReadingRound || 0, m.currentReadingRound || 0),
+        recordingsCount: Math.max(cur.recordingsCount || 0, m.recordingsCount || 0),
+      });
+    } else {
+      memberMap.set(k, m);
+    }
+  });
+
+  const mergedMembers = Array.from(memberMap.values());
+  localStorage.setItem('superbible_admin_members_v4', JSON.stringify(mergedMembers));
+
   // Flush pending queue first if any
   await flushPendingSyncQueue();
 
+  const nowStr = new Date().toLocaleString('ko-KR');
+
+  // Step 2: Push merged roster to Vercel /api/sync Hub (Works across all devices with zero CORS)
+  try {
+    const syncRes = await fetch('/api/sync', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(scriptUrl ? { 'x-script-url': scriptUrl } : {}),
+      },
+      body: JSON.stringify({
+        action: 'sync',
+        adminEmail: config.adminEmail,
+        sheetId: config.sheetId,
+        scriptUrl: scriptUrl || undefined,
+        timestamp: new Date().toISOString(),
+        data: {
+          members: mergedMembers,
+          recordings,
+          campaigns,
+        },
+      }),
+    });
+
+    if (syncRes.ok) {
+      const syncData = await syncRes.json();
+      const finalMembers = (syncData.members && syncData.members.length > 0) ? syncData.members : mergedMembers;
+      localStorage.setItem('superbible_admin_members_v4', JSON.stringify(finalMembers));
+
+      saveGoogleSheetConfig({
+        ...config,
+        lastSynced: `${nowStr} (실시간 동기화 완료)`,
+        syncStatus: 'success',
+        lastSyncMessage: `${config.adminEmail} 중앙 서버 및 구글 스프레드시트 양방향 동기화 성공`,
+      });
+
+      addSheetSyncLog({
+        timestamp: nowStr,
+        direction: 'bidirectional',
+        status: 'success',
+        summary: `중앙 동기화 허브 양방향 동기화 성공`,
+        details: `회원 ${finalMembers.length}명, 음원 ${recordings.length}건 구글 시트 스마트 병합 완료 (데이터 보존)`,
+        rowsAffected: finalMembers.length + recordings.length,
+      });
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('superbible_members_changed'));
+      }
+
+      return {
+        success: true,
+        message: `${config.adminEmail} 구글 스프레드시트 및 모든 기기(스마트폰·PC·태블릿)와 실시간 양방향 동기화가 완료되었습니다! (총 ${finalMembers.length}명 회원 전원 안전 보존)`,
+        updatedMembers: finalMembers,
+        updatedRecordings: recordings,
+      };
+    }
+  } catch (hubErr) {
+    console.warn('[SyncService] /api/sync hub error, falling back to direct GAS POST:', hubErr);
+  }
+
+  // Step 3: Direct GAS POST fallback if scriptUrl is present
   if (scriptUrl && scriptUrl.startsWith('http')) {
     try {
       await fetch(scriptUrl, {
@@ -443,7 +766,7 @@ export async function syncBidirectionalWithGoogleSheets(
           sheetId: config.sheetId,
           timestamp: new Date().toISOString(),
           data: {
-            members,
+            members: mergedMembers,
             recordings,
             campaigns,
           },
@@ -451,26 +774,26 @@ export async function syncBidirectionalWithGoogleSheets(
         mode: 'no-cors',
       });
 
-      const nowStr = new Date().toLocaleString('ko-KR');
       saveGoogleSheetConfig({
         ...config,
         lastSynced: `${nowStr} (실시간 동기화 완료)`,
         syncStatus: 'success',
         lastSyncMessage: `${config.adminEmail} 구글 스프레드시트 양방향 동기화 성공`,
       });
+
       addSheetSyncLog({
         timestamp: nowStr,
         direction: 'bidirectional',
         status: 'success',
         summary: `${config.adminEmail} 스프레드시트 양방향 동기화 완료`,
-        details: `회원 ${members.length}명, 음원 ${recordings.length}건, 캠페인 ${campaigns.length}건 시트에 반영`,
-        rowsAffected: members.length + recordings.length + campaigns.length,
+        details: `회원 ${mergedMembers.length}명, 음원 ${recordings.length}건 시트에 반영`,
+        rowsAffected: mergedMembers.length + recordings.length,
       });
 
       return {
         success: true,
-        message: `${config.adminEmail} 계정 구글 스프레드시트와 실시간 양방향 동기화가 완료되었습니다! (총 ${members.length}명 회원 반영)`,
-        updatedMembers: members,
+        message: `${config.adminEmail} 계정 구글 스프레드시트와 실시간 양방향 동기화가 완료되었습니다! (총 ${mergedMembers.length}명 회원 반영)`,
+        updatedMembers: mergedMembers,
         updatedRecordings: recordings,
       };
     } catch (error) {
@@ -478,13 +801,12 @@ export async function syncBidirectionalWithGoogleSheets(
     }
   }
 
-  // Local sync log when scriptUrl is not configured yet
-  const nowStr = new Date().toLocaleString('ko-KR');
+  // Step 4: Local fallback
   saveGoogleSheetConfig({
     ...config,
-    lastSynced: `${nowStr} (로컬 동기화 완료)`,
+    lastSynced: `${nowStr} (로컬 보관 완료)`,
     syncStatus: 'success',
-    lastSyncMessage: `${config.adminEmail} 구글 스프레드시트 데이터 준비 완료 (Web App URL 등록 대기)`,
+    lastSyncMessage: `${config.adminEmail} 회원 데이터 ${mergedMembers.length}명 로컬 보관 완료`,
   });
 
   addSheetSyncLog({
@@ -492,14 +814,14 @@ export async function syncBidirectionalWithGoogleSheets(
     direction: 'bidirectional',
     status: 'success',
     summary: `${config.adminEmail} 로컬 동기화 갱신 완료`,
-    details: `회원 ${members.length}명, 음원 ${recordings.length}건 로컬 보관 (Web App URL 등록 시 실시간 전송)`,
-    rowsAffected: members.length + recordings.length,
+    details: `회원 ${mergedMembers.length}명 로컬 보관`,
+    rowsAffected: mergedMembers.length,
   });
 
   return {
     success: true,
-    message: `${config.adminEmail} 구글 스프레드시트 데이터가 준비되었습니다. Web App URL을 등록하시면 시트로 즉시 자동 전송됩니다.`,
-    updatedMembers: members,
+    message: `로컬 회원 명부(${mergedMembers.length}명)가 안전하게 보관되었습니다.`,
+    updatedMembers: mergedMembers,
     updatedRecordings: recordings,
   };
 }
@@ -600,7 +922,7 @@ function doPost(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     setupSuperBibleSheets(); // 시트 없을 시 자동 생성 보장
 
-    // 1. 회원가입 실시간 저장
+    // 1. 회원가입 실시간 저장 (중복 행 방지 및 스마트 등록)
     if (data.action === "registerMember") {
       var member = data.member || {};
       var rosterSheet = ss.getSheetByName("회원관리");
@@ -609,45 +931,80 @@ function doPost(e) {
 
       var nowStr = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy.MM.dd HH:mm:ss");
       var regDateStr = member.registeredDate || Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy.MM.dd");
+      var userEmail = (member.email || data.loginId || "").toLowerCase().trim();
+      var userName = (member.name || (data.loginId ? data.loginId + " 성도" : "신규 성도")).trim();
 
-      // [회원관리] 시트에 행 추가
+      // [회원관리] 시트에 이미 존재하는지 확인 후 업데이트 또는 추가
       if (rosterSheet) {
-        rosterSheet.appendRow([
-          member.id || ("M-" + new Date().getTime().toString().slice(-4)),
-          member.name || (data.loginId ? data.loginId + " 성도" : "신규 성도"),
-          member.department || "새가족 성경통독부",
-          member.role || "성도",
-          member.phone || "010-미등록",
-          member.email || data.loginId || "",
-          regDateStr,
-          member.birthdate || "1995.01.01",
-          member.baptismStatus || "원입",
-          member.smallGroup || "새가족 1구역",
-          member.accountRole || "member",
-          member.accountStatus || "active",
-          member.memo || ("수퍼바이블 웹 회원가입 (아이디: " + (data.loginId || member.email) + ")")
-        ]);
+        var rData = rosterSheet.getDataRange().getValues();
+        var existingRosterRow = -1;
+        for (var ri = 1; ri < rData.length; ri++) {
+          var re = String(rData[ri][5] || "").toLowerCase().trim();
+          var rn = String(rData[ri][1] || "").toLowerCase().trim();
+          if ((userEmail && re === userEmail) || (userName && rn === userName.toLowerCase())) {
+            existingRosterRow = ri + 1;
+            break;
+          }
+        }
+
+        if (existingRosterRow > 0) {
+          if (member.department) rosterSheet.getRange(existingRosterRow, 3).setValue(member.department);
+          if (member.role) rosterSheet.getRange(existingRosterRow, 4).setValue(member.role);
+          if (member.phone && member.phone !== "010-미등록") rosterSheet.getRange(existingRosterRow, 5).setValue(member.phone);
+        } else {
+          rosterSheet.appendRow([
+            member.id || ("M-" + new Date().getTime().toString().slice(-4)),
+            userName,
+            member.department || "새가족 성경통독부",
+            member.role || "성도",
+            member.phone || "010-미등록",
+            userEmail,
+            regDateStr,
+            member.birthdate || "1995.01.01",
+            member.baptismStatus || "원입",
+            member.smallGroup || (member.department ? member.department + " 1구역" : "새가족 1구역"),
+            member.accountRole || "member",
+            member.accountStatus || "active",
+            member.memo || ("수퍼바이블 웹 회원가입 (아이디: " + (data.loginId || member.email) + ")")
+          ]);
+        }
       }
 
-      // [회원_낭독진도] 시트에 진도 초기 행 추가
+      // [회원_낭독진도] 시트에 이미 존재하는지 확인 후 업데이트 또는 추가
       if (memberSheet) {
-        memberSheet.appendRow([
-          member.id || ("M-" + new Date().getTime().toString().slice(-4)),
-          member.name || (data.loginId ? data.loginId + " 성도" : "신규 성도"),
-          member.department || "새가족 성경통독부",
-          member.role || "성도",
-          member.phone || "010-미등록",
-          member.email || data.loginId || "",
-          typeof member.currentReadingRound === 'number' ? member.currentReadingRound : 0,
-          member.currentBook || "창세기",
-          member.currentChapter || 1,
-          member.totalReadChapters || 0,
-          member.recordingsCount || 0,
-          nowStr,
-          "active",
-          1,
-          "웹 회원가입 12목표 통독 시작"
-        ]);
+        var mData = memberSheet.getDataRange().getValues();
+        var existingProgRow = -1;
+        for (var mi = 1; mi < mData.length; mi++) {
+          var me = String(mData[mi][5] || "").toLowerCase().trim();
+          var mn = String(mData[mi][1] || "").toLowerCase().trim();
+          if ((userEmail && me === userEmail) || (userName && mn === userName.toLowerCase())) {
+            existingProgRow = mi + 1;
+            break;
+          }
+        }
+
+        if (existingProgRow > 0) {
+          if (member.department) memberSheet.getRange(existingProgRow, 3).setValue(member.department);
+          if (member.role) memberSheet.getRange(existingProgRow, 4).setValue(member.role);
+        } else {
+          memberSheet.appendRow([
+            member.id || ("M-" + new Date().getTime().toString().slice(-4)),
+            userName,
+            member.department || "새가족 성경통독부",
+            member.role || "성도",
+            member.phone || "010-미등록",
+            userEmail,
+            typeof member.currentReadingRound === 'number' ? member.currentReadingRound : 0,
+            member.currentBook || "창세기",
+            member.currentChapter || 1,
+            member.totalReadChapters || 0,
+            member.recordingsCount || 0,
+            nowStr,
+            "active",
+            1,
+            "웹 회원가입 12목표 통독 시작"
+          ]);
+        }
       }
 
       // [실시간_동기화로그] 시트 추가
@@ -656,8 +1013,8 @@ function doPost(e) {
           "LOG-" + new Date().getTime(),
           nowStr,
           "회원가입 동기화",
-          "신규 회원 등록: " + (member.name || "") + " (" + (member.email || data.loginId) + ")",
-          2
+          "회원 등록/갱신: " + userName + " (" + userEmail + ")",
+          1
         ]);
       }
 
@@ -905,60 +1262,210 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // 4. 전체 일괄 동기화 (sync)
+    // 4. 전체 양방향 스마트 동기화 (기존 회원 절대 삭제 금지, 안전한 행 단위 병합)
     if (data.action === "sync") {
-      var members = (data.data && data.data.members) ? data.data.members : [];
+      var incomingMembers = (data.data && data.data.members) ? data.data.members : (data.members || []);
       var recordings = (data.data && data.data.recordings) ? data.data.recordings : [];
       var rosterSheet = ss.getSheetByName("회원관리");
       var memberSheet = ss.getSheetByName("회원_낭독진도");
       var logSheet = ss.getSheetByName("실시간_동기화로그");
 
-      if (rosterSheet && members.length > 0) {
-        var lastRosterRow = rosterSheet.getLastRow();
-        if (lastRosterRow > 1) {
-          rosterSheet.getRange(2, 1, lastRosterRow - 1, 13).clearContent();
-        }
-        for (var i = 0; i < members.length; i++) {
-          var m = members[i];
-          rosterSheet.appendRow([
-            m.id, m.name, m.department, m.role, m.phone, m.email,
-            m.registeredDate || "", m.birthdate || "", m.baptismStatus || "세례",
-            m.smallGroup || "", m.accountRole || "member", m.accountStatus || "정상",
-            m.memo || ""
-          ]);
-        }
+      var rValues = rosterSheet ? rosterSheet.getDataRange().getValues() : [];
+      var mValues = memberSheet ? memberSheet.getDataRange().getValues() : [];
+
+      // 기존 회원 행 번호 맵핑 (이메일 및 성명 기준)
+      var rosterRowMap = {};
+      for (var ri = 1; ri < rValues.length; ri++) {
+        var rEmail = String(rValues[ri][5] || "").toLowerCase().trim();
+        var rName = String(rValues[ri][1] || "").toLowerCase().trim();
+        if (rEmail) rosterRowMap[rEmail] = ri + 1;
+        if (rName) rosterRowMap[rName] = ri + 1;
       }
 
-      if (memberSheet && members.length > 0) {
-        var lastMemberRow = memberSheet.getLastRow();
-        if (lastMemberRow > 1) {
-          memberSheet.getRange(2, 1, lastMemberRow - 1, 15).clearContent();
-        }
-        for (var j = 0; j < members.length; j++) {
-          var mem = members[j];
-          memberSheet.appendRow([
-            mem.id, mem.name, mem.department, mem.role, mem.phone, mem.email,
-            mem.currentReadingRound, mem.currentBook, mem.currentChapter,
-            mem.totalReadChapters, mem.recordingsCount, mem.lastActive,
-            mem.status, mem.consecutiveDays, mem.memo || ""
-          ]);
-        }
+      var memberRowMap = {};
+      for (var mi = 1; mi < mValues.length; mi++) {
+        var mEmail = String(mValues[mi][5] || "").toLowerCase().trim();
+        var mName = String(mValues[mi][1] || "").toLowerCase().trim();
+        if (mEmail) memberRowMap[mEmail] = mi + 1;
+        if (mName) memberRowMap[mName] = mi + 1;
       }
 
       var nowStr = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy.MM.dd HH:mm:ss");
+
+      for (var i = 0; i < incomingMembers.length; i++) {
+        var mem = incomingMembers[i];
+        if (!mem) continue;
+        var mEmail = (mem.email || "").toLowerCase().trim();
+        var mName = (mem.name || "").toLowerCase().trim();
+        var key = mEmail || mName;
+        if (!key) continue;
+
+        // [회원관리] 행 업데이트 또는 신규 추가
+        if (rosterSheet) {
+          var targetRRow = rosterRowMap[mEmail] || rosterRowMap[mName];
+          if (targetRRow) {
+            if (mem.department) rosterSheet.getRange(targetRRow, 3).setValue(mem.department);
+            if (mem.role) rosterSheet.getRange(targetRRow, 4).setValue(mem.role);
+            if (mem.phone && mem.phone !== "010-미등록") rosterSheet.getRange(targetRRow, 5).setValue(mem.phone);
+          } else {
+            rosterSheet.appendRow([
+              mem.id || ("M-" + new Date().getTime().toString().slice(-4)),
+              mem.name || "신규 성도",
+              mem.department || "다이나믹팀",
+              mem.role || "성도",
+              mem.phone || "010-미등록",
+              mem.email || "",
+              mem.registeredDate || Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy.MM.dd"),
+              mem.birthdate || "1995.01.01",
+              mem.baptismStatus || "원입",
+              mem.smallGroup || (mem.department ? mem.department + " 1구역" : "1구역"),
+              mem.accountRole || "member",
+              mem.accountStatus || "active",
+              mem.memo || "동기화 신규 등록"
+            ]);
+            var newRRow = rosterSheet.getLastRow();
+            if (mEmail) rosterRowMap[mEmail] = newRRow;
+            if (mName) rosterRowMap[mName] = newRRow;
+          }
+        }
+
+        // [회원_낭독진도] 행 업데이트 또는 신규 추가
+        if (memberSheet) {
+          var targetMRow = memberRowMap[mEmail] || memberRowMap[mName];
+          if (targetMRow) {
+            if (mem.department) memberSheet.getRange(targetMRow, 3).setValue(mem.department);
+            if (mem.currentReadingRound !== undefined) memberSheet.getRange(targetMRow, 7).setValue(mem.currentReadingRound);
+            if (mem.currentBook) memberSheet.getRange(targetMRow, 8).setValue(mem.currentBook);
+            if (mem.currentChapter) memberSheet.getRange(targetMRow, 9).setValue(mem.currentChapter);
+            if (mem.totalReadChapters !== undefined) {
+              var oldTotal = Number(mValues[targetMRow - 1] ? mValues[targetMRow - 1][9] : 0) || 0;
+              memberSheet.getRange(targetMRow, 10).setValue(Math.max(oldTotal, Number(mem.totalReadChapters) || 0));
+            }
+            if (mem.recordingsCount !== undefined) {
+              var oldRec = Number(mValues[targetMRow - 1] ? mValues[targetMRow - 1][10] : 0) || 0;
+              memberSheet.getRange(targetMRow, 11).setValue(Math.max(oldRec, Number(mem.recordingsCount) || 0));
+            }
+            memberSheet.getRange(targetMRow, 12).setValue(nowStr);
+          } else {
+            memberSheet.appendRow([
+              mem.id || ("M-" + new Date().getTime().toString().slice(-4)),
+              mem.name || "신규 성도",
+              mem.department || "다이나믹팀",
+              mem.role || "성도",
+              mem.phone || "010-미등록",
+              mem.email || "",
+              mem.currentReadingRound || 0,
+              mem.currentBook || "창세기",
+              mem.currentChapter || 1,
+              mem.totalReadChapters || 0,
+              mem.recordingsCount || 0,
+              nowStr,
+              mem.status || "active",
+              mem.consecutiveDays || 1,
+              mem.memo || "동기화 신규 등록"
+            ]);
+            var newMRow = memberSheet.getLastRow();
+            if (mEmail) memberRowMap[mEmail] = newMRow;
+            if (mName) memberRowMap[mName] = newMRow;
+          }
+        }
+      }
+
       if (logSheet) {
         logSheet.appendRow([
           "LOG-" + new Date().getTime(),
           nowStr,
           "전체 양방향 동기화",
-          "회원 " + members.length + "명 정보 및 진도 일괄 동기화 완료",
-          members.length
+          "회원 " + incomingMembers.length + "명 안전 병합 (기존 회원 데이터 전원 보존)",
+          incomingMembers.length
         ]);
+      }
+
+      // 동기화 완료 후 최신 전 회원 목록 구성하여 반환
+      var finalRosterRows = rosterSheet ? rosterSheet.getDataRange().getValues() : [];
+      var finalMemberRows = memberSheet ? memberSheet.getDataRange().getValues() : [];
+      var combinedMembersMap = {};
+
+      for (var fi = 1; fi < finalRosterRows.length; fi++) {
+        var fr = finalRosterRows[fi];
+        var fId = String(fr[0] || "");
+        var fName = String(fr[1] || "");
+        var fEmail = String(fr[5] || "");
+        var fKey = (fEmail || fId || fName).toLowerCase().trim();
+        if (!fKey) continue;
+        combinedMembersMap[fKey] = {
+          id: fId || ("M-" + fi),
+          name: fName,
+          department: String(fr[2] || "다이나믹팀"),
+          role: String(fr[3] || "성도"),
+          phone: String(fr[4] || "010-미등록"),
+          email: fEmail,
+          registeredDate: String(fr[6] || ""),
+          birthdate: String(fr[7] || "1995.01.01"),
+          baptismStatus: String(fr[8] || "원입"),
+          smallGroup: String(fr[9] || ""),
+          accountRole: String(fr[10] || "member"),
+          accountStatus: String(fr[11] || "active"),
+          memo: String(fr[12] || ""),
+          currentReadingRound: 0,
+          targetRounds: 12,
+          currentBook: "창세기",
+          currentChapter: 1,
+          totalReadChapters: 0,
+          recordingsCount: 0,
+          lastActive: "방금",
+          status: "active",
+          consecutiveDays: 1,
+          featuredCount: 0
+        };
+      }
+
+      for (var fj = 1; fj < finalMemberRows.length; fj++) {
+        var fm = finalMemberRows[fj];
+        var fmId = String(fm[0] || "");
+        var fmName = String(fm[1] || "");
+        var fmEmail = String(fm[5] || "");
+        var fmKey = (fmEmail || fmId || fmName).toLowerCase().trim();
+        if (!fmKey) continue;
+        if (!combinedMembersMap[fmKey]) {
+          combinedMembersMap[fmKey] = {
+            id: fmId || ("M-" + fj),
+            name: fmName,
+            department: String(fm[2] || "다이나믹팀"),
+            role: String(fm[3] || "성도"),
+            phone: String(fm[4] || "010-미등록"),
+            email: fmEmail,
+            registeredDate: "",
+            birthdate: "1995.01.01",
+            baptismStatus: "원입",
+            smallGroup: "",
+            accountRole: "member",
+            accountStatus: "active",
+            memo: String(fm[14] || ""),
+            targetRounds: 12,
+            featuredCount: 0
+          };
+        }
+        var mObj = combinedMembersMap[fmKey];
+        mObj.currentReadingRound = Number(fm[6]) || 0;
+        mObj.currentBook = String(fm[7] || mObj.currentBook || "창세기");
+        mObj.currentChapter = Number(fm[8]) || mObj.currentChapter || 1;
+        mObj.totalReadChapters = Number(fm[9]) || mObj.totalReadChapters || 0;
+        mObj.recordingsCount = Number(fm[10]) || mObj.recordingsCount || 0;
+        mObj.lastActive = String(fm[11] || mObj.lastActive || "방금");
+        mObj.status = String(fm[12] || "active");
+        mObj.consecutiveDays = Number(fm[13]) || 1;
+      }
+
+      var combinedMembersList = [];
+      for (var ck in combinedMembersMap) {
+        if (combinedMembersMap.hasOwnProperty(ck)) combinedMembersList.push(combinedMembersMap[ck]);
       }
 
       return ContentService.createTextOutput(JSON.stringify({
         status: "success",
-        message: "수퍼바이블 [회원관리] 및 [회원_낭독진도] 시트에 전체 일괄 반영되었습니다.",
+        message: "수퍼바이블 [회원관리] 및 [회원_낭독진도] 시트에 전체 회원이 안전하게 병합되었습니다.",
+        members: combinedMembersList,
         timestamp: nowStr
       })).setMimeType(ContentService.MimeType.JSON);
     }
@@ -984,8 +1491,94 @@ function doGet(e) {
   var rosterRows = rosterSheet ? rosterSheet.getDataRange().getValues() : [];
   var memberRows = memberSheet ? memberSheet.getDataRange().getValues() : [];
   
+  var membersMap = {};
+
+  // 1. [회원관리] 시트 데이터 파싱
+  for (var i = 1; i < rosterRows.length; i++) {
+    var r = rosterRows[i];
+    var id = String(r[0] || "");
+    var name = String(r[1] || "");
+    var email = String(r[5] || "");
+    var key = (email || id || name).toLowerCase().trim();
+    if (!key) continue;
+
+    membersMap[key] = {
+      id: id || ("M-" + i),
+      name: name,
+      department: String(r[2] || "다이나믹팀"),
+      role: String(r[3] || "성도"),
+      phone: String(r[4] || "010-미등록"),
+      email: email,
+      registeredDate: String(r[6] || ""),
+      birthdate: String(r[7] || "1995.01.01"),
+      baptismStatus: String(r[8] || "원입"),
+      smallGroup: String(r[9] || ""),
+      accountRole: String(r[10] || "member"),
+      accountStatus: String(r[11] || "active"),
+      memo: String(r[12] || ""),
+      currentReadingRound: 0,
+      targetRounds: 12,
+      currentBook: "창세기",
+      currentChapter: 1,
+      totalReadChapters: 0,
+      recordingsCount: 0,
+      lastActive: "방금",
+      status: "active",
+      consecutiveDays: 1,
+      featuredCount: 0
+    };
+  }
+
+  // 2. [회원_낭독진도] 시트 데이터 오버레이
+  for (var j = 1; j < memberRows.length; j++) {
+    var m = memberRows[j];
+    var mId = String(m[0] || "");
+    var mName = String(m[1] || "");
+    var mEmail = String(m[5] || "");
+    var mKey = (mEmail || mId || mName).toLowerCase().trim();
+    if (!mKey) continue;
+
+    if (!membersMap[mKey]) {
+      membersMap[mKey] = {
+        id: mId || ("M-" + j),
+        name: mName,
+        department: String(m[2] || "다이나믹팀"),
+        role: String(m[3] || "성도"),
+        phone: String(m[4] || "010-미등록"),
+        email: mEmail,
+        registeredDate: "",
+        birthdate: "1995.01.01",
+        baptismStatus: "원입",
+        smallGroup: "",
+        accountRole: "member",
+        accountStatus: "active",
+        memo: String(m[14] || ""),
+        targetRounds: 12,
+        featuredCount: 0
+      };
+    }
+
+    var obj = membersMap[mKey];
+    obj.currentReadingRound = Number(m[6]) || 0;
+    obj.currentBook = String(m[7] || obj.currentBook || "창세기");
+    obj.currentChapter = Number(m[8]) || obj.currentChapter || 1;
+    obj.totalReadChapters = Number(m[9]) || obj.totalReadChapters || 0;
+    obj.recordingsCount = Number(m[10]) || obj.recordingsCount || 0;
+    obj.lastActive = String(m[11] || obj.lastActive || "방금");
+    obj.status = String(m[12] || "active");
+    obj.consecutiveDays = Number(m[13]) || 1;
+  }
+
+  var membersList = [];
+  for (var k in membersMap) {
+    if (membersMap.hasOwnProperty(k)) {
+      membersList.push(membersMap[k]);
+    }
+  }
+
   return ContentService.createTextOutput(JSON.stringify({
     status: "success",
+    members: membersList,
     rosterCount: rosterRows.length > 0 ? rosterRows.length - 1 : 0,
     memberProgressCount: memberRows.length > 0 ? memberRows.length - 1 : 0,
     adminEmail: "${adminEmail}",

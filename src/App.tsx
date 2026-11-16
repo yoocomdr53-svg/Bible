@@ -10,6 +10,10 @@ import { AudioRecordingModal } from './components/AudioRecordingModal';
 import { AppInstallModal } from './components/AppInstallModal';
 import { initAutoUpdateService } from './services/updateService';
 import {
+  initGoogleSheetConfigFromServer,
+  pullMembersFromGoogleSheet,
+} from './services/googleSheetsSync';
+import {
   getActiveSession,
   saveActiveSession,
   clearActiveSession,
@@ -121,6 +125,19 @@ export default function App() {
       setUpdatingVersion(newVer);
     });
     return cleanup;
+  }, []);
+
+  // Synchronize Google Sheet config & cloud member roster across PC, Tablet, and Mobile
+  useEffect(() => {
+    initGoogleSheetConfigFromServer();
+    pullMembersFromGoogleSheet();
+
+    // Auto-refresh when user returns to window / tab
+    const handleFocus = () => {
+      pullMembersFromGoogleSheet();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   // User session state
