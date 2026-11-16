@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 1.9';
+export const APP_VERSION = 'Ver 2.0';
 export const APP_BUILD_DATE = '2026.11.16';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,17 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 2.0',
+    name: 'SuperBible',
+    releaseDate: '2026.11.16',
+    changes: [
+      '구글 스프레드시트 회원관리 행 삭제 실시간 동기화: 회원 삭제 시 구글 시트([회원관리] 및 [회원_낭독진도])에서 해당 행이 즉시 완전 삭제되도록 Apps Script Code.gs 및 중앙 허브 연동 엔진 고도화',
+      '구글 시트 UI 대대적 개편: 불필요한 스프레드시트 주소 입력창 제거, 언제 어디서나 원클릭으로 구글 시트를 여는 [📊 시트 보기 ↗] 전용 버튼 탑재',
+      '앱 실행 시 사이트 주소를 반복 입력할 필요가 없도록 클라우드 서버-로컬 영구 자동 보존 및 설정창 접이식(Accordion) UI 적용',
+      '스마트폰·태블릿·PC 멀티 디바이스 간 회원 삭제 및 신규 가입 100% 동일 실시간 동기화 완성',
+    ],
+  },
   {
     version: 'Ver 1.9',
     name: 'SuperBible',

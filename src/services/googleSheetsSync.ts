@@ -871,10 +871,12 @@ export async function syncBidirectionalWithGoogleSheets(
           adminEmail: config.adminEmail,
           sheetId: config.sheetId,
           timestamp: new Date().toISOString(),
+          deletedList,
           data: {
             members: mergedMembers,
             recordings,
             campaigns,
+            deletedList,
           },
         }),
         mode: 'no-cors',
@@ -1027,6 +1029,65 @@ function doPost(e) {
 
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     setupSuperBibleSheets(); // 시트 없을 시 자동 생성 보장
+
+    // 0. 회원 영구 삭제 실시간 반영 (회원관리 및 회원_낭독진도 시트에서 행 완전 삭제)
+    if (data.action === "deleteMember") {
+      var rosterSheet = ss.getSheetByName("회원관리");
+      var memberSheet = ss.getSheetByName("회원_낭독진도");
+      var logSheet = ss.getSheetByName("실시간_동기화로그");
+      var delEmail = (data.email || "").toLowerCase().trim();
+      var delName = (data.name || "").toLowerCase().trim();
+      var delId = (data.memberId || data.id || "").toLowerCase().trim();
+      var nowStr = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy.MM.dd HH:mm:ss");
+
+      var rowsDeleted = 0;
+
+      // 1) [회원관리] 시트에서 삭제 (아래 행부터 역순으로 삭제)
+      if (rosterSheet) {
+        var rData = rosterSheet.getDataRange().getValues();
+        for (var ri = rData.length - 1; ri >= 1; ri--) {
+          var rId = String(rData[ri][0] || "").toLowerCase().trim();
+          var rName = String(rData[ri][1] || "").toLowerCase().trim();
+          var rEmail = String(rData[ri][5] || "").toLowerCase().trim();
+          if ((delId && rId === delId) || (delEmail && rEmail === delEmail) || (delName && rName === delName)) {
+            rosterSheet.deleteRow(ri + 1);
+            rowsDeleted++;
+          }
+        }
+      }
+
+      // 2) [회원_낭독진도] 시트에서 삭제 (아래 행부터 역순으로 삭제)
+      if (memberSheet) {
+        var mData = memberSheet.getDataRange().getValues();
+        for (var mi = mData.length - 1; mi >= 1; mi--) {
+          var mId = String(mData[mi][0] || "").toLowerCase().trim();
+          var mName = String(mData[mi][1] || "").toLowerCase().trim();
+          var mEmail = String(mData[mi][5] || "").toLowerCase().trim();
+          if ((delId && mId === delId) || (delEmail && delEmail && mEmail === delEmail) || (delName && mName === delName)) {
+            memberSheet.deleteRow(mi + 1);
+            rowsDeleted++;
+          }
+        }
+      }
+
+      // [실시간_동기화로그] 시트 추가
+      if (logSheet) {
+        logSheet.appendRow([
+          "LOG-" + new Date().getTime(),
+          nowStr,
+          "회원 삭제 동기화",
+          "회원 영구삭제 완료: " + (data.name || "") + " (" + (data.email || data.memberId || "") + ")",
+          rowsDeleted
+        ]);
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        message: "회원이 [회원관리] 및 [회원_낭독진도] 시트에서 완전히 영구 삭제되었습니다. (삭제 행 수: " + rowsDeleted + ")",
+        rowsDeleted: rowsDeleted,
+        timestamp: nowStr
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
 
     // 1. 회원가입 실시간 저장 (중복 행 방지 및 스마트 등록)
     if (data.action === "registerMember") {
@@ -1372,9 +1433,43 @@ function doPost(e) {
     if (data.action === "sync") {
       var incomingMembers = (data.data && data.data.members) ? data.data.members : (data.members || []);
       var recordings = (data.data && data.data.recordings) ? data.data.recordings : [];
+      var deletedList = data.deletedList || (data.data && data.data.deletedList) || [];
       var rosterSheet = ss.getSheetByName("회원관리");
       var memberSheet = ss.getSheetByName("회원_낭독진도");
       var logSheet = ss.getSheetByName("실시간_동기화로그");
+
+      // 4-0. 삭제 대기 목록(deletedList)에 포함된 회원을 구글 시트에서 먼저 완전 삭제
+      if (deletedList && deletedList.length > 0) {
+        var delMap = {};
+        for (var d = 0; d < deletedList.length; d++) {
+          var dk = String(deletedList[d] || "").toLowerCase().trim();
+          if (dk) delMap[dk] = true;
+        }
+
+        if (rosterSheet) {
+          var rInitData = rosterSheet.getDataRange().getValues();
+          for (var ri = rInitData.length - 1; ri >= 1; ri--) {
+            var rId = String(rInitData[ri][0] || "").toLowerCase().trim();
+            var rName = String(rInitData[ri][1] || "").toLowerCase().trim();
+            var rEmail = String(rInitData[ri][5] || "").toLowerCase().trim();
+            if (delMap[rId] || delMap[rName] || delMap[rEmail]) {
+              rosterSheet.deleteRow(ri + 1);
+            }
+          }
+        }
+
+        if (memberSheet) {
+          var mInitData = memberSheet.getDataRange().getValues();
+          for (var mi = mInitData.length - 1; mi >= 1; mi--) {
+            var mId = String(mInitData[mi][0] || "").toLowerCase().trim();
+            var mName = String(mInitData[mi][1] || "").toLowerCase().trim();
+            var mEmail = String(mInitData[mi][5] || "").toLowerCase().trim();
+            if (delMap[mId] || delMap[mName] || delMap[mEmail]) {
+              memberSheet.deleteRow(mi + 1);
+            }
+          }
+        }
+      }
 
       var rValues = rosterSheet ? rosterSheet.getDataRange().getValues() : [];
       var mValues = memberSheet ? memberSheet.getDataRange().getValues() : [];

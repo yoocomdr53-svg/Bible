@@ -11,6 +11,7 @@ import {
   syncMemberRegistrationToGoogleSheet,
   syncProgressToGoogleSheet,
   syncRecordingToGoogleSheet,
+  sendPayloadToGoogleScript,
 } from './googleSheetsSync';
 
 export const SESSION_KEY = 'superbible_auth_session_v3';
@@ -149,20 +150,17 @@ export async function deleteMemberCompletely(
       window.dispatchEvent(new CustomEvent('superbible_members_changed'));
     }
 
-    // 5. Notify central sync hub and Google Sheets
+    // 5. Notify central sync hub and Google Sheets (실시간 양방향 영구 삭제)
     try {
-      await fetch('/api/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'deleteMember',
-          memberId,
-          email: memberEmail,
-          name: memberName,
-        }),
+      await sendPayloadToGoogleScript({
+        action: 'deleteMember',
+        memberId,
+        email: memberEmail,
+        name: memberName,
+        id: memberId,
       });
     } catch (e) {
-      console.warn('Failed to notify server of deletion:', e);
+      console.warn('Failed to notify server/Google Sheets of deletion:', e);
     }
 
     return {

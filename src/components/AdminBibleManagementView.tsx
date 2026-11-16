@@ -152,6 +152,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
   const [isSyncing, setIsSyncing] = useState(false);
   const [copiedScript, setCopiedScript] = useState(false);
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
+  const [showSheetSettings, setShowSheetSettings] = useState(false);
 
   // Members state (회원가입한 실제 회원 데이터들로만 관리)
   const [members, setMembers] = useState<MemberReadingProfile[]>(() => getOrSyncAdminMembers());
@@ -826,8 +827,17 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
             type="button"
+            onClick={() => window.open(sheetConfig.sheetUrl || 'https://docs.google.com/spreadsheets/d/1yoocomdr57_SuperBible_MasterRoster_2026/edit', '_blank')}
+            className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white text-xs font-black rounded-xl flex items-center gap-1.5 shadow-sm transition cursor-pointer whitespace-nowrap"
+            title="yoocomdr57 구글 스프레드시트 바로 열기 (새 탭)"
+          >
+            <span>📊</span>
+            <span>시트 보기 ↗</span>
+          </button>
+          <button
+            type="button"
             onClick={handleExportCSV}
-            className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-black rounded-xl flex items-center gap-1.5 shadow-sm transition cursor-pointer whitespace-nowrap"
+            className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-slate-700 hover:bg-slate-600 active:scale-95 text-white text-xs font-black rounded-xl flex items-center gap-1.5 shadow-sm transition cursor-pointer whitespace-nowrap"
             title="회원 진도표 및 명부 엑셀(CSV) 다운로드"
           >
             <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white stroke-[2.5]" />
@@ -2042,117 +2052,137 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
               </div>
             </div>
 
-            {/* 1.5. Web App URL & Google Spreadsheet URL Input Card */}
+            {/* 1.5. Google Spreadsheet Direct Access & Integration Hub (사이트 입력 없이 원클릭 시트 열기) */}
             <div className="bg-white rounded-3xl p-4 sm:p-5 border-2 border-emerald-500/50 shadow-md space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-xl shadow-xs flex-shrink-0">
-                    🔗
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-2xl shadow-xs flex-shrink-0">
+                    📊
                   </div>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="text-base font-black text-slate-900 tracking-tight">
-                        구글 스프레드시트 및 실시간 웹 앱 연동 설정
+                        구글 스프레드시트 회원관리
                       </h4>
                       {sheetConfig.scriptUrl ? (
                         <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
                           <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
-                          실시간 연동 가동중
+                          실시간 양방향 연동 활성
                         </span>
                       ) : (
                         <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                          ⚠️ Web App URL 등록 대기
+                          ⚠️ Web App 연동 필요
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      스프레드시트 주소와 Apps Script 배포 URL을 저장하면 모든 기기(스마트폰·태블릿·PC)에 즉시 공유되며 실시간 반영됩니다.
+                    <p className="text-xs text-slate-600 mt-0.5 font-medium">
+                      로고스 수퍼바이블 마스터 명부 · {sheetConfig.adminEmail}
                     </p>
                   </div>
                 </div>
 
-                {pendingQueue.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                  {/* One-Click Direct Open Sheet Button */}
                   <button
                     type="button"
-                    onClick={handleFlushPendingQueue}
-                    disabled={isFlushingQueue}
-                    className="px-3.5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-black shadow-md flex items-center gap-1.5 cursor-pointer flex-shrink-0"
+                    onClick={() => window.open(sheetConfig.sheetUrl || 'https://docs.google.com/spreadsheets/d/1yoocomdr57_SuperBible_MasterRoster_2026/edit', '_blank')}
+                    className="flex-1 sm:flex-none px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-sm shadow-md transition cursor-pointer flex items-center justify-center gap-2"
+                    title="새 창에서 구글 스프레드시트 열기"
                   >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isFlushingQueue ? 'animate-spin' : ''}`} />
-                    <span>대기열 {pendingQueue.length}건 지금 전송</span>
+                    <span>📊</span>
+                    <span>시트 보기 ↗</span>
                   </button>
-                )}
-              </div>
 
-              {/* 1) Google Spreadsheet Document URL Input */}
-              <div className="space-y-1.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-black text-slate-700 flex items-center gap-1.5">
-                    <span>📊 1. 구글 스프레드시트 문서 주소 (Google Sheet URL)</span>
-                  </label>
-                  {sheetUrlInput && (
-                    <a
-                      href={sheetUrlInput}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[11px] font-bold text-emerald-700 hover:underline flex items-center gap-1"
-                    >
-                      <span>새 탭에서 시트 열기 ↗</span>
-                    </a>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    value={sheetUrlInput}
-                    onChange={(e) => setSheetUrlInput(e.target.value)}
-                    placeholder="https://docs.google.com/spreadsheets/d/1yoocomdr57.../edit (구글 시트 브라우저 주소)"
-                    className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono bg-white"
-                  />
-                  {sheetUrlInput && (
+                  <button
+                    type="button"
+                    onClick={handleTriggerSheetSync}
+                    disabled={isSyncing}
+                    className="flex-1 sm:flex-none px-4 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-black text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
+                    title="구글 시트와 지금 즉시 양방향 동기화"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                    <span>지금 동기화</span>
+                  </button>
+
+                  {pendingQueue.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => window.open(sheetUrlInput, '_blank')}
-                      className="px-3 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold transition cursor-pointer flex-shrink-0"
+                      onClick={handleFlushPendingQueue}
+                      disabled={isFlushingQueue}
+                      className="px-3 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-black shadow-md flex items-center justify-center gap-1 cursor-pointer flex-shrink-0"
+                      title="대기열 즉시 전송"
                     >
-                      시트 보기
+                      <RefreshCw className={`w-3 h-3 ${isFlushingQueue ? 'animate-spin' : ''}`} />
+                      <span>대기열 ({pendingQueue.length})</span>
                     </button>
                   )}
                 </div>
               </div>
 
-              {/* 2) Google Apps Script Web App Exec URL Input */}
-              <div className="space-y-1.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
-                <label className="text-xs font-black text-slate-700 flex items-center gap-1.5">
-                  <span>⚡ 2. Google Apps Script 웹 앱 배포 URL (실시간 API 주소)</span>
-                </label>
-                <input
-                  type="url"
-                  value={scriptUrlInput}
-                  onChange={(e) => setScriptUrlInput(e.target.value)}
-                  placeholder="https://script.google.com/macros/s/AKfycb.../exec (Apps Script 웹 앱 URL)"
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono bg-white"
-                />
-              </div>
-
-              {/* Combined Save Button */}
-              <div className="flex justify-end pt-1">
-                <button
-                  type="button"
-                  onClick={handleSaveGoogleSheetUrls}
-                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black shadow-md transition cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>💾 구글 스프레드시트 & Apps Script URL 전체 저장 (모든 기기 실시간 공유)</span>
-                </button>
-              </div>
-
               {sheetConfig.lastSyncMessage && (
-                <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-200/80 text-[11px] text-emerald-900 flex items-center gap-2">
-                  <span className="font-bold text-emerald-800">상태:</span>
-                  <span>{sheetConfig.lastSyncMessage}</span>
+                <div className="p-2.5 bg-emerald-50/70 rounded-xl border border-emerald-200/80 text-[11px] text-emerald-900 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-emerald-800">동기화 상태:</span>
+                    <span>{sheetConfig.lastSyncMessage}</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-700 font-bold whitespace-nowrap">
+                    {sheetConfig.lastSynced || '최신'}
+                  </span>
                 </div>
               )}
+
+              {/* Collapsible Advanced Settings (URL 변경 및 신규 배포) */}
+              <div className="pt-1 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowSheetSettings((prev) => !prev)}
+                  className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition cursor-pointer py-1"
+                >
+                  <span className="text-[11px]">{showSheetSettings ? '▼' : '▶'}</span>
+                  <span>⚙️ 연동 상세 설정 {showSheetSettings ? '접기' : '열기'} (Google Apps Script URL / 시트 주소)</span>
+                </button>
+
+                {showSheetSettings && (
+                  <div className="mt-3 space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 animate-in fade-in duration-200">
+                    <div className="space-y-1">
+                      <label className="text-xs font-black text-slate-700 block">
+                        Google Apps Script 웹 앱 배포 URL (실시간 API 주소)
+                      </label>
+                      <input
+                        type="url"
+                        value={scriptUrlInput}
+                        onChange={(e) => setScriptUrlInput(e.target.value)}
+                        placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono bg-white"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-black text-slate-700 block">
+                        구글 스프레드시트 문서 주소 (선택 사항)
+                      </label>
+                      <input
+                        type="url"
+                        value={sheetUrlInput}
+                        onChange={(e) => setSheetUrlInput(e.target.value)}
+                        placeholder="https://docs.google.com/spreadsheets/d/1yoocomdr57_SuperBible_MasterRoster_2026/edit"
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono bg-white"
+                      />
+                    </div>
+
+                    <div className="flex justify-end pt-1">
+                      <button
+                        type="button"
+                        onClick={handleSaveGoogleSheetUrls}
+                        className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black shadow-md transition cursor-pointer flex items-center gap-2"
+                      >
+                        <Save className="w-4 h-4" />
+                        <span>설정 저장 (모든 기기 실시간 자동 공유)</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* 2. Google Apps Script One-Click Integration Setup (Placed Prominently at Top) */}

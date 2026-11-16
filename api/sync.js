@@ -227,15 +227,21 @@ export default async function handler(req, res) {
       });
       globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
 
-      // Forward deletion to Google Apps Script if URL is present
+      // Forward deletion to Google Apps Script if URL is present (await to prevent serverless freeze)
       if (targetScriptUrl && targetScriptUrl.startsWith('http')) {
         try {
-          fetch(targetScriptUrl, {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 9000);
+          await fetch(targetScriptUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(body)
-          }).catch(() => {});
-        } catch (e) {}
+            body: JSON.stringify(body),
+            signal: controller.signal
+          });
+          clearTimeout(timeout);
+        } catch (gasDelErr) {
+          console.warn('[SyncHub] Failed to forward delete to Google Apps Script:', gasDelErr.message);
+        }
       }
 
       res.status(200).json({
