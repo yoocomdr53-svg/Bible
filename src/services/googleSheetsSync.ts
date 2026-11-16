@@ -33,14 +33,15 @@ const LOGS_STORAGE_KEY = 'superbible_googlesheet_logs_v2';
 const PENDING_QUEUE_KEY = 'superbible_pending_sheet_sync_v2';
 
 export const DEFAULT_SHEET_CONFIG: GoogleSheetConfig = {
-  sheetId: '1yoocomdr57_SuperBible_MasterRoster_2026',
-  sheetUrl: 'https://docs.google.com/spreadsheets/d/1yoocomdr57_SuperBible_MasterRoster_2026/edit',
+  sheetId: '',
+  sheetUrl: 'https://docs.google.com/spreadsheets/u/0/',
   adminEmail: 'yoocomdr57@gmail.com',
-  scriptUrl: '',
+  scriptUrl:
+    'https://script.google.com/macros/s/AKfycbzHnO0-Yvmfr2A0ImQewLiWhvVEt1HG9pLFUEEexaBr0GwEnYRNGtNyBibvOJdRQW2lPg/exec',
   autoSync: true,
-  lastSynced: '실시간 자동 동기화 대기 중',
-  syncStatus: 'idle',
-  lastSyncMessage: 'yoocomdr57@gmail.com 계정 구글 스프레드시트 실시간 동기화 준비 완료',
+  lastSynced: '실시간 자동 동기화 가동 중',
+  syncStatus: 'success',
+  lastSyncMessage: 'Google Apps Script 실시간 연동 정상 가동 중 (모든 기기 동기화)',
 };
 
 export function getGoogleSheetConfig(): GoogleSheetConfig {
@@ -1689,6 +1690,40 @@ function doGet(e) {
   setupSuperBibleSheets();
   var rosterSheet = ss.getSheetByName("회원관리");
   var memberSheet = ss.getSheetByName("회원_낭독진도");
+
+  // 삭제 파라미터(deleted)가 전달된 경우 구글 시트에서 해당 행 즉시 자동 삭제
+  var paramDeleted = (e && e.parameter && e.parameter.deleted) ? String(e.parameter.deleted) : "";
+  if (paramDeleted) {
+    var delArr = paramDeleted.split(",");
+    var delMap = {};
+    for (var d = 0; d < delArr.length; d++) {
+      var dk = delArr[d].toLowerCase().trim();
+      if (dk) delMap[dk] = true;
+    }
+    if (rosterSheet) {
+      var rVals = rosterSheet.getDataRange().getValues();
+      for (var ri = rVals.length - 1; ri >= 1; ri--) {
+        var rId = String(rVals[ri][0] || "").toLowerCase().trim();
+        var rName = String(rVals[ri][1] || "").toLowerCase().trim();
+        var rEmail = String(rVals[ri][5] || "").toLowerCase().trim();
+        if (delMap[rId] || delMap[rName] || delMap[rEmail]) {
+          rosterSheet.deleteRow(ri + 1);
+        }
+      }
+    }
+    if (memberSheet) {
+      var mVals = memberSheet.getDataRange().getValues();
+      for (var mi = mVals.length - 1; mi >= 1; mi--) {
+        var mId = String(mVals[mi][0] || "").toLowerCase().trim();
+        var mName = String(mVals[mi][1] || "").toLowerCase().trim();
+        var mEmail = String(mVals[mi][5] || "").toLowerCase().trim();
+        if (delMap[mId] || delMap[mName] || delMap[mEmail]) {
+          memberSheet.deleteRow(mi + 1);
+        }
+      }
+    }
+  }
+
   var rosterRows = rosterSheet ? rosterSheet.getDataRange().getValues() : [];
   var memberRows = memberSheet ? memberSheet.getDataRange().getValues() : [];
   

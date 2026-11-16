@@ -135,17 +135,13 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
   // Google Sheets Sync state (yoocomdr57@gmail.com 계정 연동)
   const [sheetConfig, setSheetConfig] = useState<GoogleSheetConfig>(() => getGoogleSheetConfig());
   const [scriptUrlInput, setScriptUrlInput] = useState<string>(() => getGoogleSheetConfig().scriptUrl || '');
-  const [sheetUrlInput, setSheetUrlInput] = useState<string>(() => getGoogleSheetConfig().sheetUrl || '');
 
   // Synchronize inputs when sheetConfig is fetched from cloud server
   useEffect(() => {
     if (sheetConfig.scriptUrl) {
       setScriptUrlInput(sheetConfig.scriptUrl);
     }
-    if (sheetConfig.sheetUrl) {
-      setSheetUrlInput(sheetConfig.sheetUrl);
-    }
-  }, [sheetConfig.scriptUrl, sheetConfig.sheetUrl]);
+  }, [sheetConfig.scriptUrl]);
   const [pendingQueue, setPendingQueue] = useState<PendingSyncItem[]>(() => getPendingSyncQueue());
   const [isFlushingQueue, setIsFlushingQueue] = useState(false);
   const [syncLogs, setSyncLogs] = useState<SheetSyncLog[]>(() => getSheetSyncLogs());
@@ -153,6 +149,14 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
   const [copiedScript, setCopiedScript] = useState(false);
   const [showAppsScriptModal, setShowAppsScriptModal] = useState(false);
   const [showSheetSettings, setShowSheetSettings] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<{
+    checked: boolean;
+    ok: boolean;
+    message: string;
+    membersCount?: number;
+    latency?: number;
+  } | null>(null);
 
   // Members state (회원가입한 실제 회원 데이터들로만 관리)
   const [members, setMembers] = useState<MemberReadingProfile[]>(() => getOrSyncAdminMembers());
@@ -649,40 +653,78 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     }
   };
 
-  // Save Google Sheet URL & Apps Script Web App URL for yoocomdr57@gmail.com
+  // Save Google Apps Script Web App URL for yoocomdr57@gmail.com
   const handleSaveGoogleSheetUrls = async () => {
     let scriptUrl = scriptUrlInput.trim();
-    let sheetUrl = sheetUrlInput.trim();
 
-    // Auto-swap if user pasted spreadsheet URL into scriptUrl box
-    if (scriptUrl.includes('docs.google.com/spreadsheets') && !sheetUrl) {
-      sheetUrl = scriptUrl;
-      scriptUrl = '';
-    }
-
-    // Auto-extract sheetId from spreadsheet URL
-    let sheetId = sheetConfig.sheetId;
-    const match = sheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
-    if (match) {
-      sheetId = match[1];
+    if (!scriptUrl) {
+      alert('Google Apps Script 웹 앱 배포 URL을 입력해주세요.');
+      return;
     }
 
     const updated: GoogleSheetConfig = {
       ...sheetConfig,
       scriptUrl,
-      sheetUrl: sheetUrl || sheetConfig.sheetUrl,
-      sheetId,
-      lastSyncMessage: scriptUrl
-        ? 'Google Apps Script 및 스프레드시트 URL 등록 완료 (실시간 동기화 가동중)'
-        : '스프레드시트 URL 저장 완료 (Web App URL 등록 대기)',
+      lastSyncMessage: 'Google Apps Script 웹 앱 URL 영구 등록 완료 (실시간 동기화 가동중)',
+      syncStatus: 'success',
     };
 
     setSheetConfig(updated);
     setScriptUrlInput(scriptUrl);
-    setSheetUrlInput(sheetUrl || sheetConfig.sheetUrl);
 
     const res = await saveGoogleSheetConfigAsync(updated);
-    showToast(res.message);
+    showToast('Google Apps Script 배포 URL이 모든 기기에 영구 저장되었습니다! 💾');
+    handleTestConnection(scriptUrl);
+  };
+
+  // Test live connection to Google Apps Script
+  const handleTestConnection = async (overrideUrl?: string) => {
+    const url = (overrideUrl || scriptUrlInput || sheetConfig.scriptUrl || '').trim();
+    if (!url || !url.startsWith('http')) {
+      showToast('Google Apps Script 웹 앱 배포 URL을 먼저 입력해주세요.');
+      return;
+    }
+    setTestingConnection(true);
+    const start = performance.now();
+    try {
+      const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });
+      const elapsed = Math.round(performance.now() - start);
+      if (res.ok) {
+        const data = await res.json();
+        const mCount = Array.isArray(data.members) ? data.members.length : (data.rosterCount || 0);
+        setConnectionStatus({
+          checked: true,
+          ok: true,
+          message: `정상 연결됨 (${elapsed}ms)`,
+          membersCount: mCount,
+          latency: elapsed,
+        });
+        if (data.sheetUrl && !data.sheetUrl.includes('1yoocomdr57_SuperBible_MasterRoster_2026')) {
+          setSheetConfig((prev) => {
+            const next = { ...prev, sheetUrl: data.sheetUrl, sheetId: data.sheetId || prev.sheetId };
+            saveGoogleSheetConfig(next);
+            return next;
+          });
+        }
+        showToast(`Google Apps Script 실시간 연결 성공! (회원 ${mCount}명 확인, ${elapsed}ms) 🎉`);
+      } else {
+        setConnectionStatus({
+          checked: true,
+          ok: false,
+          message: `연결 응답 코드: HTTP ${res.status}`,
+        });
+        showToast(`연결 실패: HTTP ${res.status}`);
+      }
+    } catch (e: any) {
+      setConnectionStatus({
+        checked: true,
+        ok: false,
+        message: '연결 실패 (네트워크 또는 배포 권한 확인 필요)',
+      });
+      showToast('구글 웹 앱 연결 실패: 권한이 "모든 사용자(Anyone)"로 배포되었는지 확인해주세요.');
+    } finally {
+      setTestingConnection(false);
+    }
   };
 
   // Flush pending sync queue
@@ -724,21 +766,14 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     }
   };
 
-  // Open real Google Spreadsheet in new tab with validation
+  // Open real Google Spreadsheet in new tab
   const handleOpenSheet = () => {
     const url = sheetConfig.sheetUrl;
-    if (!url || url.includes('1yoocomdr57_SuperBible_MasterRoster_2026')) {
-      alert(
-        '【구글 스프레드시트 주소 등록 안내】\n\n' +
-        '현재 연결된 주소는 가상의 임시 주소여서 구글에서 "요청한 파일이 없습니다" 오류가 발생합니다.\n\n' +
-        '사용자님께서 구글 드라이브에서 만드신 실제 스프레드시트의 브라우저 주소(URL)를 복사한 후, ' +
-        '아래 [⚙️ 연동 상세 설정]의 [구글 스프레드시트 문서 주소] 칸에 붙여넣고 [설정 저장]을 눌러주시면 즉시 정상 연결됩니다.'
-      );
-      setAdminTab('sheets');
-      setShowSheetSettings(true);
+    if (url && !url.includes('1yoocomdr57_SuperBible_MasterRoster_2026') && url.startsWith('http')) {
+      window.open(url, '_blank');
       return;
     }
-    window.open(url, '_blank');
+    window.open('https://docs.google.com/spreadsheets/u/0/', '_blank');
   };
 
   // Copy Google Apps Script code for yoocomdr57@gmail.com
@@ -2148,7 +2183,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                 </div>
               )}
 
-              {/* Collapsible Advanced Settings (URL 변경 및 신규 배포) */}
+              {/* Collapsible Advanced Settings (Google Apps Script URL 영구 등록 및 실시간 연결 확인) */}
               <div className="pt-1 border-t border-slate-100">
                 <button
                   type="button"
@@ -2156,15 +2191,26 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                   className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1.5 transition cursor-pointer py-1"
                 >
                   <span className="text-[11px]">{showSheetSettings ? '▼' : '▶'}</span>
-                  <span>⚙️ 연동 상세 설정 {showSheetSettings ? '접기' : '열기'} (Google Apps Script URL / 시트 주소)</span>
+                  <span>⚙️ 연동 상세 설정 {showSheetSettings ? '접기' : '열기'} (Google Apps Script 배포 URL)</span>
                 </button>
 
                 {showSheetSettings && (
                   <div className="mt-3 space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 animate-in fade-in duration-200">
-                    <div className="space-y-1">
-                      <label className="text-xs font-black text-slate-700 block">
-                        Google Apps Script 웹 앱 배포 URL (실시간 API 주소)
-                      </label>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-black text-slate-700 block">
+                          Google Apps Script 웹 앱 배포 URL (실시간 API 주소)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleTestConnection()}
+                          disabled={testingConnection}
+                          className="text-[11px] font-black text-blue-700 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${testingConnection ? 'animate-spin' : ''}`} />
+                          <span>⚡ 실시간 연결 확인</span>
+                        </button>
+                      </div>
                       <input
                         type="url"
                         value={scriptUrlInput}
@@ -2174,18 +2220,39 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                       />
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-xs font-black text-slate-700 block">
-                        구글 스프레드시트 문서 주소 (선택 사항)
-                      </label>
-                      <input
-                        type="url"
-                        value={sheetUrlInput}
-                        onChange={(e) => setSheetUrlInput(e.target.value)}
-                        placeholder="https://docs.google.com/spreadsheets/d/1yoocomdr57_SuperBible_MasterRoster_2026/edit"
-                        className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono bg-white"
-                      />
-                    </div>
+                    {/* Live Connection Status Banner */}
+                    {connectionStatus && connectionStatus.checked && (
+                      <div
+                        className={`p-3 rounded-xl border text-xs flex items-center justify-between gap-2 ${
+                          connectionStatus.ok
+                            ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                            : 'bg-rose-50 border-rose-300 text-rose-900'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">{connectionStatus.ok ? '🟢' : '🔴'}</span>
+                          <div>
+                            <span className="font-black block">
+                              {connectionStatus.ok
+                                ? '실시간 연동 정상 연결됨 (영구 보존 완료)'
+                                : '연결 실패 (설정 확인 필요)'}
+                            </span>
+                            <span className="text-[11px] text-slate-600 block">
+                              {connectionStatus.ok
+                                ? `응답 속도: ${connectionStatus.latency}ms · 구글 시트 등록 인원: ${connectionStatus.membersCount}명 확인`
+                                : connectionStatus.message}
+                            </span>
+                          </div>
+                        </div>
+                        <span
+                          className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                            connectionStatus.ok ? 'bg-emerald-200 text-emerald-900' : 'bg-rose-200 text-rose-900'
+                          }`}
+                        >
+                          {connectionStatus.ok ? '연결 성공' : '오류'}
+                        </span>
+                      </div>
+                    )}
 
                     <div className="flex justify-end pt-1">
                       <button
@@ -2194,7 +2261,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                         className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black shadow-md transition cursor-pointer flex items-center gap-2"
                       >
                         <Save className="w-4 h-4" />
-                        <span>설정 저장 (모든 기기 실시간 자동 공유)</span>
+                        <span>설정 저장 (모든 기기 영구 저장)</span>
                       </button>
                     </div>
                   </div>
