@@ -180,15 +180,15 @@ export default async function handler(req, res) {
 
     // Action: Set / Save Google Apps Script & Sheet URL globally for all devices
     if (action === 'setConfig' || action === 'setScriptUrl') {
-      if (body.scriptUrl) {
+      if (body.scriptUrl !== undefined) {
         serverCachedScriptUrl = body.scriptUrl;
         globalThis.__SUPERBIBLE_SCRIPT_URL__ = serverCachedScriptUrl;
       }
-      if (body.sheetUrl) {
+      if (body.sheetUrl !== undefined) {
         serverCachedSheetUrl = body.sheetUrl;
         globalThis.__SUPERBIBLE_SHEET_URL__ = serverCachedSheetUrl;
       }
-      if (body.sheetId) {
+      if (body.sheetId !== undefined) {
         serverCachedSheetId = body.sheetId;
         globalThis.__SUPERBIBLE_SHEET_ID__ = serverCachedSheetId;
       }
