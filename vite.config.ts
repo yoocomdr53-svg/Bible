@@ -1,9 +1,38 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
 import path from 'path';
 import { defineConfig, Plugin } from 'vite';
 // @ts-ignore
 import bibleHandler from './api/bible.js';
+
+function syncVersionPlugin(): Plugin {
+  return {
+    name: 'sync-version-plugin',
+    buildStart() {
+      try {
+        const verPath = path.resolve(__dirname, 'src/version.ts');
+        if (fs.existsSync(verPath)) {
+          const verContent = fs.readFileSync(verPath, 'utf-8');
+          const verMatch = verContent.match(/APP_VERSION\s*=\s*['"]([^'"]+)['"]/);
+          const buildDateMatch = verContent.match(/APP_BUILD_DATE\s*=\s*['"]([^'"]+)['"]/);
+          const version = verMatch ? verMatch[1] : 'Ver 2.1';
+          const buildDate = buildDateMatch ? buildDateMatch[1] : '2026.11.16';
+          const versionJson = {
+            name: 'SuperBible',
+            version,
+            buildDate,
+            timestamp: Date.now(),
+          };
+          const pubJsonPath = path.resolve(__dirname, 'public/version.json');
+          fs.writeFileSync(pubJsonPath, JSON.stringify(versionJson, null, 2), 'utf-8');
+        }
+      } catch (e) {
+        console.error('Failed to sync version.json:', e);
+      }
+    },
+  };
+}
 
 function bibleApiPlugin(): Plugin {
   return {
@@ -38,7 +67,7 @@ function bibleApiPlugin(): Plugin {
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss(), bibleApiPlugin()],
+    plugins: [react(), tailwindcss(), bibleApiPlugin(), syncVersionPlugin()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

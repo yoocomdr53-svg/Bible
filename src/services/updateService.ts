@@ -10,13 +10,52 @@ export interface UpdateCheckResult {
   currentVersion: string;
 }
 
+const UPDATE_GUARD_TIME_KEY = 'superbible_last_reload_time';
+const UPDATE_GUARD_VER_KEY = 'superbible_last_reload_ver';
 let isUpdating = false;
+
+/**
+ * Compare two version strings (e.g. "Ver 2.1" vs "Ver 2.0")
+ * Returns true ONLY if serverVersion is strictly higher than currentVersion
+ */
+export function isServerVersionNewer(serverVer: string, currentVer: string): boolean {
+  if (!serverVer || !currentVer) return false;
+  if (serverVer.trim().toLowerCase() === currentVer.trim().toLowerCase()) return false;
+
+  const parseNums = (v: string): number[] => {
+    const cleaned = v.replace(/[^0-9.]/g, '');
+    return cleaned
+      .split('.')
+      .map((p) => parseInt(p, 10))
+      .filter((n) => !isNaN(n));
+  };
+
+  const s = parseNums(serverVer);
+  const c = parseNums(currentVer);
+
+  const maxLen = Math.max(s.length, c.length);
+  for (let i = 0; i < maxLen; i++) {
+    const sPart = s[i] || 0;
+    const cPart = c[i] || 0;
+    if (sPart > cPart) return true;
+    if (sPart < cPart) return false;
+  }
+  return false;
+}
 
 // Check server for newer version via version.json
 export async function checkForAppUpdate(): Promise<UpdateCheckResult> {
   if (typeof window === 'undefined') {
     return { hasUpdate: false, currentVersion: APP_VERSION };
   }
+
+  // Prevent reload loop: if an update reload was executed within 30 seconds, suppress check
+  try {
+    const lastTime = sessionStorage.getItem(UPDATE_GUARD_TIME_KEY);
+    if (lastTime && Date.now() - parseInt(lastTime, 10) < 30000) {
+      return { hasUpdate: false, currentVersion: APP_VERSION };
+    }
+  } catch (e) {}
 
   try {
     const res = await fetch(`/version.json?_t=${Date.now()}`, {
@@ -34,7 +73,8 @@ export async function checkForAppUpdate(): Promise<UpdateCheckResult> {
     const data = await res.json();
     const serverVer = data.version;
 
-    if (serverVer && serverVer !== APP_VERSION) {
+    // Strict greater-than check (never update to older or equal versions)
+    if (serverVer && isServerVersionNewer(serverVer, APP_VERSION)) {
       console.log(`[SuperBible Update] New version detected: ${serverVer} (Current: ${APP_VERSION})`);
       window.dispatchEvent(
         new CustomEvent('superbible_update_available', {
@@ -100,6 +140,11 @@ export async function applyAppUpdate(newVersion?: string): Promise<void> {
   } catch (e) {
     // continue to reload
   }
+
+  try {
+    sessionStorage.setItem(UPDATE_GUARD_TIME_KEY, String(Date.now()));
+    sessionStorage.setItem(UPDATE_GUARD_VER_KEY, newVersion || '');
+  } catch (e) {}
 
   setTimeout(() => {
     window.location.reload();
