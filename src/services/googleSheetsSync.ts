@@ -909,6 +909,9 @@ function doPost(e) {
     } catch (parseErr) {
       if (e.parameter) data = e.parameter;
     }
+    if (!data.action && e.parameter && e.parameter.action) {
+      data = e.parameter;
+    }
 
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     setupSuperBibleSheets(); // 시트 없을 시 자동 생성 보장
@@ -946,7 +949,7 @@ function doPost(e) {
           var mId = String(mData[mi][0] || "").toLowerCase().trim();
           var mName = String(mData[mi][1] || "").toLowerCase().trim();
           var mEmail = String(mData[mi][5] || "").toLowerCase().trim();
-          if ((delId && mId === delId) || (delEmail && delEmail && mEmail === delEmail) || (delName && mName === delName)) {
+          if ((delId && mId === delId) || (delEmail && mEmail === delEmail) || (delName && mName === delName)) {
             memberSheet.deleteRow(mi + 1);
             rowsDeleted++;
           }
@@ -1593,7 +1596,7 @@ function doGet(e) {
         var mId = String(mData[mi][0] || "").toLowerCase().trim();
         var mName = String(mData[mi][1] || "").toLowerCase().trim();
         var mEmail = String(mData[mi][5] || "").toLowerCase().trim();
-        if ((delId && mId === delId) || (delEmail && rEmail === delEmail) || (delName && mName === delName)) {
+        if ((delId && mId === delId) || (delEmail && mEmail === delEmail) || (delName && mName === delName)) {
           memberSheet.deleteRow(mi + 1);
         }
       }
