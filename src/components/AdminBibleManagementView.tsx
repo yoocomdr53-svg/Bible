@@ -570,7 +570,14 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
         `'${memberName}' 회원을 회원 명부에서 완전히 영구 삭제하시겠습니까?\n\n※ 명부, 계정, 구글 시트에서 흔적 없이 완전히 삭제되며 블랙리스트에 남지 않습니다.\n(삭제 후에도 필요 시 언제든 재가입 및 동기화가 가능합니다)`
       )
     ) {
-      setMembers((prev) => prev.filter((m) => m.id !== memberId && (!memberEmail || m.email !== memberEmail)));
+      setMembers((prev) =>
+        prev.filter(
+          (m) =>
+            m.id !== memberId &&
+            (!memberEmail || m.email !== memberEmail) &&
+            (!memberName || m.name !== memberName)
+        )
+      );
       const res = await deleteMemberCompletely(memberId, memberEmail, memberName);
       showToast(res.message);
     }

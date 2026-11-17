@@ -159,12 +159,14 @@ export function getDeletedRecords(): Record<string, number> {
   try {
     const raw = localStorage.getItem(DELETED_RECORDS_KEY);
     const records: Record<string, number> = raw ? JSON.parse(raw) : {};
-    // Sanitize: remove any sequential IDs or core protected names
+    // Sanitize: remove any sequential IDs or master admin account
     let cleaned = false;
     Object.keys(records).forEach((k) => {
       if (
         k.match(/^m-\d+$/i) ||
-        ['유천년', '유원희', '황희', '윤봉길', '로고스 관리자', 'yoocomdr57@gmail.com', 'yoocomdr@superbible.kr', 'yoocomdr55@gmail.com', 'yoocomdr58@gmail.com'].includes(k)
+        k === 'yoocomdr57@gmail.com' ||
+        k === '로고스 관리자' ||
+        k === '로고스관리자'
       ) {
         delete records[k];
         cleaned = true;
@@ -182,13 +184,21 @@ export function getDeletedRecords(): Record<string, number> {
 export function recordDeletion(memberId?: string, email?: string, name?: string, loginId?: string): Record<string, number> {
   const records = getDeletedRecords();
   const now = Date.now();
-  // ONLY record unique email and loginId as deletion tombstones! NEVER sequential IDs (M-01~M-99)!
+  // Record unique email and loginId
   [email, loginId].filter(Boolean).forEach((k) => {
     const clean = String(k).toLowerCase().trim();
-    if (clean && !clean.match(/^m-\d+$/i)) {
+    if (clean && !clean.match(/^m-\d+$/i) && clean !== 'yoocomdr57@gmail.com') {
       records[clean] = now;
     }
   });
+  // Also record member name if provided (allowing deletion of members without email)
+  if (name) {
+    const cleanName = String(name).toLowerCase().trim();
+    if (cleanName && cleanName !== '로고스 관리자' && cleanName !== '로고스관리자') {
+      records[cleanName] = now;
+      records[`name:${cleanName}`] = now;
+    }
+  }
   try {
     localStorage.setItem(DELETED_RECORDS_KEY, JSON.stringify(records));
   } catch {}
@@ -197,7 +207,7 @@ export function recordDeletion(memberId?: string, email?: string, name?: string,
 
 export function clearDeletion(email?: string, loginId?: string, name?: string, memberId?: string): Record<string, number> {
   const records = getDeletedRecords();
-  const keys = [email, loginId, name, memberId].filter(Boolean).map((k) => String(k).toLowerCase().trim());
+  const keys = [email, loginId, memberId].filter(Boolean).map((k) => String(k).toLowerCase().trim());
   let changed = false;
   keys.forEach((k) => {
     if (k && records[k]) {
@@ -205,6 +215,17 @@ export function clearDeletion(email?: string, loginId?: string, name?: string, m
       changed = true;
     }
   });
+  if (name) {
+    const cleanName = String(name).toLowerCase().trim();
+    if (records[cleanName]) {
+      delete records[cleanName];
+      changed = true;
+    }
+    if (records[`name:${cleanName}`]) {
+      delete records[`name:${cleanName}`];
+      changed = true;
+    }
+  }
   if (changed) {
     try {
       localStorage.setItem(DELETED_RECORDS_KEY, JSON.stringify(records));
@@ -223,14 +244,15 @@ export function isMemberDeleted(identifier: {
   const kEmail = (identifier.email || '').toLowerCase().trim();
   const kName = (identifier.name || '').trim();
   const kLogin = (identifier.loginId || '').toLowerCase().trim();
+  const nClean = kName.replace(/\s+/g, '');
 
-  // Test accounts that must ALWAYS be purged:
+  // 1. Test accounts that must ALWAYS be purged:
   if (
-    kName === '임시테스트' ||
-    kName === '신규 성도' ||
-    kName === 'E2E테스터' ||
-    kName === 'e2e테스터' ||
-    kName === '라이브테스트성도' ||
+    nClean.includes('임시테스트') ||
+    nClean.includes('신규성도') ||
+    nClean.includes('E2E테스터') ||
+    nClean.includes('e2e테스터') ||
+    nClean.includes('라이브테스트성도') ||
     kEmail === 'temp_delete_test@gmail.com' ||
     kEmail === 'e2e_tester@superbible.kr' ||
     kEmail === 'user_live_test@gmail.com'
@@ -238,27 +260,19 @@ export function isMemberDeleted(identifier: {
     return true;
   }
 
-  // Core real users can NEVER be deleted
-  if (
-    kEmail === 'yoocomdr57@gmail.com' ||
-    kEmail === 'yoocomdr@superbible.kr' ||
-    kEmail === 'yoocomdr55@gmail.com' ||
-    kEmail === 'yoocomdr58@gmail.com' ||
-    kEmail === 'realuser1@gmail.com' ||
-    kName === '유원희' ||
-    kName === '로고스 관리자' ||
-    kName === '황희' ||
-    kName === '윤봉길' ||
-    kName === '정회원'
-  ) {
+  // 2. ONLY root master system admin is protected from deletion (prevents admin lockout)
+  if (kEmail === 'yoocomdr57@gmail.com' || kName === '로고스 관리자' || kName === '로고스관리자') {
     return false;
   }
 
+  // 3. Check deletion tombstones (email, loginId, or name)
   const records = getDeletedRecords();
-  // ONLY check unique email and unique loginId (NEVER sequential IDs like M-01~M-99)
   if (kEmail && records[kEmail]) return true;
   if (kLogin && records[kLogin]) return true;
-  if (!kEmail && !kLogin && kName && records[kName.toLowerCase()]) return true;
+  if (kName) {
+    const cleanName = kName.toLowerCase().trim();
+    if (records[cleanName] || records[`name:${cleanName}`]) return true;
+  }
 
   return false;
 }
@@ -319,7 +333,15 @@ export async function deleteMemberCompletely(
     const rawMembers = localStorage.getItem(ADMIN_MEMBERS_KEY);
     if (rawMembers) {
       const parsed: MemberReadingProfile[] = JSON.parse(rawMembers);
-      const filtered = parsed.filter((m) => !isMemberDeleted(m));
+      const filtered = parsed.filter((m) => {
+        const mEmail = (m.email || '').toLowerCase().trim();
+        const mName = (m.name || '').toLowerCase().trim();
+        const mId = (m.id || '').toLowerCase().trim();
+        if (emailNorm && mEmail === emailNorm) return false;
+        if (nameNorm && mName === nameNorm) return false;
+        if (idNorm && mId === idNorm) return false;
+        return !isMemberDeleted(m);
+      });
       localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(filtered));
     }
 
@@ -332,6 +354,9 @@ export async function deleteMemberCompletely(
         const aEmail = (acc.user?.email || '').toLowerCase().trim();
         const aLogin = (acc.loginId || '').toLowerCase().trim();
         const aName = (acc.user?.name || '').toLowerCase().trim();
+        if (emailNorm && (aEmail === emailNorm || aLogin === emailNorm)) return false;
+        if (nameNorm && aName === nameNorm) return false;
+        if (idNorm && aId === idNorm) return false;
         return !isMemberDeleted({ id: aId, email: aEmail, loginId: aLogin, name: aName });
       });
       localStorage.setItem(REGISTRY_KEY, JSON.stringify(filteredAccs));

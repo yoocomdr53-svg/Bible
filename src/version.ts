@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 2.5.1';
+export const APP_VERSION = 'Ver 2.5.2';
 export const APP_BUILD_DATE = '2026.11.17';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,17 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 2.5.2',
+    name: 'SuperBible',
+    releaseDate: '2026.11.17',
+    changes: [
+      '회원 삭제 후 자동 재출현(부활) 원천 차단: 하드코딩된 회원 보호 화이트리스트를 전면 폐지하고 관리자 계정(yoocomdr57@gmail.com) 외 모든 회원의 자유롭고 영구적인 삭제 보장',
+      '웹폼 [🗑️ 삭제] 클릭 시 3대 기기(스마트폰, 태블릿, PC) 및 중앙 서버 동시 즉각 영구 삭제 반영 (새로고침 및 6초 주기 폴링 시에도 절대 다시 나타나지 않음)',
+      '이메일이 없거나 다른 회원(신규 성도 등)도 성명 기반 톰스톤으로 확실하게 삭제 및 영구 격리',
+      '구글 스프레드시트([회원관리], [회원_낭독진도]) 실시간 행 삭제(deleteRow) 및 1초 원클릭 정리(cleanTestMembers) 가이드 안내',
+    ],
+  },
   {
     version: 'Ver 2.5.1',
     name: 'SuperBible',

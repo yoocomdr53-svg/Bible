@@ -11,9 +11,9 @@ let serverAdminBlacklist = globalThis.__SUPERBIBLE_ADMIN_BLACKLIST__ || [];
 // Deletion Tombstones: Tracks deleted member identifiers (ONLY unique emails and loginIds, NEVER sequential IDs)
 let serverDeletedRecords = globalThis.__SUPERBIBLE_DELETED_RECORDS__ || {};
 
-// Sanitize serverDeletedRecords on start (remove any sequential IDs or real member names)
+// Sanitize serverDeletedRecords on start (remove any sequential IDs or root master admin)
 Object.keys(serverDeletedRecords).forEach(k => {
-  if (k.match(/^m-\d+$/i) || ['유천년', '유원희', '황희', '윤봉길', '로고스 관리자', 'yoocomdr57@gmail.com', 'yoocomdr@superbible.kr', 'yoocomdr55@gmail.com', 'yoocomdr58@gmail.com'].includes(k)) {
+  if (k.match(/^m-\d+$/i) || k === 'yoocomdr57@gmail.com' || k === '로고스 관리자' || k === '로고스관리자') {
     delete serverDeletedRecords[k];
   }
 });
@@ -51,14 +51,15 @@ function isDeletedOnServer(m) {
   const kEmail = (m.email || '').toLowerCase().trim();
   const kName = (m.name || '').trim();
   const kLogin = (m.loginId || '').toLowerCase().trim();
+  const nClean = kName.replace(/\s+/g, '');
 
-  // Test dummy accounts requested by user to be completely purged:
+  // 1. Test dummy accounts requested by user to be completely purged:
   if (
-    kName === '임시테스트' ||
-    kName === '신규 성도' ||
-    kName === 'E2E테스터' ||
-    kName === 'e2e테스터' ||
-    kName === '라이브테스트성도' ||
+    nClean.includes('임시테스트') ||
+    nClean.includes('신규성도') ||
+    nClean.includes('E2E테스터') ||
+    nClean.includes('e2e테스터') ||
+    nClean.includes('라이브테스트성도') ||
     kEmail === 'temp_delete_test@gmail.com' ||
     kEmail === 'e2e_tester@superbible.kr' ||
     kEmail === 'user_live_test@gmail.com'
@@ -66,38 +67,41 @@ function isDeletedOnServer(m) {
     return true;
   }
 
-  // Core real users can NEVER be deleted
-  if (
-    kEmail === 'yoocomdr57@gmail.com' ||
-    kEmail === 'yoocomdr@superbible.kr' ||
-    kEmail === 'yoocomdr55@gmail.com' ||
-    kEmail === 'yoocomdr58@gmail.com' ||
-    kEmail === 'realuser1@gmail.com' ||
-    kName === '유원희' ||
-    kName === '로고스 관리자' ||
-    kName === '황희' ||
-    kName === '윤봉길' ||
-    kName === '정회원'
-  ) {
+  // 2. ONLY root master system admin is protected from deletion (prevents admin lockout)
+  if (kEmail === 'yoocomdr57@gmail.com' || kName === '로고스 관리자' || kName === '로고스관리자') {
     return false;
   }
 
-  // Only check unique email and unique loginId (NEVER sequential IDs like M-01~M-99)
-  return Boolean(
-    (kEmail && serverDeletedRecords[kEmail]) ||
-    (kLogin && serverDeletedRecords[kLogin])
-  );
+  // 3. Check deletion tombstones (email, loginId, or name)
+  if (kEmail && serverDeletedRecords[kEmail]) return true;
+  if (kLogin && serverDeletedRecords[kLogin]) return true;
+  if (kName) {
+    const cleanName = kName.toLowerCase().trim();
+    if (serverDeletedRecords[cleanName] || serverDeletedRecords[`name:${cleanName}`]) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function recordServerDeletion(delId, delEmail, delName, delLoginId) {
   const now = Date.now();
-  // ONLY record email or unique loginId, NEVER sequential IDs (M-01~M-99)
+  // Record unique email or loginId
   [delEmail, delLoginId].filter(Boolean).forEach(k => {
     const clean = String(k).toLowerCase().trim();
-    if (clean && !clean.match(/^m-\d+$/i)) {
+    if (clean && !clean.match(/^m-\d+$/i) && clean !== 'yoocomdr57@gmail.com') {
       serverDeletedRecords[clean] = now;
     }
   });
+  // Also record member name if provided (allowing deletion of members without email)
+  if (delName) {
+    const cleanName = String(delName).toLowerCase().trim();
+    if (cleanName && cleanName !== '로고스 관리자' && cleanName !== '로고스관리자') {
+      serverDeletedRecords[cleanName] = now;
+      serverDeletedRecords[`name:${cleanName}`] = now;
+    }
+  }
   globalThis.__SUPERBIBLE_DELETED_RECORDS__ = serverDeletedRecords;
 }
 
@@ -108,6 +112,11 @@ function clearServerDeletion(delId, delEmail, delName, delLoginId) {
       delete serverDeletedRecords[clean];
     }
   });
+  if (delName) {
+    const cleanName = String(delName).toLowerCase().trim();
+    if (serverDeletedRecords[cleanName]) delete serverDeletedRecords[cleanName];
+    if (serverDeletedRecords[`name:${cleanName}`]) delete serverDeletedRecords[`name:${cleanName}`];
+  }
   globalThis.__SUPERBIBLE_DELETED_RECORDS__ = serverDeletedRecords;
 }
 
@@ -391,7 +400,18 @@ export default async function handler(req, res) {
       recordServerDeletion(delId, delEmail, delName, delLoginId);
 
       // Completely remove from serverCachedMembers
-      serverCachedMembers = serverCachedMembers.filter(m => !isDeletedOnServer(m));
+      serverCachedMembers = serverCachedMembers.filter(m => {
+        const mEmail = (m.email || '').toLowerCase().trim();
+        const mLogin = (m.loginId || '').toLowerCase().trim();
+        const mName = (m.name || '').toLowerCase().trim();
+        const mId = (m.id || '').toLowerCase().trim();
+
+        if (delEmail && mEmail === delEmail) return false;
+        if (delLoginId && mLogin === delLoginId) return false;
+        if (delId && mId === delId) return false;
+        if (delName && mName === delName) return false;
+        return !isDeletedOnServer(m);
+      });
       globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
 
       // Forward deletion to Google Apps Script (deletes rows in Google Sheets)
