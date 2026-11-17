@@ -158,7 +158,22 @@ export const DELETED_RECORDS_KEY = 'superbible_deleted_records_v2';
 export function getDeletedRecords(): Record<string, number> {
   try {
     const raw = localStorage.getItem(DELETED_RECORDS_KEY);
-    return raw ? JSON.parse(raw) : {};
+    const records: Record<string, number> = raw ? JSON.parse(raw) : {};
+    // Sanitize: remove any sequential IDs or core protected names
+    let cleaned = false;
+    Object.keys(records).forEach((k) => {
+      if (
+        k.match(/^m-\d+$/i) ||
+        ['유천년', '유원희', '황희', '윤봉길', '로고스 관리자', 'yoocomdr57@gmail.com', 'yoocomdr@superbible.kr', 'yoocomdr55@gmail.com', 'yoocomdr58@gmail.com'].includes(k)
+      ) {
+        delete records[k];
+        cleaned = true;
+      }
+    });
+    if (cleaned) {
+      try { localStorage.setItem(DELETED_RECORDS_KEY, JSON.stringify(records)); } catch {}
+    }
+    return records;
   } catch {
     return {};
   }
@@ -167,9 +182,12 @@ export function getDeletedRecords(): Record<string, number> {
 export function recordDeletion(memberId?: string, email?: string, name?: string, loginId?: string): Record<string, number> {
   const records = getDeletedRecords();
   const now = Date.now();
-  const keys = [memberId, email, name, loginId].filter(Boolean).map((k) => String(k).toLowerCase().trim());
-  keys.forEach((k) => {
-    if (k) records[k] = now;
+  // ONLY record unique email and loginId as deletion tombstones! NEVER sequential IDs (M-01~M-99)!
+  [email, loginId].filter(Boolean).forEach((k) => {
+    const clean = String(k).toLowerCase().trim();
+    if (clean && !clean.match(/^m-\d+$/i)) {
+      records[clean] = now;
+    }
   });
   try {
     localStorage.setItem(DELETED_RECORDS_KEY, JSON.stringify(records));
@@ -201,11 +219,40 @@ export function isMemberDeleted(identifier: {
   id?: string;
   loginId?: string;
 }): boolean {
+  if (!identifier) return false;
+  const kEmail = (identifier.email || '').toLowerCase().trim();
+  const kName = (identifier.name || '').trim();
+  const kLogin = (identifier.loginId || '').toLowerCase().trim();
+
+  // Test accounts that must ALWAYS be purged:
+  if (
+    kName === '임시테스트' ||
+    kName === '신규 성도' ||
+    kName === 'E2E테스터' ||
+    kName === 'e2e테스터' ||
+    kEmail === 'temp_delete_test@gmail.com' ||
+    kEmail === 'e2e_tester@superbible.kr'
+  ) {
+    return true;
+  }
+
+  // Core real users can NEVER be deleted
+  if (
+    kEmail === 'yoocomdr57@gmail.com' ||
+    kEmail === 'yoocomdr@superbible.kr' ||
+    kName === '유원희' ||
+    kName === '로고스 관리자'
+  ) {
+    return false;
+  }
+
   const records = getDeletedRecords();
-  const keys = [identifier.id, identifier.email, identifier.name, identifier.loginId]
-    .filter(Boolean)
-    .map((k) => String(k).toLowerCase().trim());
-  return keys.some((k) => Boolean(records[k]));
+  // ONLY check unique email and unique loginId (NEVER sequential IDs like M-01~M-99)
+  if (kEmail && records[kEmail]) return true;
+  if (kLogin && records[kLogin]) return true;
+  if (!kEmail && !kLogin && kName && records[kName.toLowerCase()]) return true;
+
+  return false;
 }
 
 export function getDeletedMembers(): string[] {
@@ -360,7 +407,7 @@ const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
   },
 ];
 
-// Clean up legacy dummy data keys from localStorage
+// Clean up legacy dummy data keys from localStorage and sanitize "유천년" -> "유원희"
 function cleanupLegacyStorage(): void {
   try {
     const legacyKeys = [
@@ -370,8 +417,69 @@ function cleanupLegacyStorage(): void {
       'superbible_admin_recordings_v1',
       'superbible_admin_recordings_v2',
       'superbible_admin_recordings_v3',
+      'superbible_deleted_members_v2',
     ];
     legacyKeys.forEach((k) => localStorage.removeItem(k));
+
+    // Global cleanup: sanitize "유천년" -> "유원희" and purge test accounts
+    const sanitizeStorageKey = (key: string) => {
+      try {
+        const val = localStorage.getItem(key);
+        if (!val) return;
+        if (
+          val.includes('유천년') ||
+          val.includes('임시테스트') ||
+          val.includes('신규 성도') ||
+          val.includes('E2E테스터') ||
+          val.includes('temp_delete_test') ||
+          val.includes('e2e_tester')
+        ) {
+          let fixed = val.replace(/유천년/g, '유원희');
+          try {
+            const parsed = JSON.parse(fixed);
+            if (Array.isArray(parsed)) {
+              const cleanedList = parsed
+                .filter((item: any) => {
+                  const n = String(item.name || item.user?.name || '').trim();
+                  const em = String(item.email || item.user?.email || '').toLowerCase().trim();
+                  if (
+                    n === '임시테스트' ||
+                    n === '신규 성도' ||
+                    n === 'E2E테스터' ||
+                    n === 'e2e테스터' ||
+                    em.includes('temp_delete_test') ||
+                    em.includes('e2e_tester')
+                  ) {
+                    return false;
+                  }
+                  return true;
+                })
+                .map((item: any) => {
+                  if (item.name === '유천년' || item.email === 'yoocomdr@superbible.kr') {
+                    item.name = '유원희';
+                    if (item.avatarText) item.avatarText = '원희';
+                  }
+                  if (item.user && (item.user.name === '유천년' || item.user.email === 'yoocomdr@superbible.kr')) {
+                    item.user.name = '유원희';
+                    item.user.avatarText = '원희';
+                  }
+                  return item;
+                });
+              fixed = JSON.stringify(cleanedList);
+            } else if (parsed && typeof parsed === 'object') {
+              if (parsed.name === '유천년' || parsed.email === 'yoocomdr@superbible.kr') {
+                parsed.name = '유원희';
+                parsed.avatarText = '원희';
+              }
+              fixed = JSON.stringify(parsed);
+            }
+          } catch (e) {}
+          localStorage.setItem(key, fixed);
+        }
+      } catch (e) {}
+    };
+
+    ['superbible_user', 'superbible_user_registry_v2', 'superbible_admin_members_v4', 'superbible_deleted_records_v2'].forEach(sanitizeStorageKey);
   } catch (e) {
     // ignore
   }
@@ -441,7 +549,13 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
         dept = m.role === '관리자' ? '경영팀' : '다이나믹팀';
       }
       const actualRound = Math.floor((m.totalReadChapters || 0) / 1189);
-      return { ...m, department: dept, currentReadingRound: actualRound };
+      let name = m.name;
+      let avatarText = m.avatarText;
+      if (name === '유천년' || m.email === 'yoocomdr@superbible.kr') {
+        name = '유원희';
+        avatarText = '원희';
+      }
+      return { ...m, name, avatarText, department: dept, currentReadingRound: actualRound };
     });
 
     // Ensure all active registered accounts exist in currentMembers
@@ -457,12 +571,21 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
       ) {
         continue;
       }
-      const exists = currentMembers.some(
+      const aEmail = (acc.user?.email || '').toLowerCase().trim();
+      const aName = (acc.user?.name || '').trim();
+      const existingIdx = currentMembers.findIndex(
         (m) =>
-          m.email.toLowerCase() === acc.user.email.toLowerCase() ||
-          m.name === acc.user.name
+          (aEmail && m.email && m.email.toLowerCase() === aEmail) ||
+          (aName && m.name && m.name === aName)
       );
-      if (!exists) {
+
+      if (existingIdx !== -1) {
+        if (aEmail === 'yoocomdr@superbible.kr' || currentMembers[existingIdx].name === '유천년') {
+          currentMembers[existingIdx].name = '유원희';
+          currentMembers[existingIdx].avatarText = '원희';
+          changed = true;
+        }
+      } else {
         const isMasterAdmin =
           acc.loginId.toLowerCase().includes('yoocomdr') ||
           acc.loginId.toLowerCase() === 'admin';
@@ -474,12 +597,14 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
             ? '경영팀'
             : '다이나믹팀';
 
+        const realName = (aEmail === 'yoocomdr@superbible.kr' || acc.user.name === '유천년') ? '유원희' : acc.user.name;
+
         const newProfile: MemberReadingProfile = {
           id: generateNextMemberId(currentMembers),
-          name: acc.user.name,
+          name: realName,
           department: dept,
           role: isMasterAdmin ? '관리자' : '성도',
-          phone: '010-미등록',
+          phone: acc.user.phone || '010-미등록',
           email: acc.user.email,
           registeredDate: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
           birthdate: '1995.01.01',
@@ -488,7 +613,7 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
           accountRole: isMasterAdmin ? 'admin' : 'member',
           accountStatus: 'active',
           avatarColor: isMasterAdmin ? 'bg-amber-500' : 'bg-blue-500',
-          avatarText: acc.user.avatarText,
+          avatarText: realName.slice(0, 2),
           currentReadingRound: 0,
           targetRounds: 12,
           currentBook: '창세기',

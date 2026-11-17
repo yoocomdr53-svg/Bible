@@ -8,34 +8,80 @@ let serverCachedMembers = globalThis.__SUPERBIBLE_MEMBERS__ || [];
 let serverCachedRecordings = globalThis.__SUPERBIBLE_RECORDINGS__ || [];
 // Explicit Admin-Designated Blacklist (관리자가 직접 지정한 차단 목록만 관리)
 let serverAdminBlacklist = globalThis.__SUPERBIBLE_ADMIN_BLACKLIST__ || [];
-// Deletion Tombstones: Tracks deleted member identifiers so stale rows in Google Sheets never resurrect deleted members!
+// Deletion Tombstones: Tracks deleted member identifiers (ONLY unique emails and loginIds, NEVER sequential IDs)
 let serverDeletedRecords = globalThis.__SUPERBIBLE_DELETED_RECORDS__ || {};
+
+// Sanitize serverDeletedRecords on start (remove any sequential IDs or real member names)
+Object.keys(serverDeletedRecords).forEach(k => {
+  if (k.match(/^m-\d+$/i) || ['유천년', '유원희', '황희', '윤봉길', '로고스 관리자', 'yoocomdr57@gmail.com', 'yoocomdr@superbible.kr', 'yoocomdr55@gmail.com', 'yoocomdr58@gmail.com'].includes(k)) {
+    delete serverDeletedRecords[k];
+  }
+});
+
+function normalizeMember(m) {
+  if (!m) return m;
+  const email = (m.email || '').toLowerCase().trim();
+  const name = (m.name || '').trim();
+  const id = (m.id || m.memberId || '').trim();
+  if (email === 'yoocomdr@superbible.kr' || name === '유천년' || id === 'M-02') {
+    return {
+      ...m,
+      id: 'M-02',
+      name: '유원희',
+      email: 'yoocomdr@superbible.kr',
+      avatarText: '원희',
+      role: '성도',
+      accountRole: 'member',
+      department: m.department || '경영팀'
+    };
+  }
+  return m;
+}
 
 function isDeletedOnServer(m) {
   if (!m) return false;
   const kEmail = (m.email || '').toLowerCase().trim();
-  const kName = (m.name || '').toLowerCase().trim();
-  const kId = (m.id || m.memberId || '').toLowerCase().trim();
+  const kName = (m.name || '').trim();
   const kLogin = (m.loginId || '').toLowerCase().trim();
+
+  // Test dummy accounts requested by user to be completely purged:
+  if (
+    kName === '임시테스트' ||
+    kName === '신규 성도' ||
+    kName === 'E2E테스터' ||
+    kName === 'e2e테스터' ||
+    kEmail === 'temp_delete_test@gmail.com' ||
+    kEmail === 'e2e_tester@superbible.kr'
+  ) {
+    return true;
+  }
+
+  // Core real users can NEVER be deleted
+  if (kEmail === 'yoocomdr57@gmail.com' || kEmail === 'yoocomdr@superbible.kr' || kName === '유원희' || kName === '로고스 관리자') {
+    return false;
+  }
+
+  // Only check unique email and unique loginId (NEVER sequential IDs like M-01~M-99)
   return Boolean(
     (kEmail && serverDeletedRecords[kEmail]) ||
-    (kId && serverDeletedRecords[kId]) ||
-    (kName && serverDeletedRecords[kName]) ||
     (kLogin && serverDeletedRecords[kLogin])
   );
 }
 
 function recordServerDeletion(delId, delEmail, delName, delLoginId) {
   const now = Date.now();
-  [delId, delEmail, delName, delLoginId].filter(Boolean).forEach(k => {
+  // ONLY record email or unique loginId, NEVER sequential IDs (M-01~M-99)
+  [delEmail, delLoginId].filter(Boolean).forEach(k => {
     const clean = String(k).toLowerCase().trim();
-    if (clean) serverDeletedRecords[clean] = now;
+    if (clean && !clean.match(/^m-\d+$/i)) {
+      serverDeletedRecords[clean] = now;
+    }
   });
   globalThis.__SUPERBIBLE_DELETED_RECORDS__ = serverDeletedRecords;
 }
 
 function clearServerDeletion(delId, delEmail, delName, delLoginId) {
-  [delId, delEmail, delName, delLoginId].filter(Boolean).forEach(k => {
+  [delEmail, delLoginId].filter(Boolean).forEach(k => {
     const clean = String(k).toLowerCase().trim();
     if (clean && serverDeletedRecords[clean]) {
       delete serverDeletedRecords[clean];
@@ -72,15 +118,6 @@ export default async function handler(req, res) {
     if (sheetId) {
       serverCachedSheetId = sheetId;
       globalThis.__SUPERBIBLE_SHEET_ID__ = sheetId;
-    }
-
-    if (deletedKeys) {
-      const keys = String(deletedKeys).split(',').map(k => k.toLowerCase().trim()).filter(Boolean);
-      const now = Date.now();
-      keys.forEach(k => {
-        if (!serverDeletedRecords[k]) serverDeletedRecords[k] = now;
-      });
-      globalThis.__SUPERBIBLE_DELETED_RECORDS__ = serverDeletedRecords;
     }
 
     const targetScriptUrl = scriptUrl || serverCachedScriptUrl || req.headers['x-script-url'] || '';
@@ -132,15 +169,20 @@ export default async function handler(req, res) {
           }
 
           if (gasData && Array.isArray(gasData.members) && gasData.members.length > 0) {
-            // Strictly exclude deleted members so stale rows from Google Sheets never resurrect deleted members!
-            const activeGasMembers = gasData.members.filter(gm => !isDeletedOnServer(gm));
+            // Strictly exclude deleted members and test dummy accounts so stale rows never revive!
+            const activeGasMembers = gasData.members
+              .map(normalizeMember)
+              .filter(gm => !isDeletedOnServer(gm));
 
             const map = new Map();
-            // 1. Add current server cache (only active members)
-            serverCachedMembers.filter(m => !isDeletedOnServer(m)).forEach(m => {
-              const k = (m.email || m.name || m.id || '').toLowerCase().trim();
-              if (k) map.set(k, m);
-            });
+            // 1. Add current server cache (only active members, normalized)
+            serverCachedMembers
+              .map(normalizeMember)
+              .filter(m => !isDeletedOnServer(m))
+              .forEach(m => {
+                const k = (m.email || m.name || m.id || '').toLowerCase().trim();
+                if (k) map.set(k, m);
+              });
 
             // 2. Add / update all active members from Google Sheets
             activeGasMembers.forEach(gm => {
@@ -148,9 +190,10 @@ export default async function handler(req, res) {
               if (!k) return;
               if (map.has(k)) {
                 const cur = map.get(k);
-                map.set(k, {
+                map.set(k, normalizeMember({
                   ...cur,
                   ...gm,
+                  name: gm.name === '유천년' ? '유원희' : (gm.name || cur.name),
                   phone: gm.phone && gm.phone !== '010-미등록' ? gm.phone : (cur.phone || gm.phone),
                   department: gm.department || cur.department,
                   totalReadChapters: Math.max(cur.totalReadChapters || 0, gm.totalReadChapters || 0),
@@ -158,13 +201,15 @@ export default async function handler(req, res) {
                   recordingsCount: Math.max(cur.recordingsCount || 0, gm.recordingsCount || 0),
                   currentBook: gm.currentBook || cur.currentBook,
                   currentChapter: gm.currentChapter || cur.currentChapter,
-                });
+                }));
               } else {
-                map.set(k, gm);
+                map.set(k, normalizeMember(gm));
               }
             });
 
-            serverCachedMembers = Array.from(map.values()).filter(m => !isDeletedOnServer(m));
+            serverCachedMembers = Array.from(map.values())
+              .map(normalizeMember)
+              .filter(m => !isDeletedOnServer(m));
             globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
 
             res.status(200).json({
@@ -187,7 +232,9 @@ export default async function handler(req, res) {
     }
 
     // Fallback: return server cache (filtered against deleted tombstones)
-    serverCachedMembers = serverCachedMembers.filter(m => !isDeletedOnServer(m));
+    serverCachedMembers = serverCachedMembers
+      .map(normalizeMember)
+      .filter(m => !isDeletedOnServer(m));
     globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
 
     res.status(200).json({
@@ -355,7 +402,7 @@ export default async function handler(req, res) {
 
     // Action: Register Member (간편가입)
     if (action === 'registerMember' || action === 'registerUser') {
-      const incomingMember = body.member;
+      const incomingMember = normalizeMember(body.member);
       if (incomingMember) {
         const kEmail = (incomingMember.email || '').toLowerCase().trim();
         const kName = (incomingMember.name || '').toLowerCase().trim();
@@ -372,7 +419,7 @@ export default async function handler(req, res) {
           return (kEmail && me === kEmail) || (kName && mn === kName) || (kId && mi === kId);
         });
         if (existingIdx !== -1) {
-          serverCachedMembers[existingIdx] = { ...serverCachedMembers[existingIdx], ...incomingMember };
+          serverCachedMembers[existingIdx] = normalizeMember({ ...serverCachedMembers[existingIdx], ...incomingMember });
         } else {
           serverCachedMembers.push(incomingMember);
         }
@@ -382,9 +429,9 @@ export default async function handler(req, res) {
 
     // Action: Bulk Bidirectional Sync
     if (action === 'sync') {
-      const incomingList = body.data?.members || body.members || [];
+      const incomingList = (body.data?.members || body.members || []).map(normalizeMember);
       const map = new Map();
-      serverCachedMembers.filter(m => !isDeletedOnServer(m)).forEach(m => {
+      serverCachedMembers.map(normalizeMember).filter(m => !isDeletedOnServer(m)).forEach(m => {
         const k = (m.email || m.name || m.id || '').toLowerCase().trim();
         if (k) map.set(k, m);
       });
@@ -394,19 +441,19 @@ export default async function handler(req, res) {
         if (!k) return;
         if (map.has(k)) {
           const cur = map.get(k);
-          map.set(k, {
+          map.set(k, normalizeMember({
             ...cur,
             ...m,
             phone: m.phone && m.phone !== '010-미등록' ? m.phone : (cur.phone || m.phone),
             totalReadChapters: Math.max(cur.totalReadChapters || 0, m.totalReadChapters || 0),
             currentReadingRound: Math.max(cur.currentReadingRound || 0, m.currentReadingRound || 0),
             recordingsCount: Math.max(cur.recordingsCount || 0, m.recordingsCount || 0),
-          });
+          }));
         } else {
           map.set(k, m);
         }
       });
-      serverCachedMembers = Array.from(map.values()).filter(m => !isDeletedOnServer(m));
+      serverCachedMembers = Array.from(map.values()).map(normalizeMember).filter(m => !isDeletedOnServer(m));
       globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
     }
 
@@ -452,16 +499,16 @@ export default async function handler(req, res) {
           if (gasResult && Array.isArray(gasResult.members) && gasResult.members.length > 0) {
             // Update server cache with Google Sheets merged list (strictly excluding deleted members)
             const gmap = new Map();
-            serverCachedMembers.filter(m => !isDeletedOnServer(m)).forEach(m => gmap.set((m.email || m.name || m.id).toLowerCase().trim(), m));
-            gasResult.members.filter(gm => !isDeletedOnServer(gm)).forEach(gm => {
+            serverCachedMembers.map(normalizeMember).filter(m => !isDeletedOnServer(m)).forEach(m => gmap.set((m.email || m.name || m.id).toLowerCase().trim(), m));
+            gasResult.members.map(normalizeMember).filter(gm => !isDeletedOnServer(gm)).forEach(gm => {
               const gk = (gm.email || gm.name || gm.id).toLowerCase().trim();
               if (gmap.has(gk)) {
-                gmap.set(gk, { ...gmap.get(gk), ...gm });
+                gmap.set(gk, normalizeMember({ ...gmap.get(gk), ...gm }));
               } else {
                 gmap.set(gk, gm);
               }
             });
-            serverCachedMembers = Array.from(gmap.values()).filter(m => !isDeletedOnServer(m));
+            serverCachedMembers = Array.from(gmap.values()).map(normalizeMember).filter(m => !isDeletedOnServer(m));
             globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
           }
         } catch (jsonErr) {
@@ -476,7 +523,7 @@ export default async function handler(req, res) {
       success: true,
       message: gasResult?.message || '중앙 서버에 안전하게 실시간 동기화되었습니다.',
       gasResult,
-      members: serverCachedMembers.filter(m => !isDeletedOnServer(m)),
+      members: serverCachedMembers.map(normalizeMember).filter(m => !isDeletedOnServer(m)),
       deletedRecords: serverDeletedRecords,
       blacklist: serverAdminBlacklist,
       scriptUrl: serverCachedScriptUrl,

@@ -574,10 +574,8 @@ export async function pullMembersFromGoogleSheet(): Promise<{
   const scriptUrl = config.scriptUrl;
 
   try {
-    const deletedKeys = Object.keys(getDeletedRecords());
-    const deletedParam = deletedKeys.length > 0 ? `&deletedKeys=${encodeURIComponent(deletedKeys.join(','))}` : '';
     const url = getSyncApiUrl(
-      `/api/sync?action=pull${scriptUrl ? `&scriptUrl=${encodeURIComponent(scriptUrl)}` : ''}${deletedParam}`
+      `/api/sync?action=pull${scriptUrl ? `&scriptUrl=${encodeURIComponent(scriptUrl)}` : ''}`
     );
     const res = await fetch(url, {
       method: 'GET',
@@ -595,7 +593,7 @@ export async function pullMembersFromGoogleSheet(): Promise<{
         const localDeleted = getDeletedRecords();
         let dChanged = false;
         Object.keys(data.deletedRecords).forEach((k) => {
-          if (!localDeleted[k]) {
+          if (!localDeleted[k] && !k.match(/^m-\d+$/i)) {
             localDeleted[k] = data.deletedRecords[k];
             dChanged = true;
           }
@@ -608,8 +606,18 @@ export async function pullMembersFromGoogleSheet(): Promise<{
       }
 
       if (data.success && Array.isArray(data.members)) {
-        // STRICT FILTER: Stale rows from Google Sheets or old cache matching deleted records are NEVER restored!
-        const remoteMembers: MemberReadingProfile[] = data.members.filter((m) => !isMemberDeleted(m));
+        // STRICT FILTER: Normalize names ("유천년" -> "유원희") and filter deleted members / test accounts
+        const remoteMembers: MemberReadingProfile[] = (data.members || [])
+          .map((m: any) => {
+            let name = m.name;
+            let avatarText = m.avatarText;
+            if (name === '유천년' || m.email === 'yoocomdr@superbible.kr') {
+              name = '유원희';
+              avatarText = '원희';
+            }
+            return { ...m, name, avatarText };
+          })
+          .filter((m: any) => !isMemberDeleted(m));
 
         // Clean obsolete deleted blacklist so active members are never affected
         try {
@@ -640,14 +648,25 @@ export async function pullMembersFromGoogleSheet(): Promise<{
           remoteMembers.forEach((m) => {
             const mEmail = (m.email || '').toLowerCase().trim();
             const mName = (m.name || '').toLowerCase().trim();
-            const exists = accounts.some((a) => {
+            const matchedAcc = accounts.find((a) => {
               const aLogin = (a.loginId || '').toLowerCase().trim();
               const aEmail = (a.user?.email || '').toLowerCase().trim();
               const aName = (a.user?.name || '').toLowerCase().trim();
               return (mEmail && (aLogin === mEmail || aEmail === mEmail)) || (mName && aName === mName);
             });
 
-            if (!exists) {
+            if (matchedAcc) {
+              if (m.name && matchedAcc.user?.name !== m.name) {
+                matchedAcc.user.name = m.name;
+                matchedAcc.user.avatarText = m.avatarText || m.name.slice(0, 2);
+                regChanged = true;
+              }
+              if (mEmail === 'yoocomdr@superbible.kr' && matchedAcc.user?.name !== '유원희') {
+                matchedAcc.user.name = '유원희';
+                matchedAcc.user.avatarText = '원희';
+                regChanged = true;
+              }
+            } else {
               const isMasterAdmin = mEmail.includes('yoocomdr') || m.role === '관리자';
               accounts.push({
                 loginId: m.email || m.name,
@@ -678,9 +697,7 @@ export async function pullMembersFromGoogleSheet(): Promise<{
           }
         } catch (regErr) {}
 
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('superbible_members_changed'));
-        }
+        // Note: Do not fire superbible_members_changed here to prevent endless re-render oscillation!
 
         return {
           success: true,

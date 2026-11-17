@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 2.4';
+export const APP_VERSION = 'Ver 2.5';
 export const APP_BUILD_DATE = '2026.11.17';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,18 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 2.5',
+    name: 'SuperBible',
+    releaseDate: '2026.11.17',
+    changes: [
+      '명부 깜빡임 및 회원 사라짐·재출현(사라졌다 나왔다 하는 핑퐁) 현상 원천 차단: 클라우드 폴링과 로컬 이벤트 무한 루프 연결 고리 해제로 3대 기기(스마트폰·태블릿·PC) 화면 완전 안정화',
+      '모바일 기기 로컬 잔존 과거 이름("유천년") 완전 소탕 및 "유원희" 실시간 정규화: 스마트폰/태블릿 브라우저에 남아있던 과거 데이터를 실행 즉시 구글 시트 원본 이름("유원희")으로 강제 변환',
+      '테스트 계정(임시테스트, 신규 성도, E2E테스터) 완전 격리 및 3중 필터링: 정식 회원가입을 거친 실제 성도만 명부에 표출되도록 클라우드 허브 및 전 기기 차단',
+      '순번 ID(M-01~M-99) 오삭제 방지: 고유 이메일/계정ID 기반으로만 삭제 톰스톤을 관리하여 4번째 이후 회원(윤봉길 성도 등)이 부당하게 삭제되는 현상 원천 해결',
+      '구글 스프레드시트 1초 일괄 정리(cleanTestMembers) 및 실시간 행 삭제(deleteRow) Apps Script 가이드 완비',
+    ],
+  },
   {
     version: 'Ver 2.4',
     name: 'SuperBible',
