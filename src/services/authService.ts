@@ -153,8 +153,46 @@ export async function clearAllAdminBlacklist(): Promise<{ success: boolean; mess
   }
 }
 
-export function getDeletedMembers(): string[] {
-  return [];
+export const DELETED_RECORDS_KEY = 'superbible_deleted_records_v2';
+
+export function getDeletedRecords(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(DELETED_RECORDS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function recordDeletion(memberId?: string, email?: string, name?: string, loginId?: string): Record<string, number> {
+  const records = getDeletedRecords();
+  const now = Date.now();
+  const keys = [memberId, email, name, loginId].filter(Boolean).map((k) => String(k).toLowerCase().trim());
+  keys.forEach((k) => {
+    if (k) records[k] = now;
+  });
+  try {
+    localStorage.setItem(DELETED_RECORDS_KEY, JSON.stringify(records));
+  } catch {}
+  return records;
+}
+
+export function clearDeletion(email?: string, loginId?: string, name?: string, memberId?: string): Record<string, number> {
+  const records = getDeletedRecords();
+  const keys = [email, loginId, name, memberId].filter(Boolean).map((k) => String(k).toLowerCase().trim());
+  let changed = false;
+  keys.forEach((k) => {
+    if (k && records[k]) {
+      delete records[k];
+      changed = true;
+    }
+  });
+  if (changed) {
+    try {
+      localStorage.setItem(DELETED_RECORDS_KEY, JSON.stringify(records));
+    } catch {}
+  }
+  return records;
 }
 
 export function isMemberDeleted(identifier: {
@@ -163,7 +201,15 @@ export function isMemberDeleted(identifier: {
   id?: string;
   loginId?: string;
 }): boolean {
-  return false;
+  const records = getDeletedRecords();
+  const keys = [identifier.id, identifier.email, identifier.name, identifier.loginId]
+    .filter(Boolean)
+    .map((k) => String(k).toLowerCase().trim());
+  return keys.some((k) => Boolean(records[k]));
+}
+
+export function getDeletedMembers(): string[] {
+  return Object.keys(getDeletedRecords());
 }
 
 export function addDeletedMember(identifier: {
@@ -172,7 +218,7 @@ export function addDeletedMember(identifier: {
   id?: string;
   loginId?: string;
 }): void {
-  // Obsolete: normal deletions are clean and never remain in any blacklist
+  recordDeletion(identifier.id, identifier.email, identifier.name, identifier.loginId);
 }
 
 export function removeDeletedMember(identifier: {
@@ -181,9 +227,7 @@ export function removeDeletedMember(identifier: {
   id?: string;
   loginId?: string;
 }): void {
-  try {
-    localStorage.removeItem(DELETED_MEMBERS_KEY);
-  } catch (e) {}
+  clearDeletion(identifier.email, identifier.loginId, identifier.name, identifier.id);
 }
 
 /**
@@ -200,7 +244,8 @@ export function generateNextMemberId(existingMembers: MemberReadingProfile[]): s
 
 /**
  * Permanently delete member from Admin Roster, Accounts Registry, Server Cache, and Google Sheets
- * ※ Clean and Complete Deletion: Does NOT remain in any blacklist!
+ * ※ Clean and Complete Deletion: Recorded as deleted tombstone so stale Google Sheets rows never revive them!
+ * ※ Re-registration is 100% permitted and cleans the tombstone.
  */
 export async function deleteMemberCompletely(
   memberId: string,
@@ -212,45 +257,37 @@ export async function deleteMemberCompletely(
     const nameNorm = (memberName || '').toLowerCase().trim();
     const idNorm = (memberId || '').toLowerCase().trim();
 
-    // 1. Remove from ADMIN_MEMBERS_KEY
+    // 1. Record deletion tombstone in local registry
+    recordDeletion(memberId, memberEmail, memberName);
+
+    // 2. Remove from ADMIN_MEMBERS_KEY
     const rawMembers = localStorage.getItem(ADMIN_MEMBERS_KEY);
     if (rawMembers) {
       const parsed: MemberReadingProfile[] = JSON.parse(rawMembers);
-      const filtered = parsed.filter((m) => {
-        const mEmail = (m.email || '').toLowerCase().trim();
-        const mName = (m.name || '').toLowerCase().trim();
-        const mId = (m.id || '').toLowerCase().trim();
-        if (idNorm && mId === idNorm) return false;
-        if (emailNorm && mEmail === emailNorm) return false;
-        if (nameNorm && mName === nameNorm) return false;
-        return true;
-      });
+      const filtered = parsed.filter((m) => !isMemberDeleted(m));
       localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(filtered));
     }
 
-    // 2. Remove from REGISTRY_KEY (accounts)
+    // 3. Remove from REGISTRY_KEY (accounts)
     const rawAccs = localStorage.getItem(REGISTRY_KEY);
     if (rawAccs) {
       const accounts: RegisteredAccount[] = JSON.parse(rawAccs);
       const filteredAccs = accounts.filter((acc) => {
-        const login = (acc.loginId || '').toLowerCase().trim();
-        const aEmail = (acc.user?.email || '').toLowerCase().trim();
-        const aName = (acc.user?.name || '').toLowerCase().trim();
         const aId = (acc.user?.id || '').toLowerCase().trim();
-        if (idNorm && aId === idNorm) return false;
-        if (emailNorm && (aEmail === emailNorm || login === emailNorm)) return false;
-        if (nameNorm && aName === nameNorm) return false;
-        return true;
+        const aEmail = (acc.user?.email || '').toLowerCase().trim();
+        const aLogin = (acc.loginId || '').toLowerCase().trim();
+        const aName = (acc.user?.name || '').toLowerCase().trim();
+        return !isMemberDeleted({ id: aId, email: aEmail, loginId: aLogin, name: aName });
       });
       localStorage.setItem(REGISTRY_KEY, JSON.stringify(filteredAccs));
     }
 
-    // 3. Dispatch global change event for instant local UI update
+    // 4. Dispatch global change event for instant local UI update
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('superbible_members_changed'));
     }
 
-    // 4. Notify central sync hub and Google Sheets (완전 삭제 - 블랙리스트에 남지 않음!)
+    // 5. Notify central sync hub and Google Sheets
     try {
       await sendPayloadToGoogleScript({
         action: 'deleteMember',
@@ -258,6 +295,7 @@ export async function deleteMemberCompletely(
         email: memberEmail,
         name: memberName,
         id: memberId,
+        deletedAt: Date.now(),
       });
     } catch (e) {
       console.warn('Failed to notify server/Google Sheets of deletion:', e);
@@ -265,7 +303,7 @@ export async function deleteMemberCompletely(
 
     return {
       success: true,
-      message: `'${memberName || memberEmail || memberId}' 회원이 명부 및 구글 시트에서 완전히 영구 삭제되었습니다. (블랙리스트에 남지 않음)`,
+      message: `'${memberName || memberEmail || memberId}' 회원이 명부 및 구글 시트에서 완전히 영구 삭제되었습니다.`,
     };
   } catch (err: any) {
     console.error('deleteMemberCompletely error:', err);
@@ -381,9 +419,10 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        // Strip any legacy dummy names
+        // Strip any deleted or legacy dummy names
         currentMembers = parsed.filter(
           (m: MemberReadingProfile) =>
+            !isMemberDeleted(m) &&
             !m.email.includes('@logos.church') &&
             !['김은혜', '박요셉', '이모세', '최한나', '정다윗', '한수민', '오바울', '강소망'].includes(m.name)
         );
@@ -391,7 +430,7 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
     }
 
     if (currentMembers.length === 0) {
-      currentMembers = [...INITIAL_MEMBERS];
+      currentMembers = INITIAL_MEMBERS.filter((m) => !isMemberDeleted(m));
     }
 
     // 부서 명칭을 5개 공식 부서(다이나믹팀, 경영팀, 지벳팀, 중고등부, 초등부)로 정규화 및 통독 회차(전체 1,189장 완독 시에만 1독) 정규화
@@ -405,9 +444,19 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
       return { ...m, department: dept, currentReadingRound: actualRound };
     });
 
-    // Ensure all registered accounts exist in currentMembers
+    // Ensure all active registered accounts exist in currentMembers
     let changed = false;
     for (const acc of accounts) {
+      if (
+        isMemberDeleted({
+          id: acc.user?.id,
+          email: acc.user?.email,
+          loginId: acc.loginId,
+          name: acc.user?.name,
+        })
+      ) {
+        continue;
+      }
       const exists = currentMembers.some(
         (m) =>
           m.email.toLowerCase() === acc.user.email.toLowerCase() ||
@@ -901,6 +950,9 @@ export function registerUser(
     createdAt: new Date().toISOString(),
   };
 
+  // Clear any past deletion tombstone so re-registration is completely fresh and never blocked
+  clearDeletion(userEmail, loginId, displayName, newUser.id);
+
   const updatedAccounts = [...accounts, newAccount];
   saveRegisteredAccounts(updatedAccounts);
 
@@ -959,6 +1011,7 @@ export function loginUser(
     if (rememberMe) {
       saveRememberedId(loginId);
     }
+    clearDeletion(loginId, matched.user?.email, matched.user?.name, matched.user?.id);
     saveActiveSession(matched.user, loginId);
     return { success: true, user: matched.user };
   }

@@ -1,4 +1,5 @@
 import { MemberReadingProfile, MemberRecordingItem, ReadingCampaign } from '../data/adminData';
+import { isMemberDeleted, getDeletedRecords, DELETED_RECORDS_KEY } from './authService';
 
 export interface GoogleSheetConfig {
   sheetId: string;
@@ -573,8 +574,10 @@ export async function pullMembersFromGoogleSheet(): Promise<{
   const scriptUrl = config.scriptUrl;
 
   try {
+    const deletedKeys = Object.keys(getDeletedRecords());
+    const deletedParam = deletedKeys.length > 0 ? `&deletedKeys=${encodeURIComponent(deletedKeys.join(','))}` : '';
     const url = getSyncApiUrl(
-      `/api/sync?action=pull${scriptUrl ? `&scriptUrl=${encodeURIComponent(scriptUrl)}` : ''}`
+      `/api/sync?action=pull${scriptUrl ? `&scriptUrl=${encodeURIComponent(scriptUrl)}` : ''}${deletedParam}`
     );
     const res = await fetch(url, {
       method: 'GET',
@@ -587,22 +590,52 @@ export async function pullMembersFromGoogleSheet(): Promise<{
     if (res.ok) {
       const data = await res.json();
 
-      if (data.success && Array.isArray(data.members) && data.members.length > 0) {
-        const remoteMembers: MemberReadingProfile[] = data.members;
+      // Merge server deleted records into local storage so all devices stay in sync
+      if (data.deletedRecords && typeof data.deletedRecords === 'object') {
+        const localDeleted = getDeletedRecords();
+        let dChanged = false;
+        Object.keys(data.deletedRecords).forEach((k) => {
+          if (!localDeleted[k]) {
+            localDeleted[k] = data.deletedRecords[k];
+            dChanged = true;
+          }
+        });
+        if (dChanged) {
+          try {
+            localStorage.setItem(DELETED_RECORDS_KEY, JSON.stringify(localDeleted));
+          } catch (e) {}
+        }
+      }
 
-        // Clean obsolete deleted blacklist so all active members are preserved
+      if (data.success && Array.isArray(data.members)) {
+        // STRICT FILTER: Stale rows from Google Sheets or old cache matching deleted records are NEVER restored!
+        const remoteMembers: MemberReadingProfile[] = data.members.filter((m) => !isMemberDeleted(m));
+
+        // Clean obsolete deleted blacklist so active members are never affected
         try {
           localStorage.removeItem('superbible_deleted_members_v2');
         } catch (e) {}
 
-        // Save authoritative remote roster directly to localStorage
+        // Save authoritative active roster directly to localStorage
         localStorage.setItem('superbible_admin_members_v4', JSON.stringify(remoteMembers));
 
-        // Sync all remote members into local accounts registry so they can log in immediately
+        // Sync all active remote members into local accounts registry (and prune any deleted accounts)
         try {
           const regRaw = localStorage.getItem('superbible_user_registry_v2');
           let accounts: any[] = regRaw ? JSON.parse(regRaw) : [];
-          let regChanged = false;
+          
+          // Remove accounts matching deleted records
+          accounts = accounts.filter(
+            (a) =>
+              !isMemberDeleted({
+                id: a.user?.id,
+                email: a.user?.email,
+                loginId: a.loginId,
+                name: a.user?.name,
+              })
+          );
+
+          let regChanged = true;
 
           remoteMembers.forEach((m) => {
             const mEmail = (m.email || '').toLowerCase().trim();
@@ -661,12 +694,12 @@ export async function pullMembersFromGoogleSheet(): Promise<{
     console.warn('[SyncService] pullMembersFromGoogleSheet error:', err);
   }
 
-  // Fallback to local members
+  // Fallback to local members (strictly filtered to never revive deleted members)
   let fallbackMembers: MemberReadingProfile[] = [];
   try {
     const raw = localStorage.getItem('superbible_admin_members_v4');
     if (raw) {
-      fallbackMembers = JSON.parse(raw);
+      fallbackMembers = (JSON.parse(raw) as MemberReadingProfile[]).filter((m) => !isMemberDeleted(m));
     }
   } catch (e) {}
 
@@ -700,13 +733,13 @@ export async function syncBidirectionalWithGoogleSheets(
   // Step 1: Pull remote members first so any members registered on other devices are preserved!
   const pullResult = await pullMembersFromGoogleSheet();
 
-  // Combine pulled members with input members safely (preserving all members across devices)
+  // Combine pulled members with input members safely (preserving all active members across devices)
   const memberMap = new Map<string, MemberReadingProfile>();
-  pullResult.members.forEach((m) => {
+  pullResult.members.filter((m) => !isMemberDeleted(m)).forEach((m) => {
     const k = (m.email || m.name || m.id || '').toLowerCase().trim();
     if (k) memberMap.set(k, m);
   });
-  members.forEach((m) => {
+  members.filter((m) => !isMemberDeleted(m)).forEach((m) => {
     const k = (m.email || m.name || m.id || '').toLowerCase().trim();
     if (!k) return;
     if (memberMap.has(k)) {
@@ -724,7 +757,7 @@ export async function syncBidirectionalWithGoogleSheets(
     }
   });
 
-  const mergedMembers = Array.from(memberMap.values());
+  const mergedMembers = Array.from(memberMap.values()).filter((m) => !isMemberDeleted(m));
   localStorage.setItem('superbible_admin_members_v4', JSON.stringify(mergedMembers));
 
   // Flush pending queue first if any
@@ -756,14 +789,14 @@ export async function syncBidirectionalWithGoogleSheets(
 
     if (syncRes.ok) {
       const syncData = await syncRes.json();
-      // UNION MERGE: never let a server response with fewer members drop known members!
+      // UNION MERGE: never let a server response with fewer members drop known members, BUT strictly exclude deleted members!
       const finalMap = new Map<string, MemberReadingProfile>();
-      mergedMembers.forEach((m) => {
+      mergedMembers.filter((m) => !isMemberDeleted(m)).forEach((m) => {
         const k = (m.email || m.name || m.id || '').toLowerCase().trim();
         if (k) finalMap.set(k, m);
       });
       if (syncData && Array.isArray(syncData.members)) {
-        syncData.members.forEach((sm: MemberReadingProfile) => {
+        syncData.members.filter((sm: MemberReadingProfile) => !isMemberDeleted(sm)).forEach((sm: MemberReadingProfile) => {
           const k = (sm.email || sm.name || sm.id || '').toLowerCase().trim();
           if (k) {
             if (finalMap.has(k)) {
@@ -774,7 +807,7 @@ export async function syncBidirectionalWithGoogleSheets(
           }
         });
       }
-      const finalMembers = Array.from(finalMap.values());
+      const finalMembers = Array.from(finalMap.values()).filter((m) => !isMemberDeleted(m));
       localStorage.setItem('superbible_admin_members_v4', JSON.stringify(finalMembers));
 
       // Also ensure all members are registered in local superbible_user_registry_v2 so login & profile are preserved

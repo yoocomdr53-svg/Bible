@@ -68,6 +68,7 @@ import {
 import {
   getOrSyncAdminMembers,
   deleteMemberCompletely,
+  isMemberDeleted,
   ADMIN_MEMBERS_KEY,
   ADMIN_RECORDINGS_KEY,
   AdminBlacklistItem,
@@ -375,23 +376,26 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     });
     pullMembersFromGoogleSheet().then((res) => {
       if (res.members && res.members.length > 0) {
-        setMembers(res.members);
+        setMembers(res.members.filter((m) => !isMemberDeleted(m)));
       }
     });
 
     // Real-time polling while viewing Admin panel: automatically updates screen when external members sign up
     const adminPollTimer = setInterval(() => {
       if (typeof document === 'undefined' || document.visibilityState === 'visible') {
-        pullMembersFromGoogleSheet().then((res) => {
-          if (res.members && res.members.length > 0) {
-            setMembers((prev) => {
-              if (prev.length !== res.members.length || JSON.stringify(prev) !== JSON.stringify(res.members)) {
-                return res.members;
-              }
-              return prev;
-            });
-          }
-        }).catch(() => {});
+        pullMembersFromGoogleSheet()
+          .then((res) => {
+            if (res.members) {
+              const active = res.members.filter((m) => !isMemberDeleted(m));
+              setMembers((prev) => {
+                if (prev.length !== active.length || JSON.stringify(prev) !== JSON.stringify(active)) {
+                  return active;
+                }
+                return prev;
+              });
+            }
+          })
+          .catch(() => {});
       }
     }, 6000);
 

@@ -8,6 +8,41 @@ let serverCachedMembers = globalThis.__SUPERBIBLE_MEMBERS__ || [];
 let serverCachedRecordings = globalThis.__SUPERBIBLE_RECORDINGS__ || [];
 // Explicit Admin-Designated Blacklist (관리자가 직접 지정한 차단 목록만 관리)
 let serverAdminBlacklist = globalThis.__SUPERBIBLE_ADMIN_BLACKLIST__ || [];
+// Deletion Tombstones: Tracks deleted member identifiers so stale rows in Google Sheets never resurrect deleted members!
+let serverDeletedRecords = globalThis.__SUPERBIBLE_DELETED_RECORDS__ || {};
+
+function isDeletedOnServer(m) {
+  if (!m) return false;
+  const kEmail = (m.email || '').toLowerCase().trim();
+  const kName = (m.name || '').toLowerCase().trim();
+  const kId = (m.id || m.memberId || '').toLowerCase().trim();
+  const kLogin = (m.loginId || '').toLowerCase().trim();
+  return Boolean(
+    (kEmail && serverDeletedRecords[kEmail]) ||
+    (kId && serverDeletedRecords[kId]) ||
+    (kName && serverDeletedRecords[kName]) ||
+    (kLogin && serverDeletedRecords[kLogin])
+  );
+}
+
+function recordServerDeletion(delId, delEmail, delName, delLoginId) {
+  const now = Date.now();
+  [delId, delEmail, delName, delLoginId].filter(Boolean).forEach(k => {
+    const clean = String(k).toLowerCase().trim();
+    if (clean) serverDeletedRecords[clean] = now;
+  });
+  globalThis.__SUPERBIBLE_DELETED_RECORDS__ = serverDeletedRecords;
+}
+
+function clearServerDeletion(delId, delEmail, delName, delLoginId) {
+  [delId, delEmail, delName, delLoginId].filter(Boolean).forEach(k => {
+    const clean = String(k).toLowerCase().trim();
+    if (clean && serverDeletedRecords[clean]) {
+      delete serverDeletedRecords[clean];
+    }
+  });
+  globalThis.__SUPERBIBLE_DELETED_RECORDS__ = serverDeletedRecords;
+}
 
 export default async function handler(req, res) {
   // CORS Headers
@@ -24,7 +59,7 @@ export default async function handler(req, res) {
 
   // 1. GET: Fetch latest members, config, and admin-designated blacklist
   if (req.method === 'GET') {
-    const { action = 'pull', scriptUrl, sheetUrl, sheetId } = req.query || {};
+    const { action = 'pull', scriptUrl, sheetUrl, sheetId, deletedKeys } = req.query || {};
 
     if (scriptUrl) {
       serverCachedScriptUrl = scriptUrl;
@@ -39,6 +74,15 @@ export default async function handler(req, res) {
       globalThis.__SUPERBIBLE_SHEET_ID__ = sheetId;
     }
 
+    if (deletedKeys) {
+      const keys = String(deletedKeys).split(',').map(k => k.toLowerCase().trim()).filter(Boolean);
+      const now = Date.now();
+      keys.forEach(k => {
+        if (!serverDeletedRecords[k]) serverDeletedRecords[k] = now;
+      });
+      globalThis.__SUPERBIBLE_DELETED_RECORDS__ = serverDeletedRecords;
+    }
+
     const targetScriptUrl = scriptUrl || serverCachedScriptUrl || req.headers['x-script-url'] || '';
 
     if (action === 'getConfig') {
@@ -48,8 +92,9 @@ export default async function handler(req, res) {
         sheetUrl: serverCachedSheetUrl,
         sheetId: serverCachedSheetId,
         adminEmail: 'yoocomdr57@gmail.com',
-        membersCount: serverCachedMembers.length,
+        membersCount: serverCachedMembers.filter(m => !isDeletedOnServer(m)).length,
         blacklistCount: serverAdminBlacklist.length,
+        deletedCount: Object.keys(serverDeletedRecords).length,
         timestamp: new Date().toISOString()
       });
       return;
@@ -87,16 +132,18 @@ export default async function handler(req, res) {
           }
 
           if (gasData && Array.isArray(gasData.members) && gasData.members.length > 0) {
-            // Google Sheets is the Master Truth: All members in Google Sheets are active!
+            // Strictly exclude deleted members so stale rows from Google Sheets never resurrect deleted members!
+            const activeGasMembers = gasData.members.filter(gm => !isDeletedOnServer(gm));
+
             const map = new Map();
-            // 1. Add current server cache
-            serverCachedMembers.forEach(m => {
+            // 1. Add current server cache (only active members)
+            serverCachedMembers.filter(m => !isDeletedOnServer(m)).forEach(m => {
               const k = (m.email || m.name || m.id || '').toLowerCase().trim();
               if (k) map.set(k, m);
             });
 
-            // 2. Add / update all members from Google Sheets
-            gasData.members.forEach(gm => {
+            // 2. Add / update all active members from Google Sheets
+            activeGasMembers.forEach(gm => {
               const k = (gm.email || gm.name || gm.id || '').toLowerCase().trim();
               if (!k) return;
               if (map.has(k)) {
@@ -117,13 +164,14 @@ export default async function handler(req, res) {
               }
             });
 
-            serverCachedMembers = Array.from(map.values());
+            serverCachedMembers = Array.from(map.values()).filter(m => !isDeletedOnServer(m));
             globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
 
             res.status(200).json({
               success: true,
               source: 'google_sheets',
               members: serverCachedMembers,
+              deletedRecords: serverDeletedRecords,
               recordings: gasData.recordings || serverCachedRecordings,
               blacklist: serverAdminBlacklist,
               scriptUrl: targetScriptUrl,
@@ -138,13 +186,15 @@ export default async function handler(req, res) {
       }
     }
 
-    // Fallback: return server cache
+    // Fallback: return server cache (filtered against deleted tombstones)
+    serverCachedMembers = serverCachedMembers.filter(m => !isDeletedOnServer(m));
     globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
 
     res.status(200).json({
       success: true,
       source: 'server_cache',
       members: serverCachedMembers,
+      deletedRecords: serverDeletedRecords,
       recordings: serverCachedRecordings,
       blacklist: serverAdminBlacklist,
       scriptUrl: serverCachedScriptUrl,
@@ -260,25 +310,20 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Action: Completely and Cleanly Delete Member (완전 삭제 - 블랙리스트에 남지 않음!)
+    // Action: Completely and Cleanly Delete Member
+    // Records deletion tombstone so stale Google Sheets rows never resurrect the member,
+    // while allowing clean re-registration in the future!
     if (action === 'deleteMember') {
       const delEmail = (body.email || '').toLowerCase().trim();
       const delLoginId = (body.loginId || '').toLowerCase().trim();
       const delName = (body.name || '').toLowerCase().trim();
       const delId = (body.memberId || body.id || '').toLowerCase().trim();
 
+      // Record deletion tombstone
+      recordServerDeletion(delId, delEmail, delName, delLoginId);
+
       // Completely remove from serverCachedMembers
-      serverCachedMembers = serverCachedMembers.filter(m => {
-        const mEmail = (m.email || '').toLowerCase().trim();
-        const mLogin = (m.loginId || '').toLowerCase().trim();
-        const mName = (m.name || '').toLowerCase().trim();
-        const mId = (m.id || '').toLowerCase().trim();
-        if (delId && mId === delId) return false;
-        if (delEmail && mEmail === delEmail) return false;
-        if (delLoginId && mLogin === delLoginId) return false;
-        if (delName && mName === delName) return false;
-        return true;
-      });
+      serverCachedMembers = serverCachedMembers.filter(m => !isDeletedOnServer(m));
       globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
 
       // Forward deletion to Google Apps Script (deletes rows in Google Sheets)
@@ -300,8 +345,9 @@ export default async function handler(req, res) {
 
       res.status(200).json({
         success: true,
-        message: '회원이 중앙 서버 및 구글 스프레드시트에서 흔적 없이 완전 삭제되었습니다. (블랙리스트에 남지 않음)',
+        message: '회원이 중앙 서버 및 모든 기기에서 완전히 영구 삭제되었습니다. (재가입 가능)',
         members: serverCachedMembers,
+        deletedRecords: serverDeletedRecords,
         timestamp: new Date().toISOString()
       });
       return;
@@ -314,6 +360,10 @@ export default async function handler(req, res) {
         const kEmail = (incomingMember.email || '').toLowerCase().trim();
         const kName = (incomingMember.name || '').toLowerCase().trim();
         const kId = (incomingMember.id || '').toLowerCase().trim();
+        const kLogin = (body.loginId || '').toLowerCase().trim();
+
+        // CLEAR any past deletion tombstone so new signup is completely fresh!
+        clearServerDeletion(kId, kEmail, kName, kLogin);
 
         const existingIdx = serverCachedMembers.findIndex(m => {
           const me = (m.email || '').toLowerCase().trim();
@@ -334,12 +384,12 @@ export default async function handler(req, res) {
     if (action === 'sync') {
       const incomingList = body.data?.members || body.members || [];
       const map = new Map();
-      serverCachedMembers.forEach(m => {
+      serverCachedMembers.filter(m => !isDeletedOnServer(m)).forEach(m => {
         const k = (m.email || m.name || m.id || '').toLowerCase().trim();
         if (k) map.set(k, m);
       });
 
-      incomingList.forEach(m => {
+      incomingList.filter(m => !isDeletedOnServer(m)).forEach(m => {
         const k = (m.email || m.name || m.id || '').toLowerCase().trim();
         if (!k) return;
         if (map.has(k)) {
@@ -356,7 +406,7 @@ export default async function handler(req, res) {
           map.set(k, m);
         }
       });
-      serverCachedMembers = Array.from(map.values());
+      serverCachedMembers = Array.from(map.values()).filter(m => !isDeletedOnServer(m));
       globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
     }
 
@@ -400,10 +450,10 @@ export default async function handler(req, res) {
         try {
           gasResult = await gasRes.json();
           if (gasResult && Array.isArray(gasResult.members) && gasResult.members.length > 0) {
-            // Update server cache with Google Sheets merged list
+            // Update server cache with Google Sheets merged list (strictly excluding deleted members)
             const gmap = new Map();
-            serverCachedMembers.forEach(m => gmap.set((m.email || m.name || m.id).toLowerCase().trim(), m));
-            gasResult.members.forEach(gm => {
+            serverCachedMembers.filter(m => !isDeletedOnServer(m)).forEach(m => gmap.set((m.email || m.name || m.id).toLowerCase().trim(), m));
+            gasResult.members.filter(gm => !isDeletedOnServer(gm)).forEach(gm => {
               const gk = (gm.email || gm.name || gm.id).toLowerCase().trim();
               if (gmap.has(gk)) {
                 gmap.set(gk, { ...gmap.get(gk), ...gm });
@@ -411,7 +461,7 @@ export default async function handler(req, res) {
                 gmap.set(gk, gm);
               }
             });
-            serverCachedMembers = Array.from(gmap.values());
+            serverCachedMembers = Array.from(gmap.values()).filter(m => !isDeletedOnServer(m));
             globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
           }
         } catch (jsonErr) {
@@ -426,7 +476,8 @@ export default async function handler(req, res) {
       success: true,
       message: gasResult?.message || '중앙 서버에 안전하게 실시간 동기화되었습니다.',
       gasResult,
-      members: serverCachedMembers,
+      members: serverCachedMembers.filter(m => !isDeletedOnServer(m)),
+      deletedRecords: serverDeletedRecords,
       blacklist: serverAdminBlacklist,
       scriptUrl: serverCachedScriptUrl,
       sheetUrl: serverCachedSheetUrl,

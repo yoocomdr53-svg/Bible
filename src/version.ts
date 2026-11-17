@@ -2,8 +2,8 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 2.3';
-export const APP_BUILD_DATE = '2026.11.16';
+export const APP_VERSION = 'Ver 2.4';
+export const APP_BUILD_DATE = '2026.11.17';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
 
@@ -15,6 +15,17 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 2.4',
+    name: 'SuperBible',
+    releaseDate: '2026.11.17',
+    changes: [
+      '회원 삭제 후 구글 시트 잔존 행에 의한 삭제 회원 자동 부활(되살아남) 현상 원천 차단: 삭제된 회원은 톰스톤(Tombstone) 관리로 구글 시트 미반영 시에도 절대 자동 재출현하지 않음',
+      '삭제와 신규/재가입의 완벽한 양립 보장: 회원을 삭제하면 즉시 모든 기기에서 완전히 사라지며, 이후 동일한 계정으로 신규/재가입 시 삭제 기록이 자동 정화되어 100% 정상 가입 및 활동 가능',
+      '스마트폰·태블릿·PC 3중 동기화 엔진에서 삭제 상태 실시간 전파: PC에서 삭제 시 스마트폰/태블릿에서도 즉시 삭제되며, 새로고침 시에도 다시 나타나지 않음',
+      '중앙 동기화 허브(/api/sync) 삭제 톰스톤 양방향 동기화 탑재',
+    ],
+  },
   {
     version: 'Ver 2.3',
     name: 'SuperBible',
