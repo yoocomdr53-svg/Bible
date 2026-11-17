@@ -1075,7 +1075,7 @@ function cleanTestMembers() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var rosterSheet = ss.getSheetByName("회원관리");
   var memberSheet = ss.getSheetByName("회원_낭독진도");
-  var testKeywords = ["임시테스트", "e2e테스터", "e2e테스트", "신규 성도", "신규성도", "temp_delete_test", "e2e_tester", "라이브테스트성도", "user_live_test"];
+  var testKeywords = ["임시테스트", "e2e테스터", "e2e테스트", "신규 성도", "신규성도", "temp_delete_test", "e2e_tester", "라이브테스트성도", "user_live_test", "yoocomdr55@gmail.com"];
   var deletedCount = 0;
   [rosterSheet, memberSheet].forEach(function(sheet) {
     if (!sheet) return;
