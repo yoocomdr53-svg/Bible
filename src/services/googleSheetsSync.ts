@@ -1037,6 +1037,28 @@ function setupSuperBibleSheets() {
   }
 }
 
+// 테스트 계정 및 임시 행 일괄 정리 함수 (Apps Script 상단 함수 목록에서 선택 후 [실행] 클릭 시 1초 만에 테스트 행 자동 정리)
+function cleanTestMembers() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var rosterSheet = ss.getSheetByName("회원관리");
+  var memberSheet = ss.getSheetByName("회원_낭독진도");
+  var testKeywords = ["임시테스트", "e2e테스터", "신규 성도", "temp_delete_test", "e2e_tester"];
+  var deletedCount = 0;
+  [rosterSheet, memberSheet].forEach(function(sheet) {
+    if (!sheet) return;
+    var data = sheet.getDataRange().getValues();
+    for (var i = data.length - 1; i >= 1; i--) {
+      var rowStr = JSON.stringify(data[i]).toLowerCase();
+      var isTest = testKeywords.some(function(kw) { return rowStr.indexOf(kw.toLowerCase()) !== -1; });
+      if (isTest) {
+        sheet.deleteRow(i + 1);
+        deletedCount++;
+      }
+    }
+  });
+  Logger.log("테스트 행 정리 완료: " + deletedCount + "개 행 삭제");
+}
+
 function doPost(e) {
   try {
     var raw = e.postData ? e.postData.contents : "";
@@ -1707,6 +1729,39 @@ function doGet(e) {
   setupSuperBibleSheets();
   var rosterSheet = ss.getSheetByName("회원관리");
   var memberSheet = ss.getSheetByName("회원_낭독진도");
+
+  // GET 요청으로 회원 삭제 또는 테스트 정리 호출 지원
+  if (e && e.parameter && (e.parameter.action === "deleteMember" || e.parameter.action === "delete")) {
+    var delEmail = (e.parameter.email || "").toLowerCase().trim();
+    var delName = (e.parameter.name || "").toLowerCase().trim();
+    var delId = (e.parameter.memberId || e.parameter.id || "").toLowerCase().trim();
+    if (rosterSheet) {
+      var rData = rosterSheet.getDataRange().getValues();
+      for (var ri = rData.length - 1; ri >= 1; ri--) {
+        var rId = String(rData[ri][0] || "").toLowerCase().trim();
+        var rName = String(rData[ri][1] || "").toLowerCase().trim();
+        var rEmail = String(rData[ri][5] || "").toLowerCase().trim();
+        if ((delId && rId === delId) || (delEmail && rEmail === delEmail) || (delName && rName === delName)) {
+          rosterSheet.deleteRow(ri + 1);
+        }
+      }
+    }
+    if (memberSheet) {
+      var mData = memberSheet.getDataRange().getValues();
+      for (var mi = mData.length - 1; mi >= 1; mi--) {
+        var mId = String(mData[mi][0] || "").toLowerCase().trim();
+        var mName = String(mData[mi][1] || "").toLowerCase().trim();
+        var mEmail = String(mData[mi][5] || "").toLowerCase().trim();
+        if ((delId && mId === delId) || (delEmail && rEmail === delEmail) || (delName && mName === delName)) {
+          memberSheet.deleteRow(mi + 1);
+        }
+      }
+    }
+  }
+
+  if (e && e.parameter && e.parameter.action === "cleanTest") {
+    cleanTestMembers();
+  }
 
   var rosterRows = rosterSheet ? rosterSheet.getDataRange().getValues() : [];
   var memberRows = memberSheet ? memberSheet.getDataRange().getValues() : [];
