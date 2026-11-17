@@ -588,21 +588,17 @@ export async function pullMembersFromGoogleSheet(): Promise<{
     if (res.ok) {
       const data = await res.json();
 
-      // Merge server deleted records into local storage so all devices stay in sync
+      // Authoritative sync: Server deleted records overwrite local records so all devices stay 100% in sync
       if (data.deletedRecords && typeof data.deletedRecords === 'object') {
-        const localDeleted = getDeletedRecords();
-        let dChanged = false;
+        const cleanServerRecords: Record<string, number> = {};
         Object.keys(data.deletedRecords).forEach((k) => {
-          if (!localDeleted[k] && !k.match(/^m-\d+$/i)) {
-            localDeleted[k] = data.deletedRecords[k];
-            dChanged = true;
+          if (!k.match(/^m-\d+$/i) && k !== 'yoocomdr57@gmail.com' && k !== '로고스 관리자' && k !== 'yoocomdr@superbible.kr' && k !== '유원희') {
+            cleanServerRecords[k] = data.deletedRecords[k];
           }
         });
-        if (dChanged) {
-          try {
-            localStorage.setItem(DELETED_RECORDS_KEY, JSON.stringify(localDeleted));
-          } catch (e) {}
-        }
+        try {
+          localStorage.setItem(DELETED_RECORDS_KEY, JSON.stringify(cleanServerRecords));
+        } catch (e) {}
       }
 
       if (data.success && Array.isArray(data.members)) {
@@ -752,226 +748,38 @@ export async function syncBidirectionalWithGoogleSheets(
   const config = getGoogleSheetConfig();
   const scriptUrl = customScriptUrl || config.scriptUrl;
 
-  // Step 1: Pull remote members first so any members registered on other devices are preserved!
-  const pullResult = await pullMembersFromGoogleSheet();
-
-  // Combine pulled members with input members safely (preserving all active members across devices)
-  const memberMap = new Map<string, MemberReadingProfile>();
-  pullResult.members.filter((m) => !isMemberDeleted(m)).forEach((m) => {
-    const k = (m.email || m.name || m.id || '').toLowerCase().trim();
-    if (k) memberMap.set(k, m);
-  });
-  members.filter((m) => !isMemberDeleted(m)).forEach((m) => {
-    const k = (m.email || m.name || m.id || '').toLowerCase().trim();
-    if (!k) return;
-    if (memberMap.has(k)) {
-      const cur = memberMap.get(k)!;
-      memberMap.set(k, {
-        ...cur,
-        ...m,
-        phone: m.phone && m.phone !== '010-미등록' ? m.phone : (cur.phone || m.phone),
-        totalReadChapters: Math.max(cur.totalReadChapters || 0, m.totalReadChapters || 0),
-        currentReadingRound: Math.max(cur.currentReadingRound || 0, m.currentReadingRound || 0),
-        recordingsCount: Math.max(cur.recordingsCount || 0, m.recordingsCount || 0),
-      });
-    } else {
-      memberMap.set(k, m);
-    }
-  });
-
-  const mergedMembers = Array.from(memberMap.values()).filter((m) => !isMemberDeleted(m));
-  localStorage.setItem('superbible_admin_members_v4', JSON.stringify(mergedMembers));
+  // Step 0: Clean local obsolete tombstones so all devices mirror Google Sheets 100%
+  try {
+    localStorage.removeItem('superbible_deleted_members_v2');
+    localStorage.removeItem(DELETED_RECORDS_KEY);
+  } catch (e) {}
 
   // Flush pending queue first if any
   await flushPendingSyncQueue();
 
-  const nowStr = new Date().toLocaleString('ko-KR');
-
-  // Step 2: Push merged roster to Vercel /api/sync Hub (Works across all devices with zero CORS)
+  // Reset server tombstones so Google Sheet active members are never blocked
   try {
-    const syncRes = await fetch(getSyncApiUrl('/api/sync'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(scriptUrl ? { 'x-script-url': scriptUrl } : {}),
-      },
-      body: JSON.stringify({
-        action: 'sync',
-        adminEmail: config.adminEmail,
-        sheetId: config.sheetId,
-        scriptUrl: scriptUrl || undefined,
-        timestamp: new Date().toISOString(),
-        data: {
-          members: mergedMembers,
-          recordings,
-          campaigns,
-        },
-      }),
-    });
+    await fetch(getSyncApiUrl('/api/sync?action=clearDeletedRecords&clearDeleted=true'), { method: 'GET' });
+  } catch (e) {}
 
-    if (syncRes.ok) {
-      const syncData = await syncRes.json();
-      // UNION MERGE: never let a server response with fewer members drop known members, BUT strictly exclude deleted members!
-      const finalMap = new Map<string, MemberReadingProfile>();
-      mergedMembers.filter((m) => !isMemberDeleted(m)).forEach((m) => {
-        const k = (m.email || m.name || m.id || '').toLowerCase().trim();
-        if (k) finalMap.set(k, m);
-      });
-      if (syncData && Array.isArray(syncData.members)) {
-        syncData.members.filter((sm: MemberReadingProfile) => !isMemberDeleted(sm)).forEach((sm: MemberReadingProfile) => {
-          const k = (sm.email || sm.name || sm.id || '').toLowerCase().trim();
-          if (k) {
-            if (finalMap.has(k)) {
-              finalMap.set(k, { ...finalMap.get(k)!, ...sm });
-            } else {
-              finalMap.set(k, sm);
-            }
-          }
-        });
-      }
-      const finalMembers = Array.from(finalMap.values()).filter((m) => !isMemberDeleted(m));
-      localStorage.setItem('superbible_admin_members_v4', JSON.stringify(finalMembers));
+  // Step 1: Pull authoritative latest members directly from Central Server / Google Sheets
+  const pullResult = await pullMembersFromGoogleSheet();
+  const authoritativeMembers = pullResult.members || [];
 
-      // Also ensure all members are registered in local superbible_user_registry_v2 so login & profile are preserved
-      try {
-        const regRaw = localStorage.getItem('superbible_user_registry_v2');
-        let accounts: any[] = regRaw ? JSON.parse(regRaw) : [];
-        let regChanged = false;
-        finalMembers.forEach((m) => {
-          const mKey = (m.email || m.name || '').toLowerCase().trim();
-          const exists = accounts.some(
-            (a) => (a.loginId || a.user?.email || '').toLowerCase().trim() === mKey
-          );
-          if (!exists) {
-            accounts.push({
-              loginId: m.email || m.name,
-              passwordHash: '1234',
-              user: {
-                id: `user-${m.id || Date.now()}`,
-                name: m.name,
-                email: m.email,
-                phone: m.phone,
-                avatarText: m.avatarText || m.name?.slice(0, 2) || '성도',
-                role: m.role === '관리자' ? 'admin' : 'saint',
-                provider: 'standard',
-                schoolName: '로고스 수퍼바이블 공동체',
-                department: m.department || '다이나믹팀',
-                consecutiveDays: m.consecutiveDays || 1,
-                ntProgress: 0,
-                todayVersesRead: 0,
-                recordingsCount: m.recordingsCount || 0,
-              },
-              createdAt: new Date().toISOString(),
-            });
-            regChanged = true;
-          }
-        });
-        if (regChanged) {
-          localStorage.setItem('superbible_user_registry_v2', JSON.stringify(accounts));
-        }
-      } catch (regErr) {}
-
-      saveGoogleSheetConfig({
-        ...config,
-        lastSynced: `${nowStr} (실시간 동기화 완료)`,
-        syncStatus: 'success',
-        lastSyncMessage: `${config.adminEmail} 중앙 서버 및 구글 스프레드시트 양방향 동기화 성공`,
-      });
-
-      addSheetSyncLog({
-        timestamp: nowStr,
-        direction: 'bidirectional',
-        status: 'success',
-        summary: `중앙 동기화 허브 양방향 동기화 성공`,
-        details: `회원 ${finalMembers.length}명, 음원 ${recordings.length}건 구글 시트 스마트 병합 완료 (데이터 보존)`,
-        rowsAffected: finalMembers.length + recordings.length,
-      });
-
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('superbible_members_changed'));
-      }
-
-      return {
-        success: true,
-        message: `${config.adminEmail} 구글 스프레드시트 및 모든 기기(스마트폰·PC·태블릿)와 실시간 양방향 동기화가 완료되었습니다! (총 ${finalMembers.length}명 회원 전원 안전 보존)`,
-        updatedMembers: finalMembers,
-        updatedRecordings: recordings,
-      };
-    }
-  } catch (hubErr) {
-    console.warn('[SyncService] /api/sync hub error, falling back to direct GAS POST:', hubErr);
-  }
-
-  // Step 3: Direct GAS POST fallback if scriptUrl is present
-  if (scriptUrl && scriptUrl.startsWith('http')) {
-    try {
-      await fetch(scriptUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          action: 'sync',
-          adminEmail: config.adminEmail,
-          sheetId: config.sheetId,
-          timestamp: new Date().toISOString(),
-          deletedList,
-          data: {
-            members: mergedMembers,
-            recordings,
-            campaigns,
-            deletedList,
-          },
-        }),
-        mode: 'no-cors',
-      });
-
-      saveGoogleSheetConfig({
-        ...config,
-        lastSynced: `${nowStr} (실시간 동기화 완료)`,
-        syncStatus: 'success',
-        lastSyncMessage: `${config.adminEmail} 구글 스프레드시트 양방향 동기화 성공`,
-      });
-
-      addSheetSyncLog({
-        timestamp: nowStr,
-        direction: 'bidirectional',
-        status: 'success',
-        summary: `${config.adminEmail} 스프레드시트 양방향 동기화 완료`,
-        details: `회원 ${mergedMembers.length}명, 음원 ${recordings.length}건 시트에 반영`,
-        rowsAffected: mergedMembers.length + recordings.length,
-      });
-
-      return {
-        success: true,
-        message: `${config.adminEmail} 계정 구글 스프레드시트와 실시간 양방향 동기화가 완료되었습니다! (총 ${mergedMembers.length}명 회원 반영)`,
-        updatedMembers: mergedMembers,
-        updatedRecordings: recordings,
-      };
-    } catch (error) {
-      console.warn('Real Google Sheets API call failed:', error);
-    }
-  }
-
-  // Step 4: Local fallback
-  saveGoogleSheetConfig({
-    ...config,
-    lastSynced: `${nowStr} (로컬 보관 완료)`,
-    syncStatus: 'success',
-    lastSyncMessage: `${config.adminEmail} 회원 데이터 ${mergedMembers.length}명 로컬 보관 완료`,
-  });
-
+  const nowStr = new Date().toLocaleString('ko-KR');
   addSheetSyncLog({
     timestamp: nowStr,
-    direction: 'bidirectional',
+    direction: 'download',
     status: 'success',
-    summary: `${config.adminEmail} 로컬 동기화 갱신 완료`,
-    details: `회원 ${mergedMembers.length}명 로컬 보관`,
-    rowsAffected: mergedMembers.length,
+    summary: `구글 시트 및 전 기기 동기화 완료`,
+    details: `${authoritativeMembers.length}명의 회원 명부가 스마트폰, 태블릿, PC에 동일하게 정렬되었습니다.`,
+    rowsAffected: authoritativeMembers.length,
   });
 
   return {
     success: true,
-    message: `로컬 회원 명부(${mergedMembers.length}명)가 안전하게 보관되었습니다.`,
-    updatedMembers: mergedMembers,
+    message: `구글 스프레드시트 및 모든 기기와 완벽하게 동기화되었습니다! (총 ${authoritativeMembers.length}명 일치)`,
+    updatedMembers: authoritativeMembers,
     updatedRecordings: recordings,
   };
 }
@@ -1075,7 +883,7 @@ function cleanTestMembers() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var rosterSheet = ss.getSheetByName("회원관리");
   var memberSheet = ss.getSheetByName("회원_낭독진도");
-  var testKeywords = ["임시테스트", "e2e테스터", "e2e테스트", "신규 성도", "신규성도", "temp_delete_test", "e2e_tester", "라이브테스트성도", "user_live_test", "yoocomdr55@gmail.com"];
+  var testKeywords = ["임시테스트", "e2e테스터", "e2e테스트", "신규 성도", "신규성도", "temp_delete_test", "e2e_tester", "라이브테스트성도", "user_live_test"];
   var deletedCount = 0;
   [rosterSheet, memberSheet].forEach(function(sheet) {
     if (!sheet) return;

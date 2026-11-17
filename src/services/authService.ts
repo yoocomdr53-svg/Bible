@@ -184,17 +184,17 @@ export function getDeletedRecords(): Record<string, number> {
 export function recordDeletion(memberId?: string, email?: string, name?: string, loginId?: string): Record<string, number> {
   const records = getDeletedRecords();
   const now = Date.now();
-  // Record unique email and loginId
+  // Record unique email and loginId (never record protected master accounts)
   [email, loginId].filter(Boolean).forEach((k) => {
     const clean = String(k).toLowerCase().trim();
-    if (clean && !clean.match(/^m-\d+$/i) && clean !== 'yoocomdr57@gmail.com') {
+    if (clean && !clean.match(/^m-\d+$/i) && clean !== 'yoocomdr57@gmail.com' && clean !== 'yoocomdr@superbible.kr') {
       records[clean] = now;
     }
   });
-  // Also record member name if provided (allowing deletion of members without email)
+  // Also record member name if provided (never record protected master accounts)
   if (name) {
     const cleanName = String(name).toLowerCase().trim();
-    if (cleanName && cleanName !== '로고스 관리자' && cleanName !== '로고스관리자') {
+    if (cleanName && cleanName !== '로고스 관리자' && cleanName !== '로고스관리자' && cleanName !== '유원희') {
       records[cleanName] = now;
       records[`name:${cleanName}`] = now;
     }
@@ -260,8 +260,14 @@ export function isMemberDeleted(identifier: {
     return true;
   }
 
-  // 2. ONLY root master system admin is protected from deletion (prevents admin lockout)
-  if (kEmail === 'yoocomdr57@gmail.com' || kName === '로고스 관리자' || kName === '로고스관리자') {
+  // 2. Master system admin & core identity protected from deletion (prevents admin lockout)
+  if (
+    kEmail === 'yoocomdr57@gmail.com' ||
+    kName === '로고스 관리자' ||
+    kName === '로고스관리자' ||
+    kEmail === 'yoocomdr@superbible.kr' ||
+    kName === '유원희'
+  ) {
     return false;
   }
 

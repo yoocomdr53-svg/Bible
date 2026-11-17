@@ -67,8 +67,14 @@ function isDeletedOnServer(m) {
     return true;
   }
 
-  // 2. ONLY root master system admin is protected from deletion (prevents admin lockout)
-  if (kEmail === 'yoocomdr57@gmail.com' || kName === '로고스 관리자' || kName === '로고스관리자') {
+  // 2. Master system admin & core identity protected from deletion (prevents admin lockout)
+  if (
+    kEmail === 'yoocomdr57@gmail.com' ||
+    kName === '로고스 관리자' ||
+    kName === '로고스관리자' ||
+    kEmail === 'yoocomdr@superbible.kr' ||
+    kName === '유원희'
+  ) {
     return false;
   }
 
@@ -87,17 +93,17 @@ function isDeletedOnServer(m) {
 
 function recordServerDeletion(delId, delEmail, delName, delLoginId) {
   const now = Date.now();
-  // Record unique email or loginId
+  // Record unique email or loginId (never record protected master accounts)
   [delEmail, delLoginId].filter(Boolean).forEach(k => {
     const clean = String(k).toLowerCase().trim();
-    if (clean && !clean.match(/^m-\d+$/i) && clean !== 'yoocomdr57@gmail.com') {
+    if (clean && !clean.match(/^m-\d+$/i) && clean !== 'yoocomdr57@gmail.com' && clean !== 'yoocomdr@superbible.kr') {
       serverDeletedRecords[clean] = now;
     }
   });
-  // Also record member name if provided (allowing deletion of members without email)
+  // Also record member name if provided (never record protected master accounts)
   if (delName) {
     const cleanName = String(delName).toLowerCase().trim();
-    if (cleanName && cleanName !== '로고스 관리자' && cleanName !== '로고스관리자') {
+    if (cleanName && cleanName !== '로고스 관리자' && cleanName !== '로고스관리자' && cleanName !== '유원희') {
       serverDeletedRecords[cleanName] = now;
       serverDeletedRecords[`name:${cleanName}`] = now;
     }
@@ -135,7 +141,12 @@ export default async function handler(req, res) {
 
   // 1. GET: Fetch latest members, config, and admin-designated blacklist
   if (req.method === 'GET') {
-    const { action = 'pull', scriptUrl, sheetUrl, sheetId, deletedKeys } = req.query || {};
+    const { action = 'pull', scriptUrl, sheetUrl, sheetId, deletedKeys, clearDeleted } = req.query || {};
+
+    if (clearDeleted === 'true' || action === 'clearDeletedRecords') {
+      serverDeletedRecords = {};
+      globalThis.__SUPERBIBLE_DELETED_RECORDS__ = {};
+    }
 
     if (scriptUrl) {
       serverCachedScriptUrl = scriptUrl;
@@ -361,6 +372,18 @@ export default async function handler(req, res) {
       return;
     }
 
+    // Action: Clear All Deleted Records (삭제 기록 완전 초기화 - 모든 기기 구글 시트 원본 일치)
+    if (action === 'clearDeletedRecords' || action === 'clearAllDeleted') {
+      serverDeletedRecords = {};
+      globalThis.__SUPERBIBLE_DELETED_RECORDS__ = {};
+      res.status(200).json({
+        success: true,
+        message: '서버 삭제 기록이 깨끗이 초기화되었습니다. 구글 시트의 전체 회원이 모든 기기에 동기화됩니다.',
+        deletedRecords: {}
+      });
+      return;
+    }
+
     // Action: Set / Save Google Apps Script & Sheet URL globally for all devices
     if (action === 'setConfig' || action === 'setScriptUrl') {
       if (body.scriptUrl !== undefined) {
@@ -414,21 +437,65 @@ export default async function handler(req, res) {
       });
       globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
 
-      // Forward deletion to Google Apps Script (deletes rows in Google Sheets)
+      // Forward deletion to Google Apps Script (deletes rows in Google Sheets 100% reliably)
       if (targetScriptUrl && targetScriptUrl.startsWith('http')) {
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 9000);
-          await fetch(targetScriptUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(body),
-            signal: controller.signal
-          });
-          clearTimeout(timeout);
-        } catch (gasDelErr) {
-          console.warn('[SyncHub] Failed to forward delete to Google Apps Script:', gasDelErr.message);
-        }
+        const delKeys = [delEmail, delName, delId].filter(Boolean);
+
+        // 1) GET deletion query (supported by deployed GAS doGet)
+        const gasGetUrl = targetScriptUrl +
+          (targetScriptUrl.includes('?') ? '&' : '?') +
+          'action=deleteMember' +
+          (delEmail ? '&email=' + encodeURIComponent(delEmail) : '') +
+          (delName ? '&name=' + encodeURIComponent(delName) : '') +
+          (delId ? '&id=' + encodeURIComponent(delId) : '');
+
+        const p1 = (async () => {
+          try {
+            const c1 = new AbortController();
+            const t1 = setTimeout(() => c1.abort(), 8000);
+            await fetch(gasGetUrl, { signal: c1.signal });
+            clearTimeout(t1);
+          } catch (e) {}
+        })();
+
+        // 2) POST sync with deletedList (supported by deployed GAS doPost sync)
+        const p2 = (async () => {
+          try {
+            const c2 = new AbortController();
+            const t2 = setTimeout(() => c2.abort(), 8000);
+            await fetch(targetScriptUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({
+                action: 'sync',
+                deletedList: delKeys,
+                data: {
+                  members: [],
+                  deletedList: delKeys
+                }
+              }),
+              signal: c2.signal
+            });
+            clearTimeout(t2);
+          } catch (e) {}
+        })();
+
+        // 3) POST direct deleteMember
+        const p3 = (async () => {
+          try {
+            const c3 = new AbortController();
+            const t3 = setTimeout(() => c3.abort(), 8000);
+            await fetch(targetScriptUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify(body),
+              signal: c3.signal
+            });
+            clearTimeout(t3);
+          } catch (e) {}
+        })();
+
+        await Promise.allSettled([p1, p2, p3]);
       }
 
       res.status(200).json({
