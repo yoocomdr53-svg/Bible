@@ -230,8 +230,10 @@ export function isMemberDeleted(identifier: {
     kName === '신규 성도' ||
     kName === 'E2E테스터' ||
     kName === 'e2e테스터' ||
+    kName === '라이브테스트성도' ||
     kEmail === 'temp_delete_test@gmail.com' ||
-    kEmail === 'e2e_tester@superbible.kr'
+    kEmail === 'e2e_tester@superbible.kr' ||
+    kEmail === 'user_live_test@gmail.com'
   ) {
     return true;
   }
@@ -240,8 +242,14 @@ export function isMemberDeleted(identifier: {
   if (
     kEmail === 'yoocomdr57@gmail.com' ||
     kEmail === 'yoocomdr@superbible.kr' ||
+    kEmail === 'yoocomdr55@gmail.com' ||
+    kEmail === 'yoocomdr58@gmail.com' ||
+    kEmail === 'realuser1@gmail.com' ||
     kName === '유원희' ||
-    kName === '로고스 관리자'
+    kName === '로고스 관리자' ||
+    kName === '황희' ||
+    kName === '윤봉길' ||
+    kName === '정회원'
   ) {
     return false;
   }
@@ -431,8 +439,10 @@ function cleanupLegacyStorage(): void {
           val.includes('임시테스트') ||
           val.includes('신규 성도') ||
           val.includes('E2E테스터') ||
+          val.includes('라이브테스트성도') ||
           val.includes('temp_delete_test') ||
-          val.includes('e2e_tester')
+          val.includes('e2e_tester') ||
+          val.includes('user_live_test')
         ) {
           let fixed = val.replace(/유천년/g, '유원희');
           try {
@@ -447,8 +457,10 @@ function cleanupLegacyStorage(): void {
                     n === '신규 성도' ||
                     n === 'E2E테스터' ||
                     n === 'e2e테스터' ||
+                    n === '라이브테스트성도' ||
                     em.includes('temp_delete_test') ||
-                    em.includes('e2e_tester')
+                    em.includes('e2e_tester') ||
+                    em.includes('user_live_test')
                   ) {
                     return false;
                   }

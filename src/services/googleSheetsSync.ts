@@ -617,7 +617,12 @@ export async function pullMembersFromGoogleSheet(): Promise<{
             }
             return { ...m, name, avatarText };
           })
-          .filter((m: any) => !isMemberDeleted(m));
+          .filter((m: any) => !isMemberDeleted(m))
+          .sort((a: any, b: any) => {
+            const na = parseInt(String(a.id || '').replace(/\D/g, ''), 10) || 999;
+            const nb = parseInt(String(b.id || '').replace(/\D/g, ''), 10) || 999;
+            return na - nb;
+          });
 
         // Clean obsolete deleted blacklist so active members are never affected
         try {
@@ -1059,7 +1064,7 @@ function cleanTestMembers() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var rosterSheet = ss.getSheetByName("회원관리");
   var memberSheet = ss.getSheetByName("회원_낭독진도");
-  var testKeywords = ["임시테스트", "e2e테스터", "신규 성도", "temp_delete_test", "e2e_tester"];
+  var testKeywords = ["임시테스트", "e2e테스터", "신규 성도", "temp_delete_test", "e2e_tester", "라이브테스트성도", "user_live_test"];
   var deletedCount = 0;
   [rosterSheet, memberSheet].forEach(function(sheet) {
     if (!sheet) return;

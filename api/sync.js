@@ -38,6 +38,14 @@ function normalizeMember(m) {
   return m;
 }
 
+function sortMembers(list) {
+  return (list || []).sort((a, b) => {
+    const na = parseInt(String(a.id || '').replace(/\D/g, ''), 10) || 999;
+    const nb = parseInt(String(b.id || '').replace(/\D/g, ''), 10) || 999;
+    return na - nb;
+  });
+}
+
 function isDeletedOnServer(m) {
   if (!m) return false;
   const kEmail = (m.email || '').toLowerCase().trim();
@@ -50,14 +58,27 @@ function isDeletedOnServer(m) {
     kName === '신규 성도' ||
     kName === 'E2E테스터' ||
     kName === 'e2e테스터' ||
+    kName === '라이브테스트성도' ||
     kEmail === 'temp_delete_test@gmail.com' ||
-    kEmail === 'e2e_tester@superbible.kr'
+    kEmail === 'e2e_tester@superbible.kr' ||
+    kEmail === 'user_live_test@gmail.com'
   ) {
     return true;
   }
 
   // Core real users can NEVER be deleted
-  if (kEmail === 'yoocomdr57@gmail.com' || kEmail === 'yoocomdr@superbible.kr' || kName === '유원희' || kName === '로고스 관리자') {
+  if (
+    kEmail === 'yoocomdr57@gmail.com' ||
+    kEmail === 'yoocomdr@superbible.kr' ||
+    kEmail === 'yoocomdr55@gmail.com' ||
+    kEmail === 'yoocomdr58@gmail.com' ||
+    kEmail === 'realuser1@gmail.com' ||
+    kName === '유원희' ||
+    kName === '로고스 관리자' ||
+    kName === '황희' ||
+    kName === '윤봉길' ||
+    kName === '정회원'
+  ) {
     return false;
   }
 
@@ -207,9 +228,9 @@ export default async function handler(req, res) {
               }
             });
 
-            serverCachedMembers = Array.from(map.values())
+            serverCachedMembers = sortMembers(Array.from(map.values())
               .map(normalizeMember)
-              .filter(m => !isDeletedOnServer(m));
+              .filter(m => !isDeletedOnServer(m)));
             globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
 
             res.status(200).json({
@@ -232,9 +253,9 @@ export default async function handler(req, res) {
     }
 
     // Fallback: return server cache (filtered against deleted tombstones)
-    serverCachedMembers = serverCachedMembers
+    serverCachedMembers = sortMembers(serverCachedMembers
       .map(normalizeMember)
-      .filter(m => !isDeletedOnServer(m));
+      .filter(m => !isDeletedOnServer(m)));
     globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
 
     res.status(200).json({
@@ -508,7 +529,7 @@ export default async function handler(req, res) {
                 gmap.set(gk, gm);
               }
             });
-            serverCachedMembers = Array.from(gmap.values()).map(normalizeMember).filter(m => !isDeletedOnServer(m));
+            serverCachedMembers = sortMembers(Array.from(gmap.values()).map(normalizeMember).filter(m => !isDeletedOnServer(m)));
             globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
           }
         } catch (jsonErr) {
@@ -523,7 +544,7 @@ export default async function handler(req, res) {
       success: true,
       message: gasResult?.message || '중앙 서버에 안전하게 실시간 동기화되었습니다.',
       gasResult,
-      members: serverCachedMembers.map(normalizeMember).filter(m => !isDeletedOnServer(m)),
+      members: sortMembers(serverCachedMembers.map(normalizeMember).filter(m => !isDeletedOnServer(m))),
       deletedRecords: serverDeletedRecords,
       blacklist: serverAdminBlacklist,
       scriptUrl: serverCachedScriptUrl,

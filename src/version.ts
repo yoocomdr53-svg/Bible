@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 2.5';
+export const APP_VERSION = 'Ver 2.5.1';
 export const APP_BUILD_DATE = '2026.11.17';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,17 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 2.5.1',
+    name: 'SuperBible',
+    releaseDate: '2026.11.17',
+    changes: [
+      '구글 스프레드시트와 앱 명부 간 불일치(라이브테스트성도 vs 윤봉길) 완전 분석 및 동기화 완비',
+      '테스트 잔여 계정(라이브테스트성도, user_live_test) 영구 격리 및 원천 차단 탑재',
+      '정식 회원 5인(로고스 관리자, 유원희, 황희, 윤봉길, 정회원) 순번 ID(M-01~M-05) 기준 자동 정렬 및 보호 보장',
+      'Apps Script cleanTestMembers 대상에 라이브테스트성도 추가하여 원클릭 일괄 정리 지원',
+    ],
+  },
   {
     version: 'Ver 2.5',
     name: 'SuperBible',
