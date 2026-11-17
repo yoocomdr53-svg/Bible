@@ -3757,7 +3757,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                     상단 함수 드롭다운에서 <strong className="text-emerald-700">[setupSuperBibleSheets]</strong>를 선택하고 <strong className="text-emerald-700">[실행]</strong> 버튼 클릭 (5개 마스터 시트 자동 생성!)
                   </li>
                   <li>
-                    우측 상단 <strong className="text-blue-700">[배포]</strong> &gt; <strong className="text-blue-700">[새 배포]</strong> 클릭 후 유형을 <strong className="text-blue-700">[웹 앱(Web App)]</strong>으로 선택하고 모든 사용자(Anyone) 권한으로 배포
+                    우측 상단 <strong className="text-blue-700">[배포]</strong> &gt; <strong className="text-blue-700">[배포 관리]</strong> 클릭 후, 왼쪽 웹 앱 옆의 <strong className="text-blue-700">[연필 아이콘(수정)]</strong> 클릭 &gt; 버전 드롭다운에서 <strong className="text-rose-700 font-bold">[새 버전]</strong> 선택 후 <strong className="text-blue-700">[배포]</strong> 클릭! (★새 버전을 선택해야 구글 시트 실시간 행 삭제가 즉시 활성화됩니다)
                   </li>
                 </ol>
               </div>

@@ -1003,6 +1003,17 @@ export function generateAppsScriptCode(adminEmail = 'yoocomdr57@gmail.com'): str
  * 5. 발급된 [웹 앱 URL]을 복사하여 수퍼바이블 관리자의 [구글 시트 연동]에 등록하면 끝!
  */
 
+// 구글 스프레드시트 실행 시 상단에 [★ 수퍼바이블 동기화] 메뉴 자동 추가
+function onOpen() {
+  try {
+    SpreadsheetApp.getUi()
+      .createMenu("★ 수퍼바이블 동기화")
+      .addItem("🗑️ 테스트 및 미삭제 행 1초 자동 정리", "cleanTestMembers")
+      .addItem("🔄 5대 마스터 시트 자동 복구/구성", "setupSuperBibleSheets")
+      .addToUi();
+  } catch(e) {}
+}
+
 function setupSuperBibleSheets() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   
