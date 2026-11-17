@@ -253,9 +253,11 @@ export function isMemberDeleted(identifier: {
     nClean.includes('E2E테스터') ||
     nClean.includes('e2e테스터') ||
     nClean.includes('라이브테스트성도') ||
+    nClean.includes('삭제실험맨') ||
     kEmail === 'temp_delete_test@gmail.com' ||
     kEmail === 'e2e_tester@superbible.kr' ||
-    kEmail === 'user_live_test@gmail.com'
+    kEmail === 'user_live_test@gmail.com' ||
+    kEmail === 'del_experiment@test.com'
   ) {
     return true;
   }
