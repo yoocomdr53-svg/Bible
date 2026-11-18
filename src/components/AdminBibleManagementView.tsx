@@ -69,6 +69,8 @@ import {
   getOrSyncAdminMembers,
   deleteMemberCompletely,
   resetAllMembersCompletely,
+  createMemberByAdmin,
+  updateMemberProfile,
   isMemberDeleted,
   ADMIN_MEMBERS_KEY,
   ADMIN_RECORDINGS_KEY,
@@ -497,71 +499,53 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     return matchSearch && matchDept && matchStatus;
   });
 
-  // Register New Member Handler
-  const handleCreateMember = () => {
+  // Register New Member Handler (간편 회원 등록: 로컬 저장소, 중앙 서버, 구글 시트 3중 실시간 동기화)
+  const handleCreateMember = async () => {
     if (!newMemberForm.name.trim()) {
       alert('회원 성명을 입력해주세요.');
       return;
     }
-    const newId = `M-${String(members.length + 1).padStart(2, '0')}`;
-    const newMember: MemberReadingProfile = {
-      id: newId,
-      name: newMemberForm.name.trim(),
-      department: newMemberForm.department,
-      role: newMemberForm.role,
-      phone: newMemberForm.phone.trim(),
-      email: newMemberForm.email.trim() || `${newId.toLowerCase()}@church.net`,
-      avatarColor: 'bg-blue-600',
-      avatarText: newMemberForm.name.slice(0, 2).toUpperCase(),
-      targetRounds: 12,
-      featuredCount: 0,
-      currentReadingRound: 0,
-      currentBook: '창세기',
-      currentChapter: 1,
-      totalReadChapters: 0,
-      recordingsCount: 0,
-      lastActive: '방금 전 (신규 등록)',
-      status: 'active',
-      consecutiveDays: 0,
-      registeredDate: newMemberForm.registeredDate,
-      birthdate: newMemberForm.birthdate,
-      baptismStatus: newMemberForm.baptismStatus,
-      smallGroup: newMemberForm.smallGroup,
-      accountRole: newMemberForm.accountRole,
-      accountStatus: newMemberForm.accountStatus,
-      memo: newMemberForm.memo,
-    };
-    setMembers((prev) => [newMember, ...prev]);
-    showToast(`신규 회원 '${newMember.name}'(${newMember.role})님이 명부에 등록되었습니다! 🎉`);
-    setShowAddMemberModal(false);
-    setNewMemberForm({
-      name: '',
-      department: '다이나믹팀',
-      role: '성도',
-      phone: '010-',
-      email: '',
-      registeredDate: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
-      birthdate: '1985.01.01',
-      baptismStatus: '세례',
-      smallGroup: '믿음 1구역',
-      accountRole: 'member',
-      accountStatus: '정상',
-      memo: '',
-    });
+    const res = await createMemberByAdmin(newMemberForm);
+    if (res.success && res.member) {
+      setMembers((prev) => [res.member!, ...prev.filter((m) => m.id !== res.member!.id)]);
+      showToast(res.message);
+      setShowAddMemberModal(false);
+      setNewMemberForm({
+        name: '',
+        department: '다이나믹팀',
+        role: '성도',
+        phone: '010-',
+        email: '',
+        registeredDate: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
+        birthdate: '1995.01.01',
+        baptismStatus: '세례',
+        smallGroup: '다이나믹팀 1구역',
+        accountRole: 'member',
+        accountStatus: '정상',
+        memo: '',
+      });
+    } else {
+      alert(res.message || '회원 등록에 실패했습니다.');
+    }
   };
 
-  // Update Member Handler
-  const handleUpdateMember = () => {
+  // Update Member Handler (회원 정보 수정: 로컬 저장소, 중앙 서버, 구글 시트 3중 실시간 동기화)
+  const handleUpdateMember = async () => {
     if (!editingMember) return;
     if (!editingMember.name.trim()) {
       alert('회원 성명을 입력해주세요.');
       return;
     }
-    setMembers((prev) =>
-      prev.map((m) => (m.id === editingMember.id ? editingMember : m))
-    );
-    showToast(`'${editingMember.name}' 회원 정보가 성공적으로 수정되었습니다.`);
-    setEditingMember(null);
+    const res = await updateMemberProfile(editingMember);
+    if (res.success) {
+      setMembers((prev) =>
+        prev.map((m) => (m.id === editingMember.id ? editingMember : m))
+      );
+      showToast(res.message);
+      setEditingMember(null);
+    } else {
+      alert(res.message || '회원 정보 수정에 실패했습니다.');
+    }
   };
 
   // Delete Member Handler (완전 삭제 - 블랙리스트에 남지 않음!)
@@ -1445,10 +1429,11 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                   <button
                     type="button"
                     onClick={() => setShowAddMemberModal(true)}
-                    className="px-3.5 py-2 bg-white hover:bg-sky-50 active:scale-95 text-sky-900 text-xs font-black rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5"
+                    className="px-3.5 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 active:scale-95 text-white text-xs font-black rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5"
+                    title="신규 회원 간편 등록 (로컬, 서버, 구글 시트 3중 실시간 반영)"
                   >
-                    <Plus className="w-4 h-4 stroke-[2.5] text-sky-600" />
-                    <span>신규 회원 등록</span>
+                    <Plus className="w-4 h-4 stroke-[2.5]" />
+                    <span>+ 간편 회원 등록</span>
                   </button>
                   <button
                     type="button"
@@ -1555,17 +1540,26 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 pt-1 border-t border-slate-100">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <span className="font-bold">
                     총 <strong className="text-slate-900">{filteredRosterMembers.length}</strong>명 검색됨
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddMemberModal(true)}
+                    className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                    title="신규 회원을 즉시 간편 등록합니다."
+                  >
+                    <Plus className="w-3 h-3 stroke-[3]" />
+                    <span>+ 간편 등록</span>
+                  </button>
                   <button
                     type="button"
                     onClick={handleResetAllMembers}
                     className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer flex items-center gap-1 shadow-2xs"
                     title="모든 테스트 회원을 삭제하고 마스터 관리자(yoocomdr57@gmail.com) 1명으로 전면 초기화합니다."
                   >
-                    <span>🔄 전면 초기화 (관리자 1명만 설정)</span>
+                    <span>🔄 전면 초기화</span>
                   </button>
                 </div>
                 <span className="text-[11px] text-slate-400">회원 정보를 직접 수정하거나 성경 낭독 진도를 확인할 수 있습니다.</span>
@@ -3333,7 +3327,10 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <span className="text-xl">📇</span>
-                <h3 className="text-sm font-black text-slate-900">신규 회원(교인) 등록</h3>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">신규 회원 간편 등록</h3>
+                  <p className="text-[10px] text-emerald-600 font-semibold">등록 즉시 구글 시트 및 모든 기기에 자동 동기화됩니다</p>
+                </div>
               </div>
               <button
                 type="button"
@@ -3512,9 +3509,9 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
               <button
                 type="button"
                 onClick={handleCreateMember}
-                className="flex-1 py-2.5 bg-[#0284c7] hover:bg-sky-600 text-white text-xs font-black rounded-xl cursor-pointer shadow-xs"
+                className="flex-1 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black rounded-xl cursor-pointer shadow-xs"
               >
-                회원 등록 완료
+                회원 등록 및 구글 시트 동기화 완료
               </button>
             </div>
           </div>
@@ -3714,9 +3711,9 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
               <button
                 type="button"
                 onClick={handleUpdateMember}
-                className="flex-1 py-2.5 bg-[#0284c7] hover:bg-sky-600 text-white text-xs font-black rounded-xl cursor-pointer shadow-xs"
+                className="flex-1 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-black rounded-xl cursor-pointer shadow-xs"
               >
-                수정사항 저장
+                수정사항 저장 및 실시간 반영
               </button>
             </div>
           </div>

@@ -638,8 +638,32 @@ export default async function handler(req, res) {
       return;
     }
 
+    // Action: Update Member (회원 정보 수정)
+    if (action === 'updateMember') {
+      const incomingMember = normalizeMember(body.member);
+      if (incomingMember) {
+        const kEmail = (incomingMember.email || '').toLowerCase().trim();
+        const kId = (incomingMember.id || '').toLowerCase().trim();
+
+        const existingIdx = serverCachedMembers.findIndex(m => {
+          const me = (m.email || '').toLowerCase().trim();
+          const mi = (m.id || '').toLowerCase().trim();
+          return (kId && mi === kId) || (kEmail && me === kEmail);
+        });
+        if (existingIdx !== -1) {
+          serverCachedMembers[existingIdx] = normalizeMember({
+            ...serverCachedMembers[existingIdx],
+            ...incomingMember
+          });
+        } else {
+          serverCachedMembers.push(incomingMember);
+        }
+        globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
+      }
+    }
+
     // Action: Register Member (간편가입)
-    if (action === 'registerMember' || action === 'registerUser') {
+    if (action === 'registerMember' || action === 'registerUser' || action === 'register') {
       const incomingMember = normalizeMember(body.member);
       if (incomingMember) {
         const kEmail = (incomingMember.email || '').toLowerCase().trim();

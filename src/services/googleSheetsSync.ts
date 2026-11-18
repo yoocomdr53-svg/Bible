@@ -359,6 +359,18 @@ export async function syncMemberRegistrationToGoogleSheet(
 }
 
 /**
+ * Sync an updated member profile to Google Sheet and Central Hub
+ */
+export async function updateMemberInGoogleSheet(
+  member: MemberReadingProfile
+): Promise<{ success: boolean; message: string }> {
+  return sendPayloadToGoogleScript({
+    action: 'updateMember',
+    member,
+  });
+}
+
+/**
  * Sync reading progress to Google Sheet
  */
 export async function syncProgressToGoogleSheet(
@@ -1050,8 +1062,83 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    // 0-3. 회원 정보 실시간 수정 (회원관리 및 회원_낭독진도 시트 동시 반영)
+    if (data.action === "updateMember") {
+      var member = data.member || data;
+      var rosterSheet = ss.getSheetByName("회원관리");
+      var memberSheet = ss.getSheetByName("회원_낭독진도");
+      var logSheet = ss.getSheetByName("실시간_동기화로그");
+      var nowStr = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy.MM.dd HH:mm:ss");
+
+      var targetId = String(member.id || "").toLowerCase().trim();
+      var targetEmail = String(member.email || "").toLowerCase().trim();
+      var updatedCount = 0;
+
+      // 1) [회원관리] 시트 수정
+      if (rosterSheet) {
+        var rData = rosterSheet.getDataRange().getValues();
+        for (var ri = 1; ri < rData.length; ri++) {
+          var rId = String(rData[ri][0] || "").toLowerCase().trim();
+          var rEmail = String(rData[ri][5] || "").toLowerCase().trim();
+          if ((targetId && rId === targetId) || (targetEmail && rEmail === targetEmail)) {
+            var rowNum = ri + 1;
+            if (member.name) rosterSheet.getRange(rowNum, 2).setValue(member.name);
+            if (member.department) rosterSheet.getRange(rowNum, 3).setValue(member.department);
+            if (member.role) rosterSheet.getRange(rowNum, 4).setValue(member.role);
+            if (member.phone) rosterSheet.getRange(rowNum, 5).setValue(member.phone);
+            if (member.email) rosterSheet.getRange(rowNum, 6).setValue(member.email);
+            if (member.registeredDate) rosterSheet.getRange(rowNum, 7).setValue(member.registeredDate);
+            if (member.birthdate) rosterSheet.getRange(rowNum, 8).setValue(member.birthdate);
+            if (member.baptismStatus) rosterSheet.getRange(rowNum, 9).setValue(member.baptismStatus);
+            if (member.smallGroup) rosterSheet.getRange(rowNum, 10).setValue(member.smallGroup);
+            if (member.accountRole) rosterSheet.getRange(rowNum, 11).setValue(member.accountRole);
+            if (member.accountStatus) rosterSheet.getRange(rowNum, 12).setValue(member.accountStatus);
+            if (member.memo !== undefined) rosterSheet.getRange(rowNum, 13).setValue(member.memo);
+            updatedCount++;
+            break;
+          }
+        }
+      }
+
+      // 2) [회원_낭독진도] 시트 수정 (기본 인적사항 및 메모 동기화)
+      if (memberSheet) {
+        var mData = memberSheet.getDataRange().getValues();
+        for (var mi = 1; mi < mData.length; mi++) {
+          var mId = String(mData[mi][0] || "").toLowerCase().trim();
+          var mEmail = String(mData[mi][5] || "").toLowerCase().trim();
+          if ((targetId && mId === targetId) || (targetEmail && mEmail === targetEmail)) {
+            var mRowNum = mi + 1;
+            if (member.name) memberSheet.getRange(mRowNum, 2).setValue(member.name);
+            if (member.department) memberSheet.getRange(mRowNum, 3).setValue(member.department);
+            if (member.role) memberSheet.getRange(mRowNum, 4).setValue(member.role);
+            if (member.phone) memberSheet.getRange(mRowNum, 5).setValue(member.phone);
+            if (member.email) memberSheet.getRange(mRowNum, 6).setValue(member.email);
+            if (member.accountStatus) memberSheet.getRange(mRowNum, 13).setValue(member.accountStatus);
+            if (member.memo !== undefined) memberSheet.getRange(mRowNum, 15).setValue(member.memo);
+            break;
+          }
+        }
+      }
+
+      if (logSheet) {
+        logSheet.appendRow([
+          "LOG-" + Utilities.getUuid().substring(0, 8),
+          nowStr,
+          "회원수정",
+          (member.name || member.id) + " 정보 수정 동기화 완료",
+          updatedCount
+        ]);
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        message: "'" + (member.name || member.id) + "' 회원 정보가 구글 시트에 실시간 수정·반영되었습니다.",
+        timestamp: nowStr
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     // 1. 회원가입 실시간 저장 (중복 행 방지 및 스마트 등록)
-    if (data.action === "registerMember") {
+    if (data.action === "registerMember" || data.action === "register" || data.action === "registerUser") {
       var member = data.member || {};
       var rosterSheet = ss.getSheetByName("회원관리");
       var memberSheet = ss.getSheetByName("회원_낭독진도");

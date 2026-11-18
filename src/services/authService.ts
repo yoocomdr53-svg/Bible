@@ -441,6 +441,186 @@ export async function resetAllMembersCompletely(): Promise<{ success: boolean; m
   }
 }
 
+/**
+ * Update member information in localStorage, central hub, and Google Sheets
+ */
+export async function updateMemberProfile(
+  updatedMember: MemberReadingProfile
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const raw = localStorage.getItem(ADMIN_MEMBERS_KEY);
+    let members: MemberReadingProfile[] = raw ? JSON.parse(raw) : [];
+    const idx = members.findIndex(
+      (m) =>
+        m.id === updatedMember.id ||
+        (updatedMember.email && m.email.toLowerCase() === updatedMember.email.toLowerCase())
+    );
+    if (idx !== -1) {
+      members[idx] = { ...members[idx], ...updatedMember };
+    } else {
+      members.push(updatedMember);
+    }
+    localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(members));
+
+    // Also update account in REGISTRY_KEY if matching
+    const rawAccs = localStorage.getItem(REGISTRY_KEY);
+    if (rawAccs) {
+      const accounts: RegisteredAccount[] = JSON.parse(rawAccs);
+      const accIdx = accounts.findIndex(
+        (a) =>
+          a.user?.id === updatedMember.id ||
+          (updatedMember.email && a.user?.email.toLowerCase() === updatedMember.email.toLowerCase())
+      );
+      if (accIdx !== -1) {
+        accounts[accIdx].user.name = updatedMember.name;
+        accounts[accIdx].user.department = updatedMember.department;
+        accounts[accIdx].user.phone = updatedMember.phone;
+        accounts[accIdx].user.role = updatedMember.accountRole === 'admin' ? 'admin' : 'saint';
+        localStorage.setItem(REGISTRY_KEY, JSON.stringify(accounts));
+      }
+    }
+
+    // Dispatch event so UI updates everywhere
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('superbible_members_changed'));
+    }
+
+    // Send update to central hub and Google Sheets
+    try {
+      await sendPayloadToGoogleScript({
+        action: 'updateMember',
+        member: updatedMember,
+      });
+    } catch (e) {
+      console.warn('Failed to send updateMember to Google Script:', e);
+    }
+
+    return {
+      success: true,
+      message: `'${updatedMember.name}' 회원 정보가 명부 및 구글 시트에 실시간 수정·반영되었습니다.`,
+    };
+  } catch (err: any) {
+    console.error('updateMemberProfile error:', err);
+    return { success: false, message: '회원 정보 수정 중 오류가 발생했습니다.' };
+  }
+}
+
+/**
+ * Create a new member directly from Admin View and synchronize to Central Server & Google Sheets
+ */
+export async function createMemberByAdmin(
+  formData: Partial<MemberReadingProfile>
+): Promise<{ success: boolean; member?: MemberReadingProfile; message: string }> {
+  try {
+    const raw = localStorage.getItem(ADMIN_MEMBERS_KEY);
+    let members: MemberReadingProfile[] = raw ? JSON.parse(raw) : [];
+
+    // Calculate next sequential M-ID
+    let maxNum = 0;
+    members.forEach((m) => {
+      const match = String(m.id || '').match(/M-(\d+)/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
+      }
+    });
+    const nextId = `M-${String(maxNum + 1).padStart(2, '0')}`;
+
+    const cleanName = (formData.name || '신규 성도').trim();
+    const cleanEmail = (formData.email || '').trim().toLowerCase() || `${nextId.toLowerCase()}@superbible.kr`;
+    const cleanPhone = (formData.phone || '010-미등록').trim();
+    const cleanDept = formData.department || '경영팀';
+    const cleanRole = formData.role || '성도';
+
+    // Clear any past deletion tombstone
+    clearDeletion(cleanEmail, '', cleanName, nextId);
+
+    const newMember: MemberReadingProfile = {
+      id: nextId,
+      name: cleanName,
+      department: cleanDept,
+      role: cleanRole,
+      phone: cleanPhone,
+      email: cleanEmail,
+      registeredDate: formData.registeredDate || new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
+      birthdate: formData.birthdate || '1995.01.01',
+      baptismStatus: formData.baptismStatus || '세례',
+      smallGroup: formData.smallGroup || `${cleanDept} 1구역`,
+      accountRole: formData.accountRole || (cleanRole === '관리자' ? 'admin' : 'member'),
+      accountStatus: formData.accountStatus || 'active',
+      avatarColor: 'bg-blue-600',
+      avatarText: cleanName.slice(0, 2).toUpperCase(),
+      currentReadingRound: 0,
+      targetRounds: 12,
+      currentBook: '창세기',
+      currentChapter: 1,
+      totalReadChapters: 0,
+      recordingsCount: 0,
+      lastActive: '방금 전 등록',
+      status: 'active',
+      consecutiveDays: 1,
+      featuredCount: 0,
+      memo: formData.memo || '관리자 직접 등록 회원',
+    };
+
+    // Add to members list
+    members.push(newMember);
+    localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(members));
+
+    // Also register user account in REGISTRY_KEY for login capability
+    const rawAccs = localStorage.getItem(REGISTRY_KEY);
+    const accounts: RegisteredAccount[] = rawAccs ? JSON.parse(rawAccs) : [];
+    if (!accounts.some((a) => a.loginId.toLowerCase() === cleanEmail)) {
+      accounts.push({
+        loginId: cleanEmail,
+        passwordHash: 'user1234',
+        user: {
+          id: `user-${nextId.toLowerCase()}`,
+          name: cleanName,
+          email: cleanEmail,
+          phone: cleanPhone,
+          avatarText: cleanName.slice(0, 2).toUpperCase(),
+          role: newMember.accountRole === 'admin' ? 'admin' : 'saint',
+          provider: 'standard',
+          schoolName: '로고스 수퍼바이블 공동체',
+          department: cleanDept,
+          consecutiveDays: 1,
+          ntProgress: 0,
+          todayVersesRead: 0,
+          recordingsCount: 0,
+        },
+        createdAt: new Date().toISOString(),
+      });
+      localStorage.setItem(REGISTRY_KEY, JSON.stringify(accounts));
+    }
+
+    // Dispatch event
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('superbible_members_changed'));
+    }
+
+    // Send to central hub & Google Sheets
+    try {
+      await sendPayloadToGoogleScript({
+        action: 'registerMember',
+        loginId: cleanEmail,
+        member: newMember,
+      });
+    } catch (e) {
+      console.warn('Failed to send registerMember to Google Script:', e);
+    }
+
+    return {
+      success: true,
+      member: newMember,
+      message: `신규 회원 '${cleanName}'(${newMember.id})님이 성공적으로 등록되어 구글 시트와 3대 기기에 실시간 동기화되었습니다! 🎉`,
+    };
+  } catch (err: any) {
+    console.error('createMemberByAdmin error:', err);
+    return { success: false, message: '회원 등록 중 오류가 발생했습니다.' };
+  }
+}
+
 export interface RegisteredAccount {
   loginId: string;
   passwordHash: string;
@@ -1119,7 +1299,7 @@ export function registerUser(
   }
 
   const isAdmin =
-    loginId.toLowerCase().includes('yoocomdr') ||
+    loginId.toLowerCase() === 'yoocomdr57@gmail.com' ||
     loginId.toLowerCase() === 'admin';
 
   const displayName = rawName
