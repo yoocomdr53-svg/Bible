@@ -187,14 +187,14 @@ export function recordDeletion(memberId?: string, email?: string, name?: string,
   // Record unique email and loginId (never record protected master accounts)
   [email, loginId].filter(Boolean).forEach((k) => {
     const clean = String(k).toLowerCase().trim();
-    if (clean && !clean.match(/^m-\d+$/i) && clean !== 'yoocomdr57@gmail.com' && clean !== 'yoocomdr@superbible.kr') {
+    if (clean && !clean.match(/^m-\d+$/i) && clean !== 'yoocomdr57@gmail.com') {
       records[clean] = now;
     }
   });
   // Also record member name if provided (never record protected master accounts)
   if (name) {
     const cleanName = String(name).toLowerCase().trim();
-    if (cleanName && cleanName !== '로고스 관리자' && cleanName !== '로고스관리자' && cleanName !== '유원희') {
+    if (cleanName && cleanName !== '로고스 관리자' && cleanName !== '로고스관리자') {
       records[cleanName] = now;
       records[`name:${cleanName}`] = now;
     }
@@ -254,21 +254,32 @@ export function isMemberDeleted(identifier: {
     nClean.includes('e2e테스터') ||
     nClean.includes('라이브테스트성도') ||
     nClean.includes('삭제실험맨') ||
+    nClean.includes('황희') ||
+    nClean.includes('윤봉길') ||
+    nClean.includes('정회원') ||
+    nClean.includes('유천년') ||
+    nClean.includes('유원희') ||
+    nClean.includes('홍길동') ||
     kEmail === 'temp_delete_test@gmail.com' ||
     kEmail === 'e2e_tester@superbible.kr' ||
     kEmail === 'user_live_test@gmail.com' ||
-    kEmail === 'del_experiment@test.com'
+    kEmail === 'del_experiment@test.com' ||
+    kEmail === 'yoocomdr55@gmail.com' ||
+    kEmail === 'yoocomdr58@gmail.com' ||
+    kEmail === 'realuser1@gmail.com' ||
+    kEmail === 'yocomdr@superbible.kr' ||
+    kEmail === 'yocomdr34@superbible.kr' ||
+    kLogin === 'yocomdr' ||
+    kLogin === 'yocomdr34'
   ) {
     return true;
   }
 
-  // 2. Master system admin & core identity protected from deletion (prevents admin lockout)
+  // 2. Master system admin protected from deletion (prevents admin lockout)
   if (
     kEmail === 'yoocomdr57@gmail.com' ||
     kName === '로고스 관리자' ||
-    kName === '로고스관리자' ||
-    kEmail === 'yoocomdr@superbible.kr' ||
-    kName === '유원희'
+    kName === '로고스관리자'
   ) {
     return false;
   }
@@ -670,7 +681,7 @@ const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
   },
 ];
 
-// Clean up legacy dummy data keys from localStorage and sanitize "유천년" -> "유원희"
+// Clean up legacy dummy data keys from localStorage and purge obsolete test members
 function cleanupLegacyStorage(): void {
   try {
     const legacyKeys = [
@@ -684,69 +695,69 @@ function cleanupLegacyStorage(): void {
     ];
     legacyKeys.forEach((k) => localStorage.removeItem(k));
 
-    // Global cleanup: sanitize "유천년" -> "유원희" and purge test accounts
-    const sanitizeStorageKey = (key: string) => {
+    // Check if stored members or registry contain test accounts:
+    const purgeTestAccounts = (key: string) => {
       try {
         const val = localStorage.getItem(key);
         if (!val) return;
-        if (
-          val.includes('유천년') ||
-          val.includes('임시테스트') ||
-          val.includes('신규 성도') ||
-          val.includes('E2E테스터') ||
-          val.includes('라이브테스트성도') ||
-          val.includes('temp_delete_test') ||
-          val.includes('e2e_tester') ||
-          val.includes('user_live_test')
-        ) {
-          let fixed = val.replace(/유천년/g, '유원희');
-          try {
-            const parsed = JSON.parse(fixed);
-            if (Array.isArray(parsed)) {
-              const cleanedList = parsed
-                .filter((item: any) => {
-                  const n = String(item.name || item.user?.name || '').trim();
-                  const em = String(item.email || item.user?.email || '').toLowerCase().trim();
-                  if (
-                    n === '임시테스트' ||
-                    n === '신규 성도' ||
-                    n === 'E2E테스터' ||
-                    n === 'e2e테스터' ||
-                    n === '라이브테스트성도' ||
-                    em.includes('temp_delete_test') ||
-                    em.includes('e2e_tester') ||
-                    em.includes('user_live_test')
-                  ) {
-                    return false;
-                  }
-                  return true;
-                })
-                .map((item: any) => {
-                  if (item.name === '유천년' || item.email === 'yoocomdr@superbible.kr') {
-                    item.name = '유원희';
-                    if (item.avatarText) item.avatarText = '원희';
-                  }
-                  if (item.user && (item.user.name === '유천년' || item.user.email === 'yoocomdr@superbible.kr')) {
-                    item.user.name = '유원희';
-                    item.user.avatarText = '원희';
-                  }
-                  return item;
-                });
-              fixed = JSON.stringify(cleanedList);
-            } else if (parsed && typeof parsed === 'object') {
-              if (parsed.name === '유천년' || parsed.email === 'yoocomdr@superbible.kr') {
-                parsed.name = '유원희';
-                parsed.avatarText = '원희';
-              }
-              fixed = JSON.stringify(parsed);
+        const parsed = JSON.parse(val);
+        if (Array.isArray(parsed)) {
+          const cleaned = parsed.filter((item: any) => {
+            const n = String(item.name || item.user?.name || '').trim();
+            const em = String(item.email || item.user?.email || item.loginId || '').toLowerCase().trim();
+            const lid = String(item.loginId || '').toLowerCase().trim();
+            if (
+              n.includes('유천년') ||
+              n.includes('유원희') ||
+              n.includes('홍길동') ||
+              n.includes('황희') ||
+              n.includes('윤봉길') ||
+              n.includes('정회원') ||
+              n.includes('임시테스트') ||
+              n.includes('신규성도') ||
+              n.includes('E2E테스터') ||
+              n.includes('삭제실험맨') ||
+              em === 'yocomdr@superbible.kr' ||
+              em === 'yocomdr34@superbible.kr' ||
+              em === 'yoocomdr55@gmail.com' ||
+              em === 'yoocomdr58@gmail.com' ||
+              em === 'realuser1@gmail.com' ||
+              lid === 'yocomdr' ||
+              lid === 'yocomdr34'
+            ) {
+              return false;
             }
-          } catch (e) {}
-          localStorage.setItem(key, fixed);
+            return true;
+          });
+          if (cleaned.length === 0 && key === ADMIN_MEMBERS_KEY) {
+            localStorage.setItem(key, JSON.stringify(INITIAL_MEMBERS));
+          } else {
+            localStorage.setItem(key, JSON.stringify(cleaned));
+          }
         }
       } catch (e) {}
     };
 
-    ['superbible_user', 'superbible_user_registry_v2', 'superbible_admin_members_v4', 'superbible_deleted_records_v2'].forEach(sanitizeStorageKey);
+    [ADMIN_MEMBERS_KEY, REGISTRY_KEY].forEach(purgeTestAccounts);
+
+    // Sanitize current active session if it was a purged test account
+    try {
+      const curUserRaw = localStorage.getItem(USER_KEY);
+      if (curUserRaw) {
+        const curUser = JSON.parse(curUserRaw);
+        const curName = (curUser.name || '').trim();
+        const curEmail = (curUser.email || '').toLowerCase().trim();
+        if (
+          curName.includes('유천년') ||
+          curName.includes('유원희') ||
+          curName.includes('홍길동') ||
+          curEmail === 'yocomdr@superbible.kr' ||
+          curEmail === 'yocomdr34@superbible.kr'
+        ) {
+          localStorage.removeItem(USER_KEY);
+        }
+      }
+    } catch (e) {}
   } catch (e) {
     // ignore
   }
@@ -816,13 +827,7 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
         dept = m.role === '관리자' ? '경영팀' : '다이나믹팀';
       }
       const actualRound = Math.floor((m.totalReadChapters || 0) / 1189);
-      let name = m.name;
-      let avatarText = m.avatarText;
-      if (name === '유천년' || m.email === 'yoocomdr@superbible.kr') {
-        name = '유원희';
-        avatarText = '원희';
-      }
-      return { ...m, name, avatarText, department: dept, currentReadingRound: actualRound };
+      return { ...m, department: dept, currentReadingRound: actualRound };
     });
 
     // Ensure all active registered accounts exist in currentMembers
@@ -847,14 +852,11 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
       );
 
       if (existingIdx !== -1) {
-        if (aEmail === 'yoocomdr@superbible.kr' || currentMembers[existingIdx].name === '유천년') {
-          currentMembers[existingIdx].name = '유원희';
-          currentMembers[existingIdx].avatarText = '원희';
-          changed = true;
-        }
+        // already exists
       } else {
         const isMasterAdmin =
-          acc.loginId.toLowerCase().includes('yoocomdr') ||
+          acc.loginId.toLowerCase() === 'yoocomdr57@gmail.com' ||
+          acc.loginId.toLowerCase() === 'yoocomdr57' ||
           acc.loginId.toLowerCase() === 'admin';
 
         const dept =
@@ -864,7 +866,7 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
             ? '경영팀'
             : '다이나믹팀';
 
-        const realName = (aEmail === 'yoocomdr@superbible.kr' || acc.user.name === '유천년') ? '유원희' : acc.user.name;
+        const realName = acc.user.name;
 
         const newProfile: MemberReadingProfile = {
           id: generateNextMemberId(currentMembers),
@@ -938,7 +940,9 @@ export function syncMemberToAdminRoster(
     }
 
     const isMasterAdmin =
-      loginId.toLowerCase().includes('yoocomdr') || loginId.toLowerCase() === 'admin';
+      loginId.toLowerCase() === 'yoocomdr57@gmail.com' ||
+      loginId.toLowerCase() === 'yoocomdr57' ||
+      loginId.toLowerCase() === 'admin';
 
     const phoneStr = phoneInput?.trim() || user.phone?.trim() || '010-미등록';
     const deptChosen =
@@ -1051,7 +1055,10 @@ export function updateMemberReadingProgress(
       members[idx].consecutiveDays = Math.max(1, (members[idx].consecutiveDays || 0) + 1);
       localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(members));
     } else {
-      const isMasterAdmin = searchEmail.includes('yoocomdr') || searchName.includes('관리자');
+      const isMasterAdmin =
+        searchEmail === 'yoocomdr57@gmail.com' ||
+        searchEmail === 'yoocomdr57' ||
+        searchName.includes('로고스 관리자');
       const dept = session?.department || (isMasterAdmin ? '경영팀' : '다이나믹팀');
       const initialTotalRead = Math.max(1, realCompletedChaptersCount);
       const newMember: MemberReadingProfile = {
@@ -1438,8 +1445,9 @@ export function loginUser(
 
   // 3. Graceful auto-creation for new user entering ID/Password on login form
   const isUserAdmin =
-    loginId.toLowerCase().includes('yoocomdr') ||
-    loginId.toLowerCase().includes('admin');
+    loginId.toLowerCase() === 'yoocomdr57@gmail.com' ||
+    loginId.toLowerCase() === 'yoocomdr57' ||
+    loginId.toLowerCase() === 'admin';
 
   const newUser: User = {
     id: `user-${Date.now()}`,

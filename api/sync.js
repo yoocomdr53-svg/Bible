@@ -22,17 +22,17 @@ function normalizeMember(m) {
   if (!m) return m;
   const email = (m.email || '').toLowerCase().trim();
   const name = (m.name || '').trim();
-  const id = (m.id || m.memberId || '').trim();
-  if (email === 'yoocomdr@superbible.kr' || name === '유천년' || id === 'M-02') {
+  // Master admin normalization
+  if (email === 'yoocomdr57@gmail.com' || name === '로고스 관리자' || name === '로고스관리자') {
     return {
       ...m,
-      id: 'M-02',
-      name: '유원희',
-      email: 'yoocomdr@superbible.kr',
-      avatarText: '원희',
-      role: '성도',
-      accountRole: 'member',
-      department: m.department || '경영팀'
+      id: 'M-01',
+      name: '로고스 관리자',
+      email: 'yoocomdr57@gmail.com',
+      department: m.department || '경영팀',
+      role: '관리자',
+      accountRole: 'admin',
+      accountStatus: 'active',
     };
   }
   return m;
@@ -64,24 +64,29 @@ function isDeletedOnServer(m) {
     nClean.includes('황희') ||
     nClean.includes('윤봉길') ||
     nClean.includes('정회원') ||
+    nClean.includes('유천년') ||
+    nClean.includes('유원희') ||
+    nClean.includes('홍길동') ||
     kEmail === 'temp_delete_test@gmail.com' ||
     kEmail === 'e2e_tester@superbible.kr' ||
     kEmail === 'user_live_test@gmail.com' ||
     kEmail === 'del_experiment@test.com' ||
     kEmail === 'yoocomdr55@gmail.com' ||
     kEmail === 'yoocomdr58@gmail.com' ||
-    kEmail === 'realuser1@gmail.com'
+    kEmail === 'realuser1@gmail.com' ||
+    kEmail === 'yocomdr@superbible.kr' ||
+    kEmail === 'yocomdr34@superbible.kr' ||
+    kLogin === 'yocomdr' ||
+    kLogin === 'yocomdr34'
   ) {
     return true;
   }
 
-  // 2. Master system admin & core identity protected from deletion (prevents admin lockout)
+  // 2. Master system admin protected from deletion (prevents admin lockout)
   if (
     kEmail === 'yoocomdr57@gmail.com' ||
     kName === '로고스 관리자' ||
-    kName === '로고스관리자' ||
-    kEmail === 'yoocomdr@superbible.kr' ||
-    kName === '유원희'
+    kName === '로고스관리자'
   ) {
     return false;
   }
@@ -104,14 +109,14 @@ function recordServerDeletion(delId, delEmail, delName, delLoginId) {
   // Record unique email or loginId (never record protected master accounts)
   [delEmail, delLoginId].filter(Boolean).forEach(k => {
     const clean = String(k).toLowerCase().trim();
-    if (clean && !clean.match(/^m-\d+$/i) && clean !== 'yoocomdr57@gmail.com' && clean !== 'yoocomdr@superbible.kr') {
+    if (clean && !clean.match(/^m-\d+$/i) && clean !== 'yoocomdr57@gmail.com') {
       serverDeletedRecords[clean] = now;
     }
   });
   // Also record member name if provided (never record protected master accounts)
   if (delName) {
     const cleanName = String(delName).toLowerCase().trim();
-    if (cleanName && cleanName !== '로고스 관리자' && cleanName !== '로고스관리자' && cleanName !== '유원희') {
+    if (cleanName && cleanName !== '로고스 관리자' && cleanName !== '로고스관리자') {
       serverDeletedRecords[cleanName] = now;
       serverDeletedRecords[`name:${cleanName}`] = now;
     }
@@ -303,7 +308,7 @@ export default async function handler(req, res) {
                 map.set(k, normalizeMember({
                   ...cur,
                   ...gm,
-                  name: gm.name === '유천년' ? '유원희' : (gm.name || cur.name),
+                  name: gm.name || cur.name,
                   phone: gm.phone && gm.phone !== '010-미등록' ? gm.phone : (cur.phone || gm.phone),
                   department: gm.department || cur.department,
                   totalReadChapters: Math.max(cur.totalReadChapters || 0, gm.totalReadChapters || 0),

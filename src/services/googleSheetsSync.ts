@@ -435,9 +435,8 @@ export async function uploadAudioToDrive(params: {
     .replace(/\s*\([^)]*\)$/, '')
     .trim();
   const rawId = (params.loginId || 'user').replace(/@.*$/, '').trim();
-  const isYooc = rawId.toLowerCase().includes('yoocomdr');
-  const cleanName = (isYooc && (!rawName || rawName === '로고스' || rawName === '성도')) ? '유원희' : (rawName || '성도');
-  const cleanId = isYooc ? 'yoocomdr' : rawId;
+  const cleanName = rawName || '성도';
+  const cleanId = rawId || 'user';
   const userFolderName = `${cleanName}_${cleanId}`;
   const cleanBibleName = (params.bibleName || params.verseRef || params.fileName || '성경낭독').trim();
   const rawTarget = params.fileName || cleanBibleName;
@@ -604,7 +603,7 @@ export async function pullMembersFromGoogleSheet(): Promise<{
       if (data.deletedRecords && typeof data.deletedRecords === 'object') {
         const cleanServerRecords: Record<string, number> = {};
         Object.keys(data.deletedRecords).forEach((k) => {
-          if (!k.match(/^m-\d+$/i) && k !== 'yoocomdr57@gmail.com' && k !== '로고스 관리자' && k !== 'yoocomdr@superbible.kr' && k !== '유원희') {
+          if (!k.match(/^m-\d+$/i) && k !== 'yoocomdr57@gmail.com' && k !== '로고스 관리자') {
             cleanServerRecords[k] = data.deletedRecords[k];
           }
         });
@@ -614,17 +613,8 @@ export async function pullMembersFromGoogleSheet(): Promise<{
       }
 
       if (data.success && Array.isArray(data.members)) {
-        // STRICT FILTER: Normalize names ("유천년" -> "유원희") and filter deleted members / test accounts
+        // STRICT FILTER: Filter deleted members and test accounts
         const remoteMembers: MemberReadingProfile[] = (data.members || [])
-          .map((m: any) => {
-            let name = m.name;
-            let avatarText = m.avatarText;
-            if (name === '유천년' || m.email === 'yoocomdr@superbible.kr') {
-              name = '유원희';
-              avatarText = '원희';
-            }
-            return { ...m, name, avatarText };
-          })
           .filter((m: any) => !isMemberDeleted(m))
           .sort((a: any, b: any) => {
             const na = parseInt(String(a.id || '').replace(/\D/g, ''), 10) || 999;
@@ -674,13 +664,8 @@ export async function pullMembersFromGoogleSheet(): Promise<{
                 matchedAcc.user.avatarText = m.avatarText || m.name.slice(0, 2);
                 regChanged = true;
               }
-              if (mEmail === 'yoocomdr@superbible.kr' && matchedAcc.user?.name !== '유원희') {
-                matchedAcc.user.name = '유원희';
-                matchedAcc.user.avatarText = '원희';
-                regChanged = true;
-              }
             } else {
-              const isMasterAdmin = mEmail.includes('yoocomdr') || m.role === '관리자';
+              const isMasterAdmin = mEmail === 'yoocomdr57@gmail.com' || m.role === '관리자';
               accounts.push({
                 loginId: m.email || m.name,
                 passwordHash: '1234',
@@ -1341,12 +1326,11 @@ function doPost(e) {
         rootRecFolder = rootFolders.hasNext() ? rootFolders.next() : DriveApp.createFolder(rootFolderName);
       }
       
-      // 2) 로그인된 사람의 이름으로 하위 폴더 생성 (예: "박기빛_Cmorbfc2i", "신성환_juandvasieczky", "유원희_yoocomdr", "홍길동_stguest")
+      // 2) 로그인된 사람의 이름으로 하위 폴더 생성
       var rawName = (data.memberName || "").replace(/ 성도$/, "").replace(/ 관리자$/, "").replace(/\s*\([^)]*\)$/, "").trim();
       var rawId = (data.loginId || "").replace(/@.*$/, "").trim();
-      var isYooc = rawId.toLowerCase().indexOf("yoocomdr") > -1;
-      var cleanName = (isYooc && (!rawName || rawName === "로고스" || rawName === "성도")) ? "유원희" : (rawName || "성도");
-      var cleanId = isYooc ? "yoocomdr" : rawId;
+      var cleanName = rawName || "성도";
+      var cleanId = rawId || "user";
       var userFolderName = data.userFolderName || (cleanName + (cleanId ? "_" + cleanId : ""));
       
       var userFolders = rootRecFolder.getFoldersByName(userFolderName);

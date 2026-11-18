@@ -520,7 +520,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   type="text"
                   value={regName}
                   onChange={(e) => setRegName(e.target.value)}
-                  placeholder="실명(이름)을 입력하세요 (예: 유원희)"
+                  placeholder="실명(이름)을 입력하세요 (예: 김은혜)"
                   required
                   className="w-full h-11 pl-10 pr-3 text-[13px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-600 focus:border-blue-600 transition shadow-xs"
                 />

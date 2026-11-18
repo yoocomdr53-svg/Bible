@@ -70,7 +70,7 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Resolve user info and folder name matching Google Drive structure: [이름_아이디] (예: 유원희_yoocomdr)
+  // Resolve user info and folder name matching Google Drive structure: [이름_아이디]
   const sessionInfo = getActiveSessionInfo();
   const rawMemberName = (sessionInfo?.user?.name || userName || '성도')
     .replace(/ 성도$/, '')
@@ -78,11 +78,8 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
     .replace(/\s*\([^)]*\)$/, '')
     .trim();
   const rawLoginId = (sessionInfo?.loginId || 'user').replace(/@.*$/, '').trim();
-  const isYooc = rawLoginId.toLowerCase().includes('yoocomdr');
-  const effectiveUserName = (isYooc && (!rawMemberName || rawMemberName === '로고스' || rawMemberName === '성도'))
-    ? '유원희'
-    : (rawMemberName || '성도');
-  const effectiveLoginId = isYooc ? 'yoocomdr' : rawLoginId;
+  const effectiveUserName = rawMemberName || '성도';
+  const effectiveLoginId = rawLoginId || 'user';
   const folderName = `${effectiveUserName}_${effectiveLoginId}`;
 
   const displayDate = (() => {

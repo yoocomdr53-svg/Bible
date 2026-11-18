@@ -21,36 +21,36 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
   // Primary Account: yoocomdr57@gmail.com (Connected Google Account & Admin)
   const handleSelectAdmin = () => {
     onSelectAccount({
-      id: 'user-yoocomdr',
-      name: '유원희 (로고스 관리자)',
+      id: 'user-yoocomdr57',
+      name: '로고스 관리자',
       email: 'yoocomdr57@gmail.com',
-      avatarText: '원희',
+      avatarText: '관리',
       role: 'admin',
       provider: 'google',
       schoolName: '로고스 수퍼바이블 공동체',
-      department: '교목실 & 성경통독 총괄관리부',
+      department: '경영팀',
       consecutiveDays: 30,
       ntProgress: 0,
       todayVersesRead: 0,
-      recordingsCount: 3,
+      recordingsCount: 0,
     });
   };
 
-  // Account 2: 유원희 (일반 성도)
+  // Account 2: 일반 성도
   const handleSelectYooc = () => {
     onSelectAccount({
       id: 'user-saint-01',
-      name: '유원희 (성도)',
-      email: 'yoocomdr@superbible.kr',
-      avatarText: '원희',
+      name: '일반 성도',
+      email: 'member@superbible.kr',
+      avatarText: '성도',
       role: 'saint',
       provider: 'google',
       schoolName: '로고스 수퍼바이블 공동체',
-      department: '경영팀',
-      consecutiveDays: 14,
-      ntProgress: 42,
-      todayVersesRead: 4,
-      recordingsCount: 7,
+      department: '다이나믹팀',
+      consecutiveDays: 1,
+      ntProgress: 0,
+      todayVersesRead: 0,
+      recordingsCount: 0,
     });
   };
 
@@ -78,8 +78,9 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
     const cleanEmail = customEmail.trim() || 'yoocomdr57@gmail.com';
     const userName = cleanEmail.split('@')[0];
     const isAdmin =
-      cleanEmail.toLowerCase().includes('yoocomdr') ||
-      cleanEmail.toLowerCase().includes('admin');
+      cleanEmail.toLowerCase() === 'yoocomdr57@gmail.com' ||
+      cleanEmail.toLowerCase() === 'yoocomdr57' ||
+      cleanEmail.toLowerCase() === 'admin';
     const isFaculty =
       cleanEmail.toLowerCase().includes('school') ||
       cleanEmail.toLowerCase().includes('teacher') ||
@@ -193,7 +194,7 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
               <ChevronRight className="w-5 h-5 text-blue-600 group-hover:translate-x-0.5 transition-transform flex-shrink-0" />
             </button>
 
-            {/* Account 2: yooc (일반 성도) */}
+            {/* Account 2: 일반 성도 */}
             <button
               id="selectYoocAccountBtn"
               type="button"
@@ -203,7 +204,7 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
               <div className="flex items-center gap-3 min-w-0">
                 <div className="relative flex-shrink-0">
                   <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-[#1b64b9] font-bold text-sm border border-slate-200 shadow-inner">
-                    yooc
+                    성도
                   </div>
                   <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-xs border border-slate-200">
                     <div className="w-2 h-2 rounded-full bg-blue-500" />
@@ -211,12 +212,12 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-bold text-slate-800 truncate">유원희 (성도)</span>
+                    <span className="text-sm font-bold text-slate-800 truncate">일반 성도 (체험 계정)</span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-semibold border border-slate-200">
                       일반 성도
                     </span>
                   </div>
-                  <span className="text-xs text-slate-500 truncate block">yoocomdr@superbible.kr</span>
+                  <span className="text-xs text-slate-500 truncate block">member@superbible.kr</span>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors flex-shrink-0" />
