@@ -260,6 +260,7 @@ export function isMemberDeleted(identifier: {
     nClean.includes('유천년') ||
     nClean.includes('유원희') ||
     nClean.includes('홍길동') ||
+    nClean.includes('김은혜') ||
     kEmail === 'temp_delete_test@gmail.com' ||
     kEmail === 'e2e_tester@superbible.kr' ||
     kEmail === 'user_live_test@gmail.com' ||
@@ -269,6 +270,7 @@ export function isMemberDeleted(identifier: {
     kEmail === 'realuser1@gmail.com' ||
     kEmail === 'yocomdr@superbible.kr' ||
     kEmail === 'yocomdr34@superbible.kr' ||
+    kEmail === 'grace@superbible.kr' ||
     kLogin === 'yocomdr' ||
     kLogin === 'yocomdr34'
   ) {
