@@ -476,6 +476,31 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   <span>안전하게 로그인</span>
                 )}
               </button>
+
+              {/* Direct 1-Click Access to Bible Dashboard */}
+              <button
+                type="button"
+                onClick={() => {
+                  const defaultUser: User = {
+                    id: 'user-yoocomdr57',
+                    name: '로고스 관리자',
+                    email: 'yoocomdr57@gmail.com',
+                    avatarText: '관리',
+                    role: 'admin',
+                    provider: 'standard',
+                    schoolName: '로고스 수퍼바이블 공동체',
+                    department: '경영팀',
+                    consecutiveDays: 1,
+                    ntProgress: 0,
+                    todayVersesRead: 0,
+                    recordingsCount: 0,
+                  };
+                  onLoginSuccess(defaultUser);
+                }}
+                className="w-full h-10 mt-2 bg-blue-50 hover:bg-blue-100/80 text-[#1b64b9] font-bold text-[13px] rounded-xl border border-blue-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+              >
+                <span>📖 말씀 홈 바로가기 (로그인 없이 둘러보기)</span>
+              </button>
             </div>
           </form>
         ) : (

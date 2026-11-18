@@ -81,7 +81,7 @@ class ErrorBoundary extends (Component as any) {
 }
 
 const DEFAULT_CONNECTED_ADMIN_USER: User = {
-  id: 'user-yoocomdr',
+  id: 'user-yoocomdr57',
   name: '로고스 관리자',
   email: 'yoocomdr57@gmail.com',
   avatarText: '관리',
@@ -100,17 +100,19 @@ function getSavedUser(): User {
   if (sessionUser && sessionUser.id) {
     return sessionUser;
   }
+  // Auto-persist default admin user so all features work out of the box
+  saveActiveSession(DEFAULT_CONNECTED_ADMIN_USER);
   return DEFAULT_CONNECTED_ADMIN_USER;
 }
 
 function getSavedView(): 'login' | 'dashboard' {
-  const sessionUser = getActiveSession();
-  // 로그인된 세션이 있는 경우 계속 로그인 상태를 유지하여 바로 홈(대시보드) 화면으로 진입
-  // 나가기(로그아웃) 버튼을 눌러 세션이 해제된 경우에만 로그인 화면 표시
-  if (sessionUser && sessionUser.id) {
-    return 'dashboard';
+  // Always default directly to dashboard for immediate, frictionless Bible reading & devotion!
+  // Only shows login screen when user explicitly clicks "나가기 / 로그아웃"
+  const loggedOutFlag = typeof window !== 'undefined' ? sessionStorage.getItem('superbible_logged_out') : null;
+  if (loggedOutFlag === 'true') {
+    return 'login';
   }
-  return 'login';
+  return 'dashboard';
 }
 
 export default function App() {
@@ -192,6 +194,7 @@ export default function App() {
 
   // Direct login from standard form or simple sign-up form
   const handleLoginSuccess = (authenticatedUser: User) => {
+    try { sessionStorage.removeItem('superbible_logged_out'); } catch {}
     setUser(authenticatedUser);
     saveActiveSession(authenticatedUser);
     setRecordings(getUserRecordings(authenticatedUser.email));
@@ -201,6 +204,7 @@ export default function App() {
 
   // Open settings with admin authentication
   const handleOpenSettingsAsAdmin = (adminUser: User) => {
+    try { sessionStorage.removeItem('superbible_logged_out'); } catch {}
     setUser(adminUser);
     saveActiveSession(adminUser);
     setRecordings(getUserRecordings(adminUser.email));
@@ -211,6 +215,7 @@ export default function App() {
   // Logout back to ERP Login & clear session
   const handleLogout = () => {
     clearActiveSession();
+    try { sessionStorage.setItem('superbible_logged_out', 'true'); } catch {}
     setDashboardInitialTab('home');
     setCurrentView('login');
   };

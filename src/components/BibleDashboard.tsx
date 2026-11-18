@@ -13,6 +13,7 @@ import {
   Volume2,
   Music,
   RefreshCw,
+  Share2,
   X,
 } from 'lucide-react';
 import { ActiveTab, ActiveModal, User, BibleVerse, ReadingDayPlan, UserRecording } from '../types';
@@ -310,66 +311,38 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
       {/* Main Tab Content */}
       {activeTab === 'home' && (
         <main className="flex-1 overflow-y-auto smooth-scroll no-scrollbar bg-[#f8fafc] pb-24">
-          {/* Cards & Content Area */}
-          <div className="px-4 py-3 space-y-3.5">
-            {/* Top Sponsor Card: 갑자기 날아든 폭탄 */}
-            <section className="bg-slate-100 rounded-xl border border-slate-200 overflow-hidden shadow-soft">
-              <div className="px-3.5 py-2.5 flex items-center justify-between bg-white relative">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-10 rounded bg-slate-200 flex-shrink-0 overflow-hidden relative flex items-center justify-center border border-slate-200">
-                    <svg className="w-7 h-7 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="1.5"
-                      />
-                    </svg>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[14.5px] font-black text-slate-900 tracking-tight leading-tight">
-                        갑자기 날아든 <span className="text-red-600">폭탄</span>
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-600 font-medium">무너져버린 40년의 시골교회</p>
-                  </div>
+          <div className="px-4 py-3.5 space-y-4">
+            {/* 1. Spiritual Greeting Banner */}
+            <section className="bg-gradient-to-br from-[#0b2b4f] via-[#103e6d] to-[#1b64b9] rounded-2xl p-4 sm:p-5 text-white shadow-md relative overflow-hidden border border-blue-900/40">
+              <div className="absolute -right-8 -bottom-8 w-36 h-36 bg-amber-400/10 rounded-full blur-2xl pointer-events-none" />
+              <div className="relative z-10 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full shadow-2xs">
+                    오늘의 성경 통독
+                  </span>
+                  <span className="text-xs text-blue-200 font-medium">
+                    {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })}
+                  </span>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => openModal('sponsor')}
-                  className="bg-red-700 hover:bg-red-800 text-white px-2.5 py-1.5 rounded text-[11px] font-bold flex items-center gap-1 shadow-xs flex-shrink-0 active:scale-95 transition cursor-pointer"
-                >
-                  <span>후원하기</span>
-                  <span>→</span>
-                </button>
+                <h1 className="text-lg sm:text-xl font-extrabold text-white tracking-tight leading-tight">
+                  말씀으로 시작하는 은혜의 하루
+                </h1>
+                <p className="text-xs sm:text-[13px] text-blue-100/90 leading-relaxed max-w-xl">
+                  {(user.name || '성도').replace(/\s*\([^)]*@?[^)]*\)$/, '').trim()} 성도님, 오늘도 주님의 거룩한 말씀 안에서 평안과 새 힘을 얻으시기를 축복합니다.
+                </p>
               </div>
             </section>
 
-            {/* 통계자료 전체 화면 (중복 5개 메뉴 및 스트릭 카드 자리에 전면 이동) */}
-            <StatsView
-              user={user}
-              recordings={recordings}
-              onDeleteRecording={onDeleteRecording}
-              onNavigateToRecord={() => {
-                setOpenInRecordingMode(true);
-                setBibleSubView('reader');
-                setActiveTab('bible');
-              }}
-              isEmbedded={true}
-            />
-
-            {/* Daily Verse Section (오늘의 말씀 - 날짜별 365일 자동 갱신 및 순환 교체) */}
-            <section className="bg-white rounded-3xl p-4 sm:p-5 shadow-soft border border-slate-100 space-y-3">
+            {/* 2. Daily Verse Section (오늘의 은혜의 말씀 - 영적 중심) */}
+            <section className="bg-white rounded-3xl p-4 sm:p-5 shadow-soft border border-slate-100 space-y-3 relative">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-[10px] font-bold text-white bg-[#0083e3] px-2 py-0.5 rounded-full shadow-2xs">
-                      매일 자동 갱신
+                      매일 은혜의 말씀
                     </span>
                     <span className="text-xs font-bold text-slate-500">
-                      {user.name} 성도님을 위한 오늘의 은혜
+                      오늘 나에게 주시는 생명의 양식
                     </span>
                   </div>
                   <div className="flex items-center gap-2 mt-1">
@@ -387,152 +360,209 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={handleCycleTodayVerse}
-                    className="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-[#0083e3] rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer active:scale-95 border border-sky-100"
-                    title="다른 은혜의 말씀으로 자동 교체"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>다른 말씀</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleCycleTodayVerse}
+                  className="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-[#0083e3] rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer active:scale-95 border border-sky-100 shadow-2xs"
+                  title="다른 은혜의 말씀으로 교체"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>다른 말씀</span>
+                </button>
               </div>
 
-              <blockquote className="text-[15.5px] leading-[1.65] font-normal text-slate-800 tracking-normal border-l-3 border-[#0083e3] pl-3.5 py-1 bg-slate-50/50 rounded-r-xl">
-                {todayVerse.text}
+              <blockquote className="text-[15.5px] leading-[1.7] font-medium text-slate-800 tracking-normal border-l-4 border-[#0083e3] pl-4 py-2 bg-slate-50/70 rounded-r-2xl">
+                "{todayVerse.text}"
               </blockquote>
 
-              <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-100">
-                <span className="flex items-center gap-1">
-                  <span>📅</span>
-                  <span>{new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })} 말씀</span>
-                </span>
+              {/* 3 Quick Action Buttons for Today's Verse */}
+              <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => navigateToPortion(todayVerse.book, todayVerse.chapter, todayVerse.verse)}
-                  className="text-xs text-[#0083e3] font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
+                  className="py-2 px-2 rounded-xl bg-blue-50/80 hover:bg-blue-100/80 text-[#0083e3] font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer border border-blue-100"
                 >
-                  <span>본문 읽기 ({todayVerse.book} {todayVerse.chapter}장) &gt;</span>
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>본문 읽기</span>
                 </button>
-              </div>
-            </section>
-
-            {/* Sponsor Support Banner */}
-            <section className="rounded-2xl p-4 bg-gradient-to-r from-[#ffe17d] via-[#fcd34d] to-[#fbbf24] shadow-soft relative overflow-hidden">
-              <div className="relative z-10 flex items-center justify-between">
-                <div className="space-y-1 max-w-[210px]">
-                  <div className="flex items-center gap-1.5">
-                    <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                    </svg>
-                    <h3 className="text-sm font-black text-slate-900 leading-tight">
-                      SuperBible 제작동참하기
-                    </h3>
-                  </div>
-                  <p className="text-[11px] font-medium text-slate-800 leading-snug">
-                    성경보급과 복음전파는 우리의 소명입니다!
-                  </p>
-                  <div className="pt-1.5">
-                    <button
-                      type="button"
-                      onClick={() => openModal('sponsor')}
-                      className="inline-block bg-[#ef4444] hover:bg-red-600 text-white font-bold text-xs px-4 py-1.5 rounded-full shadow-xs transition-all active:scale-95 cursor-pointer"
-                    >
-                      후원하기
-                    </button>
-                  </div>
-                </div>
-
-                <div className="relative flex-shrink-0 w-20 h-24 flex items-center justify-center">
-                  <div className="w-16 h-20 bg-amber-900 rounded-md shadow-lg transform rotate-6 flex items-center justify-center border-l-4 border-amber-950">
-                    <svg
-                      className="w-7 h-7 text-amber-200"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      viewBox="0 0 24 24"
-                    >
-                      <path d="M12 4v16m-5-11h10" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* Extra Grace & Meditation Feed */}
-            <section className="space-y-2.5 pt-1">
-              <div className="flex items-center justify-between px-1">
-                <h4 className="text-xs font-bold text-slate-500 tracking-wide uppercase">
-                  오늘의 은혜와 묵상
-                </h4>
                 <button
                   type="button"
-                  onClick={() => setActiveTab('bible')}
-                  className="text-[11px] text-blue-600 font-semibold cursor-pointer"
+                  onClick={() => onOpenRecorder(todayVerse)}
+                  className="py-2 px-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer border border-emerald-100"
                 >
-                  더보기
+                  <Mic className="w-3.5 h-3.5" />
+                  <span>낭독 녹음</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenVerseCard(todayVerse)}
+                  className="py-2 px-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer border border-amber-200/70"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>말씀 카드</span>
                 </button>
               </div>
+            </section>
 
-              <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1">
-                <div
-                  onClick={() => setActiveTab('bible')}
-                  className="flex-shrink-0 w-[240px] bg-white p-3.5 rounded-xl border border-slate-100 shadow-soft flex items-center gap-2.5 cursor-pointer hover:border-blue-300 transition"
-                >
-                  <span className="w-5 h-5 rounded-full bg-red-500 text-white font-black text-[10px] flex items-center justify-center flex-shrink-0">
-                    N
+            {/* 3. Daily 12-Round Reading Plan Card (거룩한 통독 대장정) */}
+            <section className="bg-gradient-to-br from-white via-sky-50/40 to-blue-50/50 rounded-3xl p-4 sm:p-5 shadow-soft border border-blue-100 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full">
+                    2026 전교인 성경 12독 대장정
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <span className="text-xs font-bold text-slate-800 truncate block">
-                      오늘의 묵상
-                    </span>
-                    <span className="text-[11px] text-slate-500 truncate block">
-                      더 크신 하나님의 계획을 신뢰하며...
-                    </span>
-                  </div>
-                </div>
-
-                <div
-                  onClick={() => setActiveTab('bible')}
-                  className="flex-shrink-0 w-[240px] bg-white p-3.5 rounded-xl border border-slate-100 shadow-soft flex items-center gap-2.5 cursor-pointer hover:border-blue-300 transition"
-                >
-                  <span className="w-5 h-5 rounded-full bg-blue-500 text-white font-black text-[10px] flex items-center justify-center flex-shrink-0">
-                    E
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <span className="text-xs font-bold text-slate-800 truncate block">
-                      영어 성경 낭독
-                    </span>
-                    <span className="text-[11px] text-slate-500 truncate block">
-                      Journal of Faith: Psalms 23
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Mission report banner */}
-              <div className="w-full bg-slate-800 text-white p-3.5 rounded-xl shadow-soft flex items-center justify-between mt-3 bg-cover bg-center">
-                <div className="space-y-0.5">
-                  <span className="text-[10px] bg-amber-500/30 text-amber-300 font-semibold px-2 py-0.5 rounded">
-                    선교 보고
-                  </span>
-                  <p className="text-xs font-bold pt-1">
-                    몽골 참사랑교회 재건과 선교를 위한 기도
-                  </p>
+                  <h3 className="text-base font-extrabold text-slate-900 mt-1">
+                    오늘의 추천 통독: 창세기 1 ~ 5장
+                  </h3>
                 </div>
                 <button
                   type="button"
-                  onClick={() => openModal('sponsor')}
-                  className="text-xs text-amber-300 font-bold underline flex-shrink-0 ml-2 cursor-pointer"
+                  onClick={() => navigateToPortion('창세기', 1)}
+                  className="bg-[#0083e3] hover:bg-blue-600 active:scale-95 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-xs transition flex items-center gap-1 cursor-pointer"
                 >
-                  소식보기
+                  <span>지금 읽기</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Progress Summary Bar */}
+              <div className="space-y-1.5 bg-white p-3 rounded-2xl border border-blue-100/60 shadow-2xs">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-bold text-slate-700">나의 성경 통독 현황</span>
+                  <span className="font-extrabold text-[#0083e3]">
+                    {Math.floor(((user.totalReadChapters || 0) / 1189) * 100)}% 달성 ({user.totalReadChapters || 0} / 1,189장)
+                  </span>
+                </div>
+                <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-blue-500 to-[#0083e3] h-full rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(100, Math.max(3, ((user.totalReadChapters || 0) / 1189) * 100))}%` }}
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 flex items-center justify-between pt-0.5">
+                  <span>🎯 목표: 1년 12회 완독</span>
+                  <span className="text-[#0083e3] font-bold">현재 {user.currentReadingRound || 0}독 진행 중</span>
+                </p>
+              </div>
+            </section>
+
+            {/* 4. Core 4 Features Navigation Grid (핵심 4대 기능 퀵 액세스) */}
+            <section className="space-y-2">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">
+                주요 성경 및 찬양 기능
+              </h3>
+              <div className="grid grid-cols-2 gap-2.5">
+                {/* 1) 성경 66권 전체 읽기 */}
+                <button
+                  type="button"
+                  onClick={handleOpenBibleSelector}
+                  className="bg-white hover:bg-blue-50/50 p-3.5 rounded-2xl border border-slate-200/80 shadow-soft text-left transition active:scale-[0.98] cursor-pointer group"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-blue-100 text-[#0083e3] flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
+                    <BookOpen className="w-5 h-5" />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-900 group-hover:text-[#0083e3] transition-colors">
+                    성경 읽기 (66권)
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
+                    구약 39권 · 신약 27권 전체
+                  </p>
+                </button>
+
+                {/* 2) 말씀 낭독 & 음원 녹음실 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenInRecordingMode(true);
+                    setBibleSubView('reader');
+                    setActiveTab('bible');
+                  }}
+                  className="bg-white hover:bg-emerald-50/50 p-3.5 rounded-2xl border border-slate-200/80 shadow-soft text-left transition active:scale-[0.98] cursor-pointer group"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
+                    <Mic className="w-5 h-5" />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">
+                    말씀 낭독 & 녹음실
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
+                    내 목소리로 녹음하고 저장
+                  </p>
+                </button>
+
+                {/* 3) 새찬송가 645장 전곡 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    pushHistory({ tab: activeTab });
+                    setActiveTab('hymn');
+                  }}
+                  className="bg-white hover:bg-amber-50/50 p-3.5 rounded-2xl border border-slate-200/80 shadow-soft text-left transition active:scale-[0.98] cursor-pointer group"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
+                    <Music className="w-5 h-5" />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-900 group-hover:text-amber-800 transition-colors">
+                    새찬송가 (645장)
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
+                    전곡 음원 스트리밍 & 가사
+                  </p>
+                </button>
+
+                {/* 4) 1년 12독 통독 대장정 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    pushHistory({ tab: activeTab });
+                    setActiveTab('challenge');
+                  }}
+                  className="bg-white hover:bg-purple-50/50 p-3.5 rounded-2xl border border-slate-200/80 shadow-soft text-left transition active:scale-[0.98] cursor-pointer group"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
+                    <CheckSquare className="w-5 h-5" />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-900 group-hover:text-purple-700 transition-colors">
+                    12독 통독 대장정
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
+                    전교인 통독 현황 및 진도표
+                  </p>
                 </button>
               </div>
             </section>
 
-            {/* 1. 스마트폰 앱설치 메뉴 (맨 아래쪽으로 이동) */}
+            {/* 5. Grace & Daily Meditation Article (따뜻하고 은혜로운 묵상과 기도) */}
+            <section className="bg-white rounded-3xl p-4 sm:p-5 shadow-soft border border-slate-100 space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[#0083e3]" />
+                <h3 className="text-sm font-extrabold text-slate-900">
+                  오늘의 묵상과 평안의 기도
+                </h3>
+              </div>
+
+              <div className="space-y-2 text-slate-700 text-xs sm:text-[13px] leading-relaxed bg-slate-50/60 p-3.5 rounded-2xl border border-slate-100">
+                <p className="font-semibold text-slate-800">
+                  🌱 <strong>말씀 묵상: 주님 안에서 누리는 참된 쉼</strong>
+                </p>
+                <p className="text-slate-600">
+                  지치고 분주한 일상 속에서도 주님은 언제나 우리의 피난처가 되십니다.
+                  내 힘으로 짊어지려 했던 무거운 짐을 주님의 십자가 앞에 내려놓으십시오.
+                  살아 역사하시는 생명의 말씀이 오늘 당신의 영혼을 새롭게 회복시키실 것입니다.
+                </p>
+                <div className="pt-1.5 border-t border-slate-200/60">
+                  <p className="font-semibold text-slate-800">
+                    🙏 <strong>오늘의 기도</strong>
+                  </p>
+                  <p className="text-slate-600 italic">
+                    "주님, 제 삶의 모든 순간마다 말씀이 길이 되게 하옵소서. 낙심하거나 염려하지 않고, 
+                    선하신 주님의 인도하심을 온전히 신뢰하며 찬양하게 하옵소서. 예수님의 이름으로 기도드립니다. 아멘."
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {/* 6. Mobile App Installation & Quick Guidance */}
             <section
               onClick={() => (onOpenInstall ? onOpenInstall() : setShowInstallModal(true))}
               className="bg-gradient-to-r from-blue-600 via-[#0083e3] to-sky-500 rounded-2xl p-3.5 text-white shadow-soft flex items-center justify-between gap-3 cursor-pointer hover:shadow-md transition active:scale-[0.99] border border-blue-400/30"
@@ -560,7 +590,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
               </div>
             </section>
 
-            {/* 2. 관리자 성경관리 메뉴 (맨 아래쪽으로 이동 - 관리자 접속 시에만 노출) */}
+            {/* 7. Admin Management Banner (관리자 로그인 시에만 노출) */}
             {user.role === 'admin' && (
               <section
                 onClick={() => {
@@ -575,13 +605,13 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs sm:text-sm font-black text-white truncate">관리자 성경관리</span>
+                      <span className="text-xs sm:text-sm font-black text-white truncate">관리자 성경관리 모드</span>
                       <span className="text-[10px] bg-blue-600 text-blue-100 font-bold px-1.5 py-0.2 rounded-full flex-shrink-0">
                         관리자 전용
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-300 mt-0.5 truncate">
-                      회원 낭독 현황 · 음원 검수 · 12목표 체계적 관리
+                      회원 명부 실시간 관리 · 낭독 음원 검수 · 구글 시트 연동
                     </p>
                   </div>
                 </div>
@@ -589,7 +619,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
               </section>
             )}
 
-            {/* 3. 로고스 관리자 프로필 카드 (맨 아래쪽으로 이동) */}
+            {/* 8. User Profile & Cloud Sync Card */}
             <section className="bg-gradient-to-r from-blue-50 via-white to-indigo-50/60 p-3.5 rounded-2xl border border-blue-100 shadow-soft">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 min-w-0">
@@ -598,24 +628,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                       {user.avatarText}
                     </div>
                     <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-xs border border-slate-200">
-                      <svg className="w-2.5 h-2.5" viewBox="0 0 24 24">
-                        <path
-                          d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
-                          fill="#4285F4"
-                        />
-                        <path
-                          d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.26v3.15C3.25 21.36 7.31 24 12 24z"
-                          fill="#34A853"
-                        />
-                        <path
-                          d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.26C.46 8.16 0 9.97 0 12s.46 3.84 1.26 5.42l4.02-3.15z"
-                          fill="#FBBC05"
-                        />
-                        <path
-                          d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.25 2.64 1.26 6.58l4.02 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-                          fill="#EA4335"
-                        />
-                      </svg>
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                     </div>
                   </div>
 
@@ -624,21 +637,22 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                       <span className="text-sm font-extrabold text-slate-900 leading-snug">
                         {(user.name || '성도').replace(/\s*\([^)]*@?[^)]*\)$/, '').trim()}
                       </span>
-                      <span className="inline-flex items-center bg-blue-100 text-[#0083e3] text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0">
-                        Google 연동
-                      </span>
-                      {user.role === 'admin' && (
+                      {user.role === 'admin' ? (
                         <span className="inline-flex items-center bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-black px-1.5 py-0.5 rounded flex-shrink-0">
                           👑 관리자
                         </span>
+                      ) : (
+                        <span className="inline-flex items-center bg-blue-100 text-[#0083e3] text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0">
+                          성도
+                        </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-slate-500 truncate mt-0.5" id="dashboardUserEmail">
+                    <p className="text-[11px] text-slate-500 truncate mt-0.5">
                       {user.email}
                     </p>
                     <p className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-0.5 whitespace-nowrap">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping flex-shrink-0" />
-                      클라우드 자동 동기화됨 · 방금 동기화
+                      실시간 클라우드 동기화 완료
                     </p>
                   </div>
                 </div>

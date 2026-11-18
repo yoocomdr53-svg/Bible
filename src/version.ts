@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 2.5.6';
+export const APP_VERSION = 'Ver 2.5.7';
 export const APP_BUILD_DATE = '2026.11.18';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,18 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 2.5.7',
+    name: 'SuperBible',
+    releaseDate: '2026.11.18',
+    changes: [
+      '새로운 말씀 중심 웹 UI 전면 개편 및 고품격 묵상 텍스트 완비: 지친 일상에 평안을 주는 은혜로운 말씀 홈 구축',
+      '웹 접속 시 로그인 화면 대기 없이 성경 홈 화면(대시보드)으로 즉각 자동 진입 (비밀번호 입력 스트레스 0)',
+      '자극적인 광고성 배너 전면 제거 및 성경 66권·말씀낭독실·새찬송가 645장·12독 대장정 4대 핵심 기능 직관화',
+      '오늘의 은혜의 말씀, 본문 1초 바로가기, 말씀 카드 공유, 오늘의 묵상과 평안의 기도 완벽 탑재',
+      '로그인 화면에서도 1클릭으로 말씀 홈 바로가기 지원 및 모든 기기(스마트폰·태블릿·PC) 완벽 반응형 최적화',
+    ],
+  },
   {
     version: 'Ver 2.5.6',
     name: 'SuperBible',
