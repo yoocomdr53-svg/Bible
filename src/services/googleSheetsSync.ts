@@ -816,9 +816,70 @@ function onOpen() {
   try {
     SpreadsheetApp.getUi()
       .createMenu("★ 수퍼바이블 동기화")
-      .addItem("🗑️ 테스트 및 미삭제 행 1초 자동 정리", "cleanTestMembers")
-      .addItem("🔄 5대 마스터 시트 자동 복구/구성", "setupSuperBibleSheets")
+      .addItem("🔄 구글 시트 전면 초기화 (로고스 관리자 1명만 설정)", "resetSpreadsheetCompletely")
+      .addItem("🗑️ 미삭제 회원/테스트 행 자동 정리", "cleanTestMembers")
+      .addItem("⚙️ 5대 마스터 시트 자동 복구/구성", "setupSuperBibleSheets")
       .addToUi();
+  } catch(e) {}
+}
+
+// [전면 초기화] 구글 스프레드시트의 모든 테스트 회원을 삭제하고 yoocomdr57@gmail.com 로고스 관리자 1명만 설정
+function resetSpreadsheetCompletely() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  setupSuperBibleSheets();
+  
+  var rosterSheet = ss.getSheetByName("회원관리");
+  var memberSheet = ss.getSheetByName("회원_낭독진도");
+  var recSheet = ss.getSheetByName("낭독_음원검수");
+  var logSheet = ss.getSheetByName("실시간_동기화로그");
+
+  // 1. [회원관리] 시트: 2행부터 전체 삭제 후 마스터 관리자 1명만 등록
+  if (rosterSheet) {
+    var lastRow = rosterSheet.getLastRow();
+    if (lastRow > 1) {
+      rosterSheet.deleteRows(2, lastRow - 1);
+    }
+    rosterSheet.appendRow([
+      "M-01", "로고스 관리자", "경영팀", "관리자", "010-0000-0000", "yoocomdr57@gmail.com",
+      "2026.01.01", "1980.01.01", "세례교인", "총괄본부", "admin", "active", "수퍼바이블 총괄 시스템 관리자 (yoocomdr57@gmail.com)"
+    ]);
+  }
+
+  // 2. [회원_낭독진도] 시트: 2행부터 전체 삭제 후 마스터 관리자 1명만 등록
+  if (memberSheet) {
+    var lastRow2 = memberSheet.getLastRow();
+    if (lastRow2 > 1) {
+      memberSheet.deleteRows(2, lastRow2 - 1);
+    }
+    memberSheet.appendRow([
+      "M-01", "로고스 관리자", "경영팀", "관리자", "010-0000-0000", "yoocomdr57@gmail.com",
+      0, "창세기", 1, 0, 0, Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy.MM.dd HH:mm:ss"), "active", 1, "수퍼바이블 총괄 시스템 관리자 (yoocomdr57@gmail.com)"
+    ]);
+  }
+
+  // 3. [낭독_음원검수] 시트: 2행부터 전체 삭제
+  if (recSheet) {
+    var lastRow3 = recSheet.getLastRow();
+    if (lastRow3 > 1) {
+      recSheet.deleteRows(2, lastRow3 - 1);
+    }
+  }
+
+  // 4. [실시간_동기화로그]에 초기화 기록
+  if (logSheet) {
+    var nowStr = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy.MM.dd HH:mm:ss");
+    logSheet.appendRow([
+      "LOG-" + Utilities.getUuid().substring(0, 8),
+      nowStr,
+      "초기화",
+      "마스터 관리자(yoocomdr57@gmail.com) 1명으로 전면 초기화 완료",
+      1
+    ]);
+  }
+
+  Logger.log("전면 초기화 완료: yoocomdr57@gmail.com 관리자 1명만 설정됨.");
+  try {
+    SpreadsheetApp.getUi().alert("수퍼바이블 시트 전면 초기화 완료!\n\n마스터 관리자(yoocomdr57@gmail.com) 1명만 남기고 모든 회원 및 진도 데이터가 깨끗하게 초기화되었습니다.");
   } catch(e) {}
 }
 
@@ -883,7 +944,12 @@ function cleanTestMembers() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var rosterSheet = ss.getSheetByName("회원관리");
   var memberSheet = ss.getSheetByName("회원_낭독진도");
-  var testKeywords = ["임시테스트", "e2e테스터", "e2e테스트", "신규 성도", "신규성도", "temp_delete_test", "e2e_tester", "라이브테스트성도", "user_live_test", "삭제실험맨", "del_experiment"];
+  var testKeywords = [
+    "임시테스트", "e2e테스터", "e2e테스트", "신규 성도", "신규성도",
+    "temp_delete_test", "e2e_tester", "라이브테스트성도", "user_live_test",
+    "삭제실험맨", "del_experiment", "황희", "윤봉길", "정회원",
+    "yoocomdr55@gmail.com", "yoocomdr58@gmail.com", "realuser1@gmail.com"
+  ];
   var deletedCount = 0;
   [rosterSheet, memberSheet].forEach(function(sheet) {
     if (!sheet) return;
@@ -916,7 +982,16 @@ function doPost(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     setupSuperBibleSheets(); // 시트 없을 시 자동 생성 보장
 
-    // 0. 회원 영구 삭제 실시간 반영 (회원관리 및 회원_낭독진도 시트에서 행 완전 삭제)
+    // 0-1. 전면 초기화 (마스터 관리자 1명만 설정)
+    if (data.action === "resetAll" || data.action === "resetSpreadsheet") {
+      resetSpreadsheetCompletely();
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        message: "구글 시트가 마스터 관리자(yoocomdr57@gmail.com) 1명으로 전면 초기화되었습니다."
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 0-2. 회원 영구 삭제 실시간 반영 (회원관리 및 회원_낭독진도 시트에서 행 완전 삭제)
     if (data.action === "deleteMember") {
       var rosterSheet = ss.getSheetByName("회원관리");
       var memberSheet = ss.getSheetByName("회원_낭독진도");
@@ -1573,6 +1648,15 @@ function doGet(e) {
   setupSuperBibleSheets();
   var rosterSheet = ss.getSheetByName("회원관리");
   var memberSheet = ss.getSheetByName("회원_낭독진도");
+
+  // GET 요청으로 전면 초기화 지원
+  if (e && e.parameter && (e.parameter.action === "resetAll" || e.parameter.action === "resetSpreadsheet")) {
+    resetSpreadsheetCompletely();
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      message: "구글 시트 전면 초기화 완료 (yoocomdr57@gmail.com 관리자 1명만 설정)"
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
 
   // GET 요청으로 회원 삭제 또는 테스트 정리 호출 지원
   if (e && e.parameter && (e.parameter.action === "deleteMember" || e.parameter.action === "delete")) {

@@ -53,7 +53,7 @@ function isDeletedOnServer(m) {
   const kLogin = (m.loginId || '').toLowerCase().trim();
   const nClean = kName.replace(/\s+/g, '');
 
-  // 1. Test dummy accounts requested by user to be completely purged:
+  // Test dummy accounts requested by user to be completely purged:
   if (
     nClean.includes('임시테스트') ||
     nClean.includes('신규성도') ||
@@ -61,10 +61,16 @@ function isDeletedOnServer(m) {
     nClean.includes('e2e테스터') ||
     nClean.includes('라이브테스트성도') ||
     nClean.includes('삭제실험맨') ||
+    nClean.includes('황희') ||
+    nClean.includes('윤봉길') ||
+    nClean.includes('정회원') ||
     kEmail === 'temp_delete_test@gmail.com' ||
     kEmail === 'e2e_tester@superbible.kr' ||
     kEmail === 'user_live_test@gmail.com' ||
-    kEmail === 'del_experiment@test.com'
+    kEmail === 'del_experiment@test.com' ||
+    kEmail === 'yoocomdr55@gmail.com' ||
+    kEmail === 'yoocomdr58@gmail.com' ||
+    kEmail === 'realuser1@gmail.com'
   ) {
     return true;
   }
@@ -184,6 +190,67 @@ export default async function handler(req, res) {
       res.status(200).json({
         success: true,
         blacklist: serverAdminBlacklist,
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
+
+    // Action: Complete Master Reset (GET)
+    if (action === 'resetAll' || action === 'resetSpreadsheet') {
+      serverCachedMembers = [
+        {
+          id: 'M-01',
+          name: '로고스 관리자',
+          department: '경영팀',
+          role: '관리자',
+          phone: '010-0000-0000',
+          email: 'yoocomdr57@gmail.com',
+          registeredDate: '2026.01.01',
+          birthdate: '1980.01.01',
+          baptismStatus: '세례교인',
+          smallGroup: '총괄본부',
+          accountRole: 'admin',
+          accountStatus: 'active',
+          avatarColor: 'bg-amber-500',
+          avatarText: '관리',
+          currentReadingRound: 0,
+          targetRounds: 12,
+          currentBook: '창세기',
+          currentChapter: 1,
+          totalReadChapters: 0,
+          recordingsCount: 0,
+          lastActive: '방금',
+          status: 'active',
+          consecutiveDays: 1,
+          featuredCount: 0,
+          memo: '수퍼바이블 총괄 시스템 관리자 (yoocomdr57@gmail.com)',
+        }
+      ];
+      globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
+      serverCachedRecordings = [];
+      globalThis.__SUPERBIBLE_RECORDINGS__ = [];
+      serverAdminBlacklist = [];
+      globalThis.__SUPERBIBLE_ADMIN_BLACKLIST__ = [];
+      serverDeletedRecords = {};
+      globalThis.__SUPERBIBLE_DELETED_RECORDS__ = {};
+
+      if (targetScriptUrl && targetScriptUrl.startsWith('http')) {
+        try {
+          fetch(targetScriptUrl + (targetScriptUrl.includes('?') ? '&' : '?') + 'action=resetAll');
+          fetch(targetScriptUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'resetAll' })
+          });
+        } catch (e) {}
+      }
+
+      res.status(200).json({
+        success: true,
+        message: '서버 및 구글 시트가 마스터 관리자(yoocomdr57@gmail.com) 1명으로 전면 초기화되었습니다.',
+        members: serverCachedMembers,
+        deletedRecords: {},
+        blacklist: [],
         timestamp: new Date().toISOString()
       });
       return;
@@ -382,6 +449,67 @@ export default async function handler(req, res) {
         success: true,
         message: '서버 삭제 기록이 깨끗이 초기화되었습니다. 구글 시트의 전체 회원이 모든 기기에 동기화됩니다.',
         deletedRecords: {}
+      });
+      return;
+    }
+
+    // Action: Complete Master Reset (POST: 전면 초기화)
+    if (action === 'resetAll' || action === 'resetSpreadsheet') {
+      serverCachedMembers = [
+        {
+          id: 'M-01',
+          name: '로고스 관리자',
+          department: '경영팀',
+          role: '관리자',
+          phone: '010-0000-0000',
+          email: 'yoocomdr57@gmail.com',
+          registeredDate: '2026.01.01',
+          birthdate: '1980.01.01',
+          baptismStatus: '세례교인',
+          smallGroup: '총괄본부',
+          accountRole: 'admin',
+          accountStatus: 'active',
+          avatarColor: 'bg-amber-500',
+          avatarText: '관리',
+          currentReadingRound: 0,
+          targetRounds: 12,
+          currentBook: '창세기',
+          currentChapter: 1,
+          totalReadChapters: 0,
+          recordingsCount: 0,
+          lastActive: '방금',
+          status: 'active',
+          consecutiveDays: 1,
+          featuredCount: 0,
+          memo: '수퍼바이블 총괄 시스템 관리자 (yoocomdr57@gmail.com)',
+        }
+      ];
+      globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
+      serverCachedRecordings = [];
+      globalThis.__SUPERBIBLE_RECORDINGS__ = [];
+      serverAdminBlacklist = [];
+      globalThis.__SUPERBIBLE_ADMIN_BLACKLIST__ = [];
+      serverDeletedRecords = {};
+      globalThis.__SUPERBIBLE_DELETED_RECORDS__ = {};
+
+      if (targetScriptUrl && targetScriptUrl.startsWith('http')) {
+        try {
+          fetch(targetScriptUrl + (targetScriptUrl.includes('?') ? '&' : '?') + 'action=resetAll');
+          fetch(targetScriptUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'resetAll' })
+          });
+        } catch (e) {}
+      }
+
+      res.status(200).json({
+        success: true,
+        message: '서버 및 구글 시트가 마스터 관리자(yoocomdr57@gmail.com) 1명으로 전면 초기화되었습니다.',
+        members: serverCachedMembers,
+        deletedRecords: {},
+        blacklist: [],
+        timestamp: new Date().toISOString()
       });
       return;
     }

@@ -36,17 +36,17 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
     });
   };
 
-  // Account 2: yooc (일반 성도)
+  // Account 2: 유원희 (일반 성도)
   const handleSelectYooc = () => {
     onSelectAccount({
-      id: 'user-yooc',
-      name: 'yooc (성도)',
-      email: 'yooc.dev@gmail.com',
-      avatarText: 'yooc',
+      id: 'user-saint-01',
+      name: '유원희 (성도)',
+      email: 'yoocomdr@superbible.kr',
+      avatarText: '원희',
       role: 'saint',
       provider: 'google',
       schoolName: '로고스 수퍼바이블 공동체',
-      department: '청장년 성경통독부',
+      department: '경영팀',
       consecutiveDays: 14,
       ntProgress: 42,
       todayVersesRead: 4,
@@ -211,12 +211,12 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-bold text-slate-800 truncate">yooc (성도)</span>
+                    <span className="text-sm font-bold text-slate-800 truncate">유원희 (성도)</span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-semibold border border-slate-200">
                       일반 성도
                     </span>
                   </div>
-                  <span className="text-xs text-slate-500 truncate block">yooc.dev@gmail.com</span>
+                  <span className="text-xs text-slate-500 truncate block">yoocomdr@superbible.kr</span>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors flex-shrink-0" />

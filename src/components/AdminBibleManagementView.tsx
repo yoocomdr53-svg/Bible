@@ -68,6 +68,7 @@ import {
 import {
   getOrSyncAdminMembers,
   deleteMemberCompletely,
+  resetAllMembersCompletely,
   isMemberDeleted,
   ADMIN_MEMBERS_KEY,
   ADMIN_RECORDINGS_KEY,
@@ -579,6 +580,23 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
         )
       );
       const res = await deleteMemberCompletely(memberId, memberEmail, memberName);
+      showToast(res.message);
+    }
+  };
+
+  // Complete System Reset Handler (전면 초기화: 마스터 관리자 1명만 남김)
+  const handleResetAllMembers = async () => {
+    if (
+      confirm(
+        `⚠️ [경고] 회원 명부 및 구글 시트를 전면 초기화하시겠습니까?\n\n` +
+        `• 모든 테스트 회원 및 진도 데이터가 삭제됩니다.\n` +
+        `• 총괄 관리자(로고스 관리자, yoocomdr57@gmail.com) 1명만 남게 됩니다.\n` +
+        `• PC, 스마트폰, 태블릿 모든 기기와 구글 시트가 1명으로 깨끗하게 초기화됩니다.\n\n` +
+        `계속 진행하시겠습니까?`
+      )
+    ) {
+      const res = await resetAllMembersCompletely();
+      setMembers(INITIAL_MEMBERS);
       showToast(res.message);
     }
   };
@@ -1536,10 +1554,20 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                 </div>
               </div>
 
-              <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
-                <span className="font-bold">
-                  총 <strong className="text-slate-900">{filteredRosterMembers.length}</strong>명 검색됨
-                </span>
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 pt-1 border-t border-slate-100">
+                <div className="flex items-center gap-3">
+                  <span className="font-bold">
+                    총 <strong className="text-slate-900">{filteredRosterMembers.length}</strong>명 검색됨
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleResetAllMembers}
+                    className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                    title="모든 테스트 회원을 삭제하고 마스터 관리자(yoocomdr57@gmail.com) 1명으로 전면 초기화합니다."
+                  >
+                    <span>🔄 전면 초기화 (관리자 1명만 설정)</span>
+                  </button>
+                </div>
                 <span className="text-[11px] text-slate-400">회원 정보를 직접 수정하거나 성경 낭독 진도를 확인할 수 있습니다.</span>
               </div>
             </div>
@@ -2485,12 +2513,12 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                 </div>
               </div>
 
-              {/* 4-Step Quick Instructions */}
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs">
+              {/* 5-Step Quick Instructions */}
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 text-xs">
                 <div className="bg-black/30 backdrop-blur-xs rounded-xl p-2.5 border border-white/10">
                   <span className="text-[10px] text-amber-300 font-bold block mb-0.5">STEP 1</span>
                   <p className="text-[11px] text-slate-200">
-                    <strong className="text-white">구글 시트 생성/열기</strong>
+                    <strong className="text-white">구글 시트 열기</strong>
                     <br />
                     <span className="text-slate-400 text-[10px]">yoocomdr57@gmail.com</span>
                   </p>
@@ -2498,19 +2526,25 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                 <div className="bg-black/30 backdrop-blur-xs rounded-xl p-2.5 border border-white/10">
                   <span className="text-[10px] text-amber-300 font-bold block mb-0.5">STEP 2</span>
                   <p className="text-[11px] text-slate-200">
-                    상단 메뉴 <strong className="text-white">[확장 프로그램]</strong> 클릭 후 <strong className="text-white">[Apps Script]</strong> 열기
+                    상단 <strong className="text-white">[확장 프로그램]</strong> &gt; <strong className="text-white">[Apps Script]</strong> 열기
                   </p>
                 </div>
                 <div className="bg-black/30 backdrop-blur-xs rounded-xl p-2.5 border border-white/10">
                   <span className="text-[10px] text-amber-300 font-bold block mb-0.5">STEP 3</span>
                   <p className="text-[11px] text-slate-200">
-                    기존 코드 지우고 <strong className="text-amber-300">[복사한 스크립트]</strong> 붙여넣기 (Ctrl+V) 후 저장
+                    기존 코드 모두 지우고 <strong className="text-amber-300">[복사한 스크립트]</strong> 붙여넣기 후 저장 (Ctrl+S)
                   </p>
                 </div>
                 <div className="bg-black/30 backdrop-blur-xs rounded-xl p-2.5 border border-white/10">
-                  <span className="text-[10px] text-amber-300 font-bold block mb-0.5">STEP 4</span>
+                  <span className="text-[10px] text-emerald-300 font-bold block mb-0.5">STEP 4 (전면 초기화)</span>
                   <p className="text-[11px] text-slate-200">
-                    함수 <strong className="text-emerald-300">[setupSuperBibleSheets]</strong> 선택 후 [실행] 누르면 5개 시트 자동 생성!
+                    함수 <strong className="text-emerald-300">[resetSpreadsheetCompletely]</strong> 선택 후 [실행] 클릭! (1초 초기화)
+                  </p>
+                </div>
+                <div className="bg-black/30 backdrop-blur-xs rounded-xl p-2.5 border border-white/10">
+                  <span className="text-[10px] text-sky-300 font-bold block mb-0.5">STEP 5 (배포 갱신)</span>
+                  <p className="text-[11px] text-slate-200">
+                    <strong className="text-sky-300">[배포]</strong> &gt; <strong className="text-white">[배포 관리]</strong> &gt; [연필] &gt; 버전 <strong className="text-sky-300">[새 버전]</strong> &gt; [배포] 클릭!
                   </p>
                 </div>
               </div>
@@ -3754,7 +3788,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                     기존 기본 코드를 모두 지우고(Ctrl+A 후 Backspace), 아래의 <strong className="text-indigo-600">[복사한 스크립트 코드]</strong>를 붙여넣기(Ctrl+V) 한 뒤 저장(Ctrl+S)
                   </li>
                   <li>
-                    상단 함수 드롭다운에서 <strong className="text-emerald-700">[setupSuperBibleSheets]</strong>를 선택하고 <strong className="text-emerald-700">[실행]</strong> 버튼 클릭 (5개 마스터 시트 자동 생성!)
+                    상단 함수 드롭다운에서 <strong className="text-emerald-700">[resetSpreadsheetCompletely]</strong>를 선택하고 <strong className="text-emerald-700">[실행]</strong> 버튼 클릭 (★ 1초 만에 테스트 회원이 삭제되고 로고스 관리자 1명으로 전면 초기화!)
                   </li>
                   <li>
                     우측 상단 <strong className="text-blue-700">[배포]</strong> &gt; <strong className="text-blue-700">[배포 관리]</strong> 클릭 후, 왼쪽 웹 앱 옆의 <strong className="text-blue-700">[연필 아이콘(수정)]</strong> 클릭 &gt; 버전 드롭다운에서 <strong className="text-rose-700 font-bold">[새 버전]</strong> 선택 후 <strong className="text-blue-700">[배포]</strong> 클릭! (★새 버전을 선택해야 구글 시트 실시간 행 삭제가 즉시 활성화됩니다)

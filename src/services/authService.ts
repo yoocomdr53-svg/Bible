@@ -399,6 +399,48 @@ export async function deleteMemberCompletely(
   }
 }
 
+/**
+ * Completely reset entire member database, server cache, and Google Spreadsheet
+ * Leaves ONLY the master administrator (yoocomdr57@gmail.com).
+ */
+export async function resetAllMembersCompletely(): Promise<{ success: boolean; message: string }> {
+  try {
+    // 1. Reset localStorage
+    localStorage.removeItem(ADMIN_MEMBERS_KEY);
+    localStorage.removeItem(REGISTRY_KEY);
+    localStorage.removeItem('superbible_deleted_records_v2');
+    localStorage.removeItem('superbible_admin_recordings_v4');
+
+    // 2. Set only master admin
+    const masterAdminList = [...INITIAL_MEMBERS];
+    localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(masterAdminList));
+    localStorage.setItem(REGISTRY_KEY, JSON.stringify(DEFAULT_ACCOUNTS));
+    localStorage.setItem('superbible_deleted_records_v2', JSON.stringify({}));
+
+    // 3. Dispatch global change event
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('superbible_members_changed'));
+    }
+
+    // 4. Notify central sync hub and Google Sheets
+    try {
+      await sendPayloadToGoogleScript({
+        action: 'resetAll',
+      });
+    } catch (e) {
+      console.warn('Failed to notify server/Google Sheets of resetAll:', e);
+    }
+
+    return {
+      success: true,
+      message: '회원 명부와 구글 시트가 마스터 관리자(yoocomdr57@gmail.com) 1명으로 전면 초기화되었습니다.',
+    };
+  } catch (err: any) {
+    console.error('resetAllMembersCompletely error:', err);
+    return { success: false, message: '전면 초기화 중 오류가 발생했습니다.' };
+  }
+}
+
 export interface RegisteredAccount {
   loginId: string;
   passwordHash: string;

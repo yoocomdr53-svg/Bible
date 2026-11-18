@@ -222,9 +222,9 @@ export default function App() {
       const updated: User = {
         ...u,
         role: isAdmin ? 'saint' : 'admin',
-        name: isAdmin ? 'yooc (성도)' : '로고스 관리자',
-        avatarText: isAdmin ? 'yooc' : '관리',
-        email: isAdmin ? 'yooc.dev@gmail.com' : 'yoocomdr57@gmail.com',
+        name: isAdmin ? '유원희 (성도)' : '로고스 관리자',
+        avatarText: isAdmin ? '원희' : '관리',
+        email: isAdmin ? 'yoocomdr@superbible.kr' : 'yoocomdr57@gmail.com',
       };
       saveActiveSession(updated);
       return updated;
