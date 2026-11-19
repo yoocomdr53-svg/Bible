@@ -66,7 +66,7 @@ export const OFFICIAL_DEPARTMENTS = [
 ] as const;
 export type OfficialDepartment = typeof OFFICIAL_DEPARTMENTS[number];
 
-// 회원관리 초기 마스터 관리자 (yoocomdr57@gmail.com & yoocomdr53@gmail.com)
+// 회원관리 초기 마스터 관리자 (yoocomdr57@gmail.com 단일 관리자)
 export const INITIAL_MEMBERS: MemberReadingProfile[] = [
   {
     id: 'M-01',
@@ -94,33 +94,6 @@ export const INITIAL_MEMBERS: MemberReadingProfile[] = [
     consecutiveDays: 1,
     featuredCount: 0,
     memo: '수퍼바이블 총괄 시스템 관리자 (yoocomdr57@gmail.com)',
-  },
-  {
-    id: 'M-02',
-    name: '로고스 관리자 (53)',
-    department: '경영팀',
-    role: '관리자',
-    phone: '010-0000-0000',
-    email: 'yoocomdr53@gmail.com',
-    registeredDate: '2026.01.01',
-    birthdate: '1980.01.01',
-    baptismStatus: '세례교인',
-    smallGroup: '총괄본부',
-    accountRole: 'admin',
-    accountStatus: 'active',
-    avatarColor: 'bg-amber-500',
-    avatarText: '관리',
-    currentReadingRound: 0,
-    targetRounds: 12,
-    currentBook: '창세기',
-    currentChapter: 1,
-    totalReadChapters: 0,
-    recordingsCount: 0,
-    lastActive: '방금 전',
-    status: 'active',
-    consecutiveDays: 1,
-    featuredCount: 0,
-    memo: '수퍼바이블 총괄 시스템 관리자 (yoocomdr53@gmail.com)',
   },
 ];
 

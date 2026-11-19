@@ -2,8 +2,8 @@
 // Synchronizes member registrations, progress, deletions, URLs, and audio across PC, Smartphone, Tablet, and Google Sheets
 
 let serverCachedScriptUrl = globalThis.__SUPERBIBLE_SCRIPT_URL__ || process.env.GOOGLE_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbzHnO0-Yvmfr2A0ImQewLiWhvVEt1HG9pLFUEEexaBr0GwEnYRNGtNyBibvOJdRQW2lPg/exec';
-let serverCachedSheetUrl = globalThis.__SUPERBIBLE_SHEET_URL__ || process.env.GOOGLE_SHEET_URL || 'https://docs.google.com/spreadsheets/u/0/';
-let serverCachedSheetId = globalThis.__SUPERBIBLE_SHEET_ID__ || process.env.GOOGLE_SHEET_ID || '';
+let serverCachedSheetUrl = globalThis.__SUPERBIBLE_SHEET_URL__ || process.env.GOOGLE_SHEET_URL || 'https://docs.google.com/spreadsheets/d/10AYmeENdosIjbtPLMA4SprgUriDbUO_DeHU0cjdVmqc/edit';
+let serverCachedSheetId = globalThis.__SUPERBIBLE_SHEET_ID__ || process.env.GOOGLE_SHEET_ID || '10AYmeENdosIjbtPLMA4SprgUriDbUO_DeHU0cjdVmqc';
 let serverCachedMembers = globalThis.__SUPERBIBLE_MEMBERS__ || [];
 let serverCachedRecordings = globalThis.__SUPERBIBLE_RECORDINGS__ || [];
 // Explicit Admin-Designated Blacklist (관리자가 직접 지정한 차단 목록만 관리)
@@ -16,36 +16,34 @@ Object.keys(serverDeletedRecords).forEach(k => {
   if (
     k.match(/^m-\d+$/i) ||
     k === 'yoocomdr57@gmail.com' ||
-    k === 'yoocomdr53@gmail.com' ||
-    k.includes('로고스 관리자') ||
-    k.includes('로고스관리자')
+    k === '로고스 관리자' ||
+    k === '로고스관리자'
   ) {
     delete serverDeletedRecords[k];
   }
 });
 
-const MASTER_ADMIN_EMAILS = ['yoocomdr57@gmail.com', 'yoocomdr53@gmail.com'];
+const MASTER_ADMIN_EMAIL = 'yoocomdr57@gmail.com';
 const MASTER_ADMIN_NAMES = ['로고스 관리자', '로고스관리자'];
 
 function isMasterAdmin(m) {
   if (!m) return false;
   const email = (m.email || '').toLowerCase().trim();
   const name = (m.name || '').trim();
-  return MASTER_ADMIN_EMAILS.includes(email) || MASTER_ADMIN_NAMES.some(n => name.includes(n));
+  return email === MASTER_ADMIN_EMAIL || MASTER_ADMIN_NAMES.includes(name);
 }
 
 function normalizeMember(m) {
   if (!m) return m;
   const email = (m.email || '').toLowerCase().trim();
   const name = (m.name || '').trim();
-  // Master admin normalization
+  // Master admin normalization (yoocomdr57@gmail.com strictly)
   if (isMasterAdmin(m)) {
-    const is53 = email === 'yoocomdr53@gmail.com';
     return {
       ...m,
-      id: m.id || (is53 ? 'M-02' : 'M-01'),
-      name: m.name || (is53 ? '로고스 관리자 (53)' : '로고스 관리자 (57)'),
-      email: is53 ? 'yoocomdr53@gmail.com' : (email === 'yoocomdr57@gmail.com' ? 'yoocomdr57@gmail.com' : 'yoocomdr57@gmail.com'),
+      id: 'M-01',
+      name: '로고스 관리자',
+      email: 'yoocomdr57@gmail.com',
       department: m.department || '경영팀',
       role: '관리자',
       accountRole: 'admin',
@@ -95,8 +93,10 @@ function isDeletedOnServer(m) {
     kEmail === 'yocomdr@superbible.kr' ||
     kEmail === 'yocomdr34@superbible.kr' ||
     kEmail === 'grace@superbible.kr' ||
+    kEmail === 'yoocomdr53@gmail.com' ||
     kLogin === 'yocomdr' ||
-    kLogin === 'yocomdr34'
+    kLogin === 'yocomdr34' ||
+    kLogin === 'yoocomdr53'
   ) {
     return true;
   }
@@ -104,9 +104,8 @@ function isDeletedOnServer(m) {
   // 2. Master system admin protected from deletion (prevents admin lockout)
   if (
     kEmail === 'yoocomdr57@gmail.com' ||
-    kEmail === 'yoocomdr53@gmail.com' ||
-    kName.includes('로고스 관리자') ||
-    kName.includes('로고스관리자')
+    kName === '로고스 관리자' ||
+    kName === '로고스관리자'
   ) {
     return false;
   }
