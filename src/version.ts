@@ -2,8 +2,8 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 2.5.7';
-export const APP_BUILD_DATE = '2026.11.18';
+export const APP_VERSION = 'Ver 2.5.8';
+export const APP_BUILD_DATE = '2026.11.19';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
 
@@ -15,6 +15,18 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 2.5.8',
+    name: 'SuperBible',
+    releaseDate: '2026.11.19',
+    changes: [
+      '사용자 요청에 따른 원래 SuperBible 고유 홈 대시보드 UI 스타일 완벽 복원',
+      '상단 시골교회 후원 카드, 실시간 12독 통계 현황(StatsView), 오늘의 말씀(다른 말씀 새로고침), 성경 제작동참하기 황금 배너, 오늘의 은혜와 묵상 & 선교보고 복원',
+      '하단 5개 탭 내비게이션(홈·성경·찬송·도전!일독·설정) 및 플로팅 마이크 녹음 버튼 완벽 유지',
+      '스마트폰/태블릿 전용 앱설치 배너, 관리자 전용 성경관리 배너, 클라우드 실시간 동기화 프로필 카드 완벽 연계',
+      '마스터 관리자(yoocomdr57@gmail.com) 1인 체제의 깨끗한 동기화 및 즉각적인 대시보드 진입 지원',
+    ],
+  },
   {
     version: 'Ver 2.5.7',
     name: 'SuperBible',
