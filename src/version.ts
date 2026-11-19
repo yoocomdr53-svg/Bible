@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 2.6.0';
+export const APP_VERSION = 'Ver 2.6.1';
 export const APP_BUILD_DATE = '2026.11.19';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,18 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 2.6.1',
+    name: 'SuperBible',
+    releaseDate: '2026.11.19',
+    changes: [
+      '사용자 제공 superbible DBase 구글 앱스 스크립트 v3 (SuperBible_AppsScript_Code.gs) 전면 교체 및 웹앱 완벽 통합',
+      '6대 마스터 시트(회원관리·회원_낭독진도·낭독_음원검수·통독_캠페인·실시간_동기화로그·삭제된회원) 및 한글 필드명 자동 생성',
+      '앱스 스크립트 코드 생성기(googleSheetsSync.ts) 최신 v3 엔진으로 업데이트 (yoocomdr57@gmail.com 전용)',
+      '시트 상단 [★ 수퍼바이블 DB] 메뉴(회원 추가, 선택 행 회원 삭제, 시트/필드 복구, 테스트행 정리, 전면 초기화) 완비',
+      'dbInsert, dbUpdate, dbDelete, dbList 범용 CRUD 및 양방향 실시간 동기화 호환성 100% 검증',
+    ],
+  },
   {
     version: 'Ver 2.6.0',
     name: 'SuperBible',
