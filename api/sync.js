@@ -13,22 +13,39 @@ let serverDeletedRecords = globalThis.__SUPERBIBLE_DELETED_RECORDS__ || {};
 
 // Sanitize serverDeletedRecords on start (remove any sequential IDs or root master admin)
 Object.keys(serverDeletedRecords).forEach(k => {
-  if (k.match(/^m-\d+$/i) || k === 'yoocomdr57@gmail.com' || k === '로고스 관리자' || k === '로고스관리자') {
+  if (
+    k.match(/^m-\d+$/i) ||
+    k === 'yoocomdr57@gmail.com' ||
+    k === 'yoocomdr53@gmail.com' ||
+    k.includes('로고스 관리자') ||
+    k.includes('로고스관리자')
+  ) {
     delete serverDeletedRecords[k];
   }
 });
+
+const MASTER_ADMIN_EMAILS = ['yoocomdr57@gmail.com', 'yoocomdr53@gmail.com'];
+const MASTER_ADMIN_NAMES = ['로고스 관리자', '로고스관리자'];
+
+function isMasterAdmin(m) {
+  if (!m) return false;
+  const email = (m.email || '').toLowerCase().trim();
+  const name = (m.name || '').trim();
+  return MASTER_ADMIN_EMAILS.includes(email) || MASTER_ADMIN_NAMES.some(n => name.includes(n));
+}
 
 function normalizeMember(m) {
   if (!m) return m;
   const email = (m.email || '').toLowerCase().trim();
   const name = (m.name || '').trim();
   // Master admin normalization
-  if (email === 'yoocomdr57@gmail.com' || name === '로고스 관리자' || name === '로고스관리자') {
+  if (isMasterAdmin(m)) {
+    const is53 = email === 'yoocomdr53@gmail.com';
     return {
       ...m,
-      id: 'M-01',
-      name: '로고스 관리자',
-      email: 'yoocomdr57@gmail.com',
+      id: m.id || (is53 ? 'M-02' : 'M-01'),
+      name: m.name || (is53 ? '로고스 관리자 (53)' : '로고스 관리자 (57)'),
+      email: is53 ? 'yoocomdr53@gmail.com' : (email === 'yoocomdr57@gmail.com' ? 'yoocomdr57@gmail.com' : 'yoocomdr57@gmail.com'),
       department: m.department || '경영팀',
       role: '관리자',
       accountRole: 'admin',
@@ -87,8 +104,9 @@ function isDeletedOnServer(m) {
   // 2. Master system admin protected from deletion (prevents admin lockout)
   if (
     kEmail === 'yoocomdr57@gmail.com' ||
-    kName === '로고스 관리자' ||
-    kName === '로고스관리자'
+    kEmail === 'yoocomdr53@gmail.com' ||
+    kName.includes('로고스 관리자') ||
+    kName.includes('로고스관리자')
   ) {
     return false;
   }

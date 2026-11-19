@@ -22,8 +22,26 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
   const handleSelectAdmin = () => {
     onSelectAccount({
       id: 'user-yoocomdr57',
-      name: '로고스 관리자',
+      name: '로고스 관리자 (57)',
       email: 'yoocomdr57@gmail.com',
+      avatarText: '관리',
+      role: 'admin',
+      provider: 'google',
+      schoolName: '로고스 수퍼바이블 공동체',
+      department: '경영팀',
+      consecutiveDays: 30,
+      ntProgress: 0,
+      todayVersesRead: 0,
+      recordingsCount: 0,
+    });
+  };
+
+  // Account 1-B: yoocomdr53@gmail.com (Connected Google Account & Admin)
+  const handleSelectAdmin53 = () => {
+    onSelectAccount({
+      id: 'user-yoocomdr53',
+      name: '로고스 관리자 (53)',
+      email: 'yoocomdr53@gmail.com',
       avatarText: '관리',
       role: 'admin',
       provider: 'google',
@@ -80,6 +98,8 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
     const isAdmin =
       cleanEmail.toLowerCase() === 'yoocomdr57@gmail.com' ||
       cleanEmail.toLowerCase() === 'yoocomdr57' ||
+      cleanEmail.toLowerCase() === 'yoocomdr53@gmail.com' ||
+      cleanEmail.toLowerCase() === 'yoocomdr53' ||
       cleanEmail.toLowerCase() === 'admin';
     const isFaculty =
       cleanEmail.toLowerCase().includes('school') ||
@@ -182,8 +202,8 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
                     <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-black border border-amber-300">
                       👑 최고 관리자
                     </span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold border border-blue-200">
-                      📱 접속 계정
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">
+                      📊 구글 시트 연동
                     </span>
                   </div>
                   <span className="text-xs text-blue-900 font-semibold truncate block mt-0.5">
@@ -192,6 +212,40 @@ export const GoogleChooserModal: React.FC<GoogleChooserModalProps> = ({
                 </div>
               </div>
               <ChevronRight className="w-5 h-5 text-blue-600 group-hover:translate-x-0.5 transition-transform flex-shrink-0" />
+            </button>
+
+            {/* Account 1-B: yoocomdr53@gmail.com (Connected Google Account & Admin) */}
+            <button
+              id="selectAdmin53AccountBtn"
+              type="button"
+              onClick={handleSelectAdmin53}
+              className="w-full flex items-center justify-between p-3 rounded-xl border-2 border-indigo-500 bg-indigo-50/60 hover:bg-indigo-100/60 active:bg-indigo-100 transition-all text-left group cursor-pointer shadow-xs"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="relative flex-shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-indigo-700 flex items-center justify-center text-white font-black text-sm shadow-inner">
+                    관리
+                  </div>
+                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-xs border border-slate-200">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-sm font-black text-slate-900 truncate">로고스 관리자</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-black border border-amber-300">
+                      👑 최고 관리자
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">
+                      📊 구글 시트 연동
+                    </span>
+                  </div>
+                  <span className="text-xs text-indigo-900 font-semibold truncate block mt-0.5">
+                    yoocomdr53@gmail.com
+                  </span>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-indigo-600 group-hover:translate-x-0.5 transition-transform flex-shrink-0" />
             </button>
 
             {/* Account 2: 일반 성도 */}

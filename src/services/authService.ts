@@ -165,8 +165,9 @@ export function getDeletedRecords(): Record<string, number> {
       if (
         k.match(/^m-\d+$/i) ||
         k === 'yoocomdr57@gmail.com' ||
-        k === '로고스 관리자' ||
-        k === '로고스관리자'
+        k === 'yoocomdr53@gmail.com' ||
+        k.includes('로고스 관리자') ||
+        k.includes('로고스관리자')
       ) {
         delete records[k];
         cleaned = true;
@@ -187,7 +188,7 @@ export function recordDeletion(memberId?: string, email?: string, name?: string,
   // Record unique email and loginId (never record protected master accounts)
   [email, loginId].filter(Boolean).forEach((k) => {
     const clean = String(k).toLowerCase().trim();
-    if (clean && !clean.match(/^m-\d+$/i) && clean !== 'yoocomdr57@gmail.com') {
+    if (clean && !clean.match(/^m-\d+$/i) && clean !== 'yoocomdr57@gmail.com' && clean !== 'yoocomdr53@gmail.com') {
       records[clean] = now;
     }
   });
@@ -280,8 +281,9 @@ export function isMemberDeleted(identifier: {
   // 2. Master system admin protected from deletion (prevents admin lockout)
   if (
     kEmail === 'yoocomdr57@gmail.com' ||
-    kName === '로고스 관리자' ||
-    kName === '로고스관리자'
+    kEmail === 'yoocomdr53@gmail.com' ||
+    kName.includes('로고스 관리자') ||
+    kName.includes('로고스관리자')
   ) {
     return false;
   }
@@ -446,7 +448,7 @@ export async function resetAllMembersCompletely(): Promise<{ success: boolean; m
 
     return {
       success: true,
-      message: '회원 명부와 구글 시트가 마스터 관리자(yoocomdr57@gmail.com) 1명으로 전면 초기화되었습니다.',
+      message: '회원 명부와 구글 시트가 마스터 관리자(yoocomdr53@gmail.com, yoocomdr57@gmail.com) 체제로 전면 초기화되었습니다.',
     };
   } catch (err: any) {
     console.error('resetAllMembersCompletely error:', err);
@@ -1059,7 +1061,9 @@ export function updateMemberReadingProgress(
     } else {
       const isMasterAdmin =
         searchEmail === 'yoocomdr57@gmail.com' ||
+        searchEmail === 'yoocomdr53@gmail.com' ||
         searchEmail === 'yoocomdr57' ||
+        searchEmail === 'yoocomdr53' ||
         searchName.includes('로고스 관리자');
       const dept = session?.department || (isMasterAdmin ? '경영팀' : '다이나믹팀');
       const initialTotalRead = Math.max(1, realCompletedChaptersCount);
@@ -1309,6 +1313,9 @@ export function registerUser(
 
   const isAdmin =
     loginId.toLowerCase() === 'yoocomdr57@gmail.com' ||
+    loginId.toLowerCase() === 'yoocomdr53@gmail.com' ||
+    loginId.toLowerCase() === 'yoocomdr57' ||
+    loginId.toLowerCase() === 'yoocomdr53' ||
     loginId.toLowerCase() === 'admin';
 
   const displayName = rawName
@@ -1417,19 +1424,22 @@ export function loginUser(
     return { success: true, user: matched.user };
   }
 
-  // 2. Administrator shortcut match (yoocomdr57@gmail.com / admin)
+  // 2. Administrator shortcut match (yoocomdr57@gmail.com / yoocomdr53@gmail.com / admin)
   if (
     loginId.toLowerCase() === 'yoocomdr57@gmail.com' ||
     loginId.toLowerCase() === 'yoocomdr57' ||
+    loginId.toLowerCase() === 'yoocomdr53@gmail.com' ||
+    loginId.toLowerCase() === 'yoocomdr53' ||
     loginId.toLowerCase() === 'admin'
   ) {
     if (password !== 'admin1234' && password !== '••••••••') {
       return { success: false, message: '관리자 비밀번호가 일치하지 않습니다.' };
     }
+    const is53 = loginId.toLowerCase().includes('53');
     const adminUser: User = {
-      id: 'user-yoocomdr57',
-      name: '로고스 관리자',
-      email: 'yoocomdr57@gmail.com',
+      id: is53 ? 'user-yoocomdr53' : 'user-yoocomdr57',
+      name: is53 ? '로고스 관리자 (53)' : '로고스 관리자 (57)',
+      email: is53 ? 'yoocomdr53@gmail.com' : 'yoocomdr57@gmail.com',
       avatarText: '관리',
       role: 'admin',
       provider: 'standard',
@@ -1449,6 +1459,8 @@ export function loginUser(
   const isUserAdmin =
     loginId.toLowerCase() === 'yoocomdr57@gmail.com' ||
     loginId.toLowerCase() === 'yoocomdr57' ||
+    loginId.toLowerCase() === 'yoocomdr53@gmail.com' ||
+    loginId.toLowerCase() === 'yoocomdr53' ||
     loginId.toLowerCase() === 'admin';
 
   const newUser: User = {

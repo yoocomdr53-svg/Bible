@@ -340,7 +340,7 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
     const updated = {
       ...current,
       scriptUrl: trimmed,
-      lastSyncMessage: `yoocomdr57@gmail.com [${folderName}] 폴더 연동 준비 완료`,
+      lastSyncMessage: `yoocomdr53/yoocomdr57 [${folderName}] 폴더 연동 준비 완료`,
     };
     saveGoogleSheetConfig(updated);
     setShowConfig(false);
@@ -572,7 +572,7 @@ export const AudioShareModal: React.FC<AudioShareModalProps> = ({
           {showConfig && (
             <div className="mt-2 p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2 animate-in fade-in">
               <p className="text-[10.5px] text-slate-600 leading-relaxed">
-                Apps Script Web App URL을 등록하면 <strong>yoocomdr57@gmail.com</strong> 계정의 [성경낭독녹음 &gt; {folderName}] 폴더에 음원이 자동 저장됩니다.
+                Apps Script Web App URL을 등록하면 <strong>yoocomdr53@gmail.com / yoocomdr57@gmail.com</strong> 계정의 [성경낭독녹음 &gt; {folderName}] 폴더에 음원이 자동 저장됩니다.
               </p>
               <div className="flex gap-1">
                 <input

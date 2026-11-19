@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 2.5.8';
+export const APP_VERSION = 'Ver 2.5.9';
 export const APP_BUILD_DATE = '2026.11.19';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,17 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 2.5.9',
+    name: 'SuperBible',
+    releaseDate: '2026.11.19',
+    changes: [
+      '구글 스프레드시트 및 관리자 계정을 yoocomdr53@gmail.com 및 yoocomdr57@gmail.com 듀얼 마스터 체제로 전면 연동 지원',
+      'yoocomdr53 및 yoocomdr57 모두 관리자 성경관리 모드 접근, 구글 시트 실시간 동기화, 간편 로그인 권한 부여',
+      '구글 계정 선택기(GoogleChooserModal)에 yoocomdr53@gmail.com 및 yoocomdr57@gmail.com 1클릭 관리자 접속 지원',
+      'Google Apps Script 시트 초기화 및 동기화 코드에 두 관리자 계정(M-01: yoocomdr57, M-02: yoocomdr53) 기본 탑재',
+    ],
+  },
   {
     version: 'Ver 2.5.8',
     name: 'SuperBible',

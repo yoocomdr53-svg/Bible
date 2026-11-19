@@ -59,7 +59,7 @@ export function getSyncApiUrl(endpoint: string = '/api/sync'): string {
 export const DEFAULT_SHEET_CONFIG: GoogleSheetConfig = {
   sheetId: '',
   sheetUrl: 'https://docs.google.com/spreadsheets/u/0/',
-  adminEmail: 'yoocomdr57@gmail.com',
+  adminEmail: 'yoocomdr57@gmail.com / yoocomdr53@gmail.com',
   scriptUrl:
     'https://script.google.com/macros/s/AKfycbzHnO0-Yvmfr2A0ImQewLiWhvVEt1HG9pLFUEEexaBr0GwEnYRNGtNyBibvOJdRQW2lPg/exec',
   autoSync: true,
@@ -603,7 +603,7 @@ export async function pullMembersFromGoogleSheet(): Promise<{
       if (data.deletedRecords && typeof data.deletedRecords === 'object') {
         const cleanServerRecords: Record<string, number> = {};
         Object.keys(data.deletedRecords).forEach((k) => {
-          if (!k.match(/^m-\d+$/i) && k !== 'yoocomdr57@gmail.com' && k !== '로고스 관리자') {
+          if (!k.match(/^m-\d+$/i) && k !== 'yoocomdr57@gmail.com' && k !== 'yoocomdr53@gmail.com' && !k.includes('로고스 관리자')) {
             cleanServerRecords[k] = data.deletedRecords[k];
           }
         });
@@ -665,7 +665,7 @@ export async function pullMembersFromGoogleSheet(): Promise<{
                 regChanged = true;
               }
             } else {
-              const isMasterAdmin = mEmail === 'yoocomdr57@gmail.com' || m.role === '관리자';
+              const isMasterAdmin = mEmail === 'yoocomdr57@gmail.com' || mEmail === 'yoocomdr53@gmail.com' || m.role === '관리자';
               accounts.push({
                 loginId: m.email || m.name,
                 passwordHash: '1234',
@@ -830,7 +830,7 @@ function resetSpreadsheetCompletely() {
   var recSheet = ss.getSheetByName("낭독_음원검수");
   var logSheet = ss.getSheetByName("실시간_동기화로그");
 
-  // 1. [회원관리] 시트: 2행부터 전체 삭제 후 마스터 관리자 1명만 등록
+  // 1. [회원관리] 시트: 2행부터 전체 삭제 후 마스터 관리자 2명 등록 (57 & 53)
   if (rosterSheet) {
     var lastRow = rosterSheet.getLastRow();
     if (lastRow > 1) {
@@ -840,17 +840,26 @@ function resetSpreadsheetCompletely() {
       "M-01", "로고스 관리자", "경영팀", "관리자", "010-0000-0000", "yoocomdr57@gmail.com",
       "2026.01.01", "1980.01.01", "세례교인", "총괄본부", "admin", "active", "수퍼바이블 총괄 시스템 관리자 (yoocomdr57@gmail.com)"
     ]);
+    rosterSheet.appendRow([
+      "M-02", "로고스 관리자 (53)", "경영팀", "관리자", "010-0000-0000", "yoocomdr53@gmail.com",
+      "2026.01.01", "1980.01.01", "세례교인", "총괄본부", "admin", "active", "수퍼바이블 총괄 시스템 관리자 (yoocomdr53@gmail.com)"
+    ]);
   }
 
-  // 2. [회원_낭독진도] 시트: 2행부터 전체 삭제 후 마스터 관리자 1명만 등록
+  // 2. [회원_낭독진도] 시트: 2행부터 전체 삭제 후 마스터 관리자 2명 등록
   if (memberSheet) {
     var lastRow2 = memberSheet.getLastRow();
     if (lastRow2 > 1) {
       memberSheet.deleteRows(2, lastRow2 - 1);
     }
+    var nowStr = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy.MM.dd HH:mm:ss");
     memberSheet.appendRow([
       "M-01", "로고스 관리자", "경영팀", "관리자", "010-0000-0000", "yoocomdr57@gmail.com",
-      0, "창세기", 1, 0, 0, Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy.MM.dd HH:mm:ss"), "active", 1, "수퍼바이블 총괄 시스템 관리자 (yoocomdr57@gmail.com)"
+      0, "창세기", 1, 0, 0, nowStr, "active", 1, "수퍼바이블 총괄 시스템 관리자 (yoocomdr57@gmail.com)"
+    ]);
+    memberSheet.appendRow([
+      "M-02", "로고스 관리자 (53)", "경영팀", "관리자", "010-0000-0000", "yoocomdr53@gmail.com",
+      0, "창세기", 1, 0, 0, nowStr, "active", 1, "수퍼바이블 총괄 시스템 관리자 (yoocomdr53@gmail.com)"
     ]);
   }
 
@@ -864,19 +873,19 @@ function resetSpreadsheetCompletely() {
 
   // 4. [실시간_동기화로그]에 초기화 기록
   if (logSheet) {
-    var nowStr = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy.MM.dd HH:mm:ss");
+    var nowStr2 = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy.MM.dd HH:mm:ss");
     logSheet.appendRow([
       "LOG-" + Utilities.getUuid().substring(0, 8),
-      nowStr,
+      nowStr2,
       "초기화",
-      "마스터 관리자(yoocomdr57@gmail.com) 1명으로 전면 초기화 완료",
-      1
+      "마스터 관리자(yoocomdr53@gmail.com, yoocomdr57@gmail.com) 2명으로 전면 초기화 완료",
+      2
     ]);
   }
 
-  Logger.log("전면 초기화 완료: yoocomdr57@gmail.com 관리자 1명만 설정됨.");
+  Logger.log("전면 초기화 완료: yoocomdr53@gmail.com 및 yoocomdr57@gmail.com 관리자 설정됨.");
   try {
-    SpreadsheetApp.getUi().alert("수퍼바이블 시트 전면 초기화 완료!\n\n마스터 관리자(yoocomdr57@gmail.com) 1명만 남기고 모든 회원 및 진도 데이터가 깨끗하게 초기화되었습니다.");
+    SpreadsheetApp.getUi().alert("수퍼바이블 시트 전면 초기화 완료!\n\n마스터 관리자(yoocomdr53@gmail.com, yoocomdr57@gmail.com) 2명만 등록되고 모든 데이터가 깨끗하게 초기화되었습니다.");
   } catch(e) {}
 }
 

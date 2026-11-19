@@ -1014,7 +1014,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                 관리자 성경관리
               </h1>
               <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium mt-0.5 truncate hidden xs:block">
-                yoocomdr57@gmail.com 구글 시트 실시간 연동
+                yoocomdr53@gmail.com · yoocomdr57@gmail.com 구글 시트 실시간 연동
               </p>
             </div>
           </div>
@@ -1025,7 +1025,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
             type="button"
             onClick={handleOpenSheet}
             className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white text-xs font-black rounded-xl flex items-center gap-1.5 shadow-sm transition cursor-pointer whitespace-nowrap"
-            title="yoocomdr57 구글 스프레드시트 바로 열기 (새 탭)"
+            title="구글 스프레드시트 바로 열기 (yoocomdr53 / yoocomdr57)"
           >
             <span>📊</span>
             <span>시트 보기 ↗</span>
@@ -1261,7 +1261,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                       구글 스프레드시트 실시간 연동
                     </h4>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-400 text-slate-950">
-                      yoocomdr57@gmail.com
+                      yoocomdr53@gmail.com · yoocomdr57@gmail.com
                     </span>
                   </div>
                   <p className="text-xs text-emerald-200 mt-0.5 truncate">
@@ -2514,7 +2514,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                   <p className="text-[11px] text-slate-200">
                     <strong className="text-white">구글 시트 열기</strong>
                     <br />
-                    <span className="text-slate-400 text-[10px]">yoocomdr57@gmail.com</span>
+                    <span className="text-slate-400 text-[10px]">yoocomdr53@gmail.com / yoocomdr57@gmail.com</span>
                   </p>
                 </div>
                 <div className="bg-black/30 backdrop-blur-xs rounded-xl p-2.5 border border-white/10">
@@ -2571,7 +2571,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                   rel="noreferrer"
                   className="w-full sm:flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 transition text-center shadow-md cursor-pointer"
                 >
-                  <span>🔗 yoocomdr57 새 구글 시트 만들기 (새 창)</span>
+                  <span>🔗 새 구글 시트 만들기 (새 창)</span>
                 </a>
                 <button
                   type="button"
@@ -2592,7 +2592,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                     <span>📑 구글 스프레드시트 5대 시트 자동 구성 (회원관리 포함)</span>
                   </h4>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    yoocomdr57@gmail.com 계정의 스프레드시트에 자동 생성·동기화되는 마스터 테이블 구조입니다.
+                    yoocomdr53@gmail.com 및 yoocomdr57@gmail.com 계정의 스프레드시트에 자동 생성·동기화되는 마스터 테이블 구조입니다.
                   </p>
                 </div>
                 <button
@@ -3741,7 +3741,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                   <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
                     <span>Google Apps Script 연동 코드 (Code.gs)</span>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500 text-slate-950">
-                      yoocomdr57@gmail.com
+                      yoocomdr53@gmail.com · yoocomdr57@gmail.com
                     </span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
