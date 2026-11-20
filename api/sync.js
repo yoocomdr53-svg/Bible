@@ -66,42 +66,46 @@ function isDeletedOnServer(m) {
   const kEmail = (m.email || '').toLowerCase().trim();
   const kName = (m.name || '').trim();
   const kLogin = (m.loginId || '').toLowerCase().trim();
-  const nClean = kName.replace(/\s+/g, '');
+  const nClean = kName.replace(/\s+/g, '').toLowerCase();
 
-  // Test dummy accounts requested by user to be completely purged:
-  if (
-    nClean.includes('임시테스트') ||
-    nClean.includes('신규성도') ||
-    nClean.includes('E2E테스터') ||
-    nClean.includes('e2e테스터') ||
-    nClean.includes('라이브테스트성도') ||
-    nClean.includes('삭제실험맨') ||
-    nClean.includes('황희') ||
-    nClean.includes('윤봉길') ||
-    nClean.includes('정회원') ||
-    nClean.includes('유천년') ||
-    nClean.includes('유원희') ||
-    nClean.includes('홍길동') ||
-    nClean.includes('김은혜') ||
-    kEmail === 'temp_delete_test@gmail.com' ||
-    kEmail === 'e2e_tester@superbible.kr' ||
-    kEmail === 'user_live_test@gmail.com' ||
-    kEmail === 'del_experiment@test.com' ||
-    kEmail === 'yoocomdr55@gmail.com' ||
-    kEmail === 'yoocomdr58@gmail.com' ||
-    kEmail === 'realuser1@gmail.com' ||
-    kEmail === 'yocomdr@superbible.kr' ||
-    kEmail === 'yocomdr34@superbible.kr' ||
-    kEmail === 'grace@superbible.kr' ||
-    kEmail === 'yoocomdr53@gmail.com' ||
-    kLogin === 'yocomdr' ||
-    kLogin === 'yocomdr34' ||
-    kLogin === 'yoocomdr53'
-  ) {
+  // 1. Exact dummy test names (NEVER match partial Korean names of real church members!)
+  const exactDummyNames = [
+    '임시테스트',
+    '임시테스트성도',
+    '신규성도',
+    'e2e테스터',
+    'e2e테스터성도',
+    '라이브테스트성도',
+    '삭제실험맨',
+  ];
+  if (exactDummyNames.includes(nClean)) {
     return true;
   }
 
-  // 2. Master system admin protected from deletion (prevents admin lockout)
+  // 2. Specific test dummy emails and legacy ids
+  const dummyEmails = [
+    'temp_delete_test@gmail.com',
+    'e2e_tester@superbible.kr',
+    'user_live_test@gmail.com',
+    'del_experiment@test.com',
+    'yoocomdr55@gmail.com',
+    'yoocomdr58@gmail.com',
+    'realuser1@gmail.com',
+    'yocomdr@superbible.kr',
+    'yocomdr34@superbible.kr',
+    'grace@superbible.kr',
+    'yoocomdr53@gmail.com',
+  ];
+  if (dummyEmails.includes(kEmail)) {
+    return true;
+  }
+
+  const dummyLogins = ['yocomdr', 'yocomdr34', 'yoocomdr53'];
+  if (dummyLogins.includes(kLogin)) {
+    return true;
+  }
+
+  // 3. Master system admin protected from deletion (prevents admin lockout)
   if (
     kEmail === 'yoocomdr57@gmail.com' ||
     kName === '로고스 관리자' ||
@@ -110,7 +114,7 @@ function isDeletedOnServer(m) {
     return false;
   }
 
-  // 3. Check deletion tombstones (email, loginId, or name)
+  // 4. Check deletion tombstones (email, loginId, or name)
   if (kEmail && serverDeletedRecords[kEmail]) return true;
   if (kLogin && serverDeletedRecords[kLogin]) return true;
   if (kName) {
@@ -180,20 +184,22 @@ export default async function handler(req, res) {
       globalThis.__SUPERBIBLE_DELETED_RECORDS__ = {};
     }
 
-    if (scriptUrl) {
-      serverCachedScriptUrl = scriptUrl;
-      globalThis.__SUPERBIBLE_SCRIPT_URL__ = scriptUrl;
-    }
-    if (sheetUrl) {
-      serverCachedSheetUrl = sheetUrl;
-      globalThis.__SUPERBIBLE_SHEET_URL__ = sheetUrl;
-    }
-    if (sheetId) {
-      serverCachedSheetId = sheetId;
-      globalThis.__SUPERBIBLE_SHEET_ID__ = sheetId;
+    if (action === 'setConfig') {
+      if (scriptUrl) {
+        serverCachedScriptUrl = scriptUrl;
+        globalThis.__SUPERBIBLE_SCRIPT_URL__ = scriptUrl;
+      }
+      if (sheetUrl) {
+        serverCachedSheetUrl = sheetUrl;
+        globalThis.__SUPERBIBLE_SHEET_URL__ = sheetUrl;
+      }
+      if (sheetId) {
+        serverCachedSheetId = sheetId;
+        globalThis.__SUPERBIBLE_SHEET_ID__ = sheetId;
+      }
     }
 
-    const targetScriptUrl = scriptUrl || serverCachedScriptUrl || req.headers['x-script-url'] || '';
+    const targetScriptUrl = serverCachedScriptUrl || process.env.GOOGLE_SCRIPT_URL || scriptUrl || req.headers['x-script-url'] || '';
 
     if (action === 'getConfig') {
       res.status(200).json({
@@ -287,20 +293,24 @@ export default async function handler(req, res) {
         const timeout = setTimeout(() => controller.abort(), 9000);
         const gasRes = await fetch(targetScriptUrl, {
           signal: controller.signal,
-          headers: { 'Accept': 'application/json' }
+          headers: { 'Accept': 'application/json' },
+          redirect: 'follow',
         });
         clearTimeout(timeout);
 
         if (gasRes.ok) {
-          const gasData = await gasRes.json();
-          if (gasData && gasData.sheetUrl && (!serverCachedSheetUrl || serverCachedSheetUrl.includes('1yoocomdr57_SuperBible_MasterRoster_2026'))) {
-            serverCachedSheetUrl = gasData.sheetUrl;
-            globalThis.__SUPERBIBLE_SHEET_URL__ = gasData.sheetUrl;
-          }
-          if (gasData && gasData.sheetId && (!serverCachedSheetId || serverCachedSheetId.includes('1yoocomdr57_SuperBible_MasterRoster_2026'))) {
-            serverCachedSheetId = gasData.sheetId;
-            globalThis.__SUPERBIBLE_SHEET_ID__ = gasData.sheetId;
-          }
+          const rawText = await gasRes.text();
+          const trimmed = (rawText || '').trim();
+          if (!trimmed.startsWith('<') && !trimmed.includes('<!DOCTYPE') && !trimmed.includes('<html')) {
+            const gasData = JSON.parse(rawText);
+            if (gasData && gasData.sheetUrl) {
+              serverCachedSheetUrl = gasData.sheetUrl;
+              globalThis.__SUPERBIBLE_SHEET_URL__ = gasData.sheetUrl;
+            }
+            if (gasData && gasData.sheetId) {
+              serverCachedSheetId = gasData.sheetId;
+              globalThis.__SUPERBIBLE_SHEET_ID__ = gasData.sheetId;
+            }
 
           if (gasData && Array.isArray(gasData.members) && gasData.members.length > 0) {
             // Strictly exclude deleted members and test dummy accounts so stale rows never revive!
@@ -360,7 +370,8 @@ export default async function handler(req, res) {
             return;
           }
         }
-      } catch (gasErr) {
+      }
+    } catch (gasErr) {
         console.warn('[SyncHub] Failed to pull live from Google Apps Script:', gasErr.message);
       }
     }
@@ -393,20 +404,22 @@ export default async function handler(req, res) {
     }
 
     const { action, scriptUrl, sheetUrl, sheetId } = body;
-    if (scriptUrl) {
-      serverCachedScriptUrl = scriptUrl;
-      globalThis.__SUPERBIBLE_SCRIPT_URL__ = scriptUrl;
-    }
-    if (sheetUrl) {
-      serverCachedSheetUrl = sheetUrl;
-      globalThis.__SUPERBIBLE_SHEET_URL__ = sheetUrl;
-    }
-    if (sheetId) {
-      serverCachedSheetId = sheetId;
-      globalThis.__SUPERBIBLE_SHEET_ID__ = sheetId;
+    if (action === 'setConfig') {
+      if (scriptUrl) {
+        serverCachedScriptUrl = scriptUrl;
+        globalThis.__SUPERBIBLE_SCRIPT_URL__ = scriptUrl;
+      }
+      if (sheetUrl) {
+        serverCachedSheetUrl = sheetUrl;
+        globalThis.__SUPERBIBLE_SHEET_URL__ = sheetUrl;
+      }
+      if (sheetId) {
+        serverCachedSheetId = sheetId;
+        globalThis.__SUPERBIBLE_SHEET_ID__ = sheetId;
+      }
     }
 
-    const targetScriptUrl = scriptUrl || serverCachedScriptUrl || req.headers['x-script-url'] || '';
+    const targetScriptUrl = serverCachedScriptUrl || process.env.GOOGLE_SCRIPT_URL || scriptUrl || req.headers['x-script-url'] || '';
 
     // Action: Add Admin-Designated Blacklist (관리자 지정 차단)
     if (action === 'addBlacklist') {
@@ -768,6 +781,7 @@ export default async function handler(req, res) {
 
     // Forward to Google Apps Script Web App if URL is configured
     let gasResult = null;
+    let gasError = null;
     if (targetScriptUrl && targetScriptUrl.startsWith('http')) {
       try {
         const controller = new AbortController();
@@ -776,39 +790,63 @@ export default async function handler(req, res) {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(body),
-          signal: controller.signal
+          signal: controller.signal,
+          redirect: 'follow',
         });
         clearTimeout(timeout);
 
-        try {
-          gasResult = await gasRes.json();
-          if (gasResult && Array.isArray(gasResult.members) && gasResult.members.length > 0) {
-            // Update server cache with Google Sheets merged list (strictly excluding deleted members)
-            const gmap = new Map();
-            serverCachedMembers.map(normalizeMember).filter(m => !isDeletedOnServer(m)).forEach(m => gmap.set((m.email || m.name || m.id).toLowerCase().trim(), m));
-            gasResult.members.map(normalizeMember).filter(gm => !isDeletedOnServer(gm)).forEach(gm => {
-              const gk = (gm.email || gm.name || gm.id).toLowerCase().trim();
-              if (gmap.has(gk)) {
-                gmap.set(gk, normalizeMember({ ...gmap.get(gk), ...gm }));
-              } else {
-                gmap.set(gk, gm);
-              }
-            });
-            serverCachedMembers = sortMembers(Array.from(gmap.values()).map(normalizeMember).filter(m => !isDeletedOnServer(m)));
-            globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
+        const rawText = await gasRes.text();
+        const trimmed = (rawText || '').trim();
+
+        // 1. Detect HTML response (permission error, Google login screen, 404, script authorization)
+        if (trimmed.startsWith('<') || trimmed.includes('<!DOCTYPE') || trimmed.includes('<html')) {
+          gasError = '구글 웹앱이 JSON 대신 HTML 오류 페이지를 반환했습니다. Apps Script 배포 설정(액세스: 모든 사용자)을 확인하세요.';
+          gasResult = { status: 'error', message: gasError, htmlPreview: trimmed.slice(0, 200) };
+        } else {
+          try {
+            gasResult = JSON.parse(rawText);
+            if (gasResult && gasResult.status === 'error') {
+              gasError = gasResult.message || 'Google Apps Script 실행 오류';
+            } else if (gasResult && Array.isArray(gasResult.members) && gasResult.members.length > 0) {
+              // Update server cache with Google Sheets merged list (strictly excluding deleted members)
+              const gmap = new Map();
+              serverCachedMembers.map(normalizeMember).filter(m => !isDeletedOnServer(m)).forEach(m => gmap.set((m.email || m.name || m.id).toLowerCase().trim(), m));
+              gasResult.members.map(normalizeMember).filter(gm => !isDeletedOnServer(gm)).forEach(gm => {
+                const gk = (gm.email || gm.name || gm.id).toLowerCase().trim();
+                if (gmap.has(gk)) {
+                  gmap.set(gk, normalizeMember({ ...gmap.get(gk), ...gm }));
+                } else {
+                  gmap.set(gk, gm);
+                }
+              });
+              serverCachedMembers = sortMembers(Array.from(gmap.values()).map(normalizeMember).filter(m => !isDeletedOnServer(m)));
+              globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
+            }
+          } catch (jsonErr) {
+            gasError = '구글 웹앱 응답 파싱 실패: ' + rawText.slice(0, 100);
+            gasResult = { status: 'error', message: gasError, rawText: rawText.slice(0, 200) };
           }
-        } catch (jsonErr) {
-          gasResult = { status: 'success', rawText: 'OK' };
         }
       } catch (gasErr) {
+        gasError = gasErr.name === 'AbortError' ? '구글 웹앱 응답 시간 초과 (12초)' : `구글 웹앱 통신 실패: ${gasErr.message}`;
+        gasResult = { status: 'error', message: gasError };
         console.warn('[SyncHub] Failed to forward to Google Apps Script:', gasErr.message);
       }
     }
 
+    const hasGasFailure = Boolean(gasError || (gasResult && gasResult.status === 'error'));
+    const isRegister = (action === 'registerMember' || action === 'registerUser' || action === 'register');
+
     res.status(200).json({
-      success: true,
-      message: gasResult?.message || '중앙 서버에 안전하게 실시간 동기화되었습니다.',
+      success: isRegister ? !hasGasFailure : true,
+      sheetSyncSuccess: !hasGasFailure,
+      message: hasGasFailure
+        ? (isRegister
+            ? `중앙 서버 등록 완료 (구글 시트 반영 실패: ${gasError || gasResult?.message})`
+            : `작업 완료 (구글 시트 경고: ${gasError || gasResult?.message})`)
+        : (gasResult?.message || '중앙 서버 및 구글 스프레드시트에 안전하게 실시간 동기화되었습니다.'),
       gasResult,
+      gasError,
       members: sortMembers(serverCachedMembers.map(normalizeMember).filter(m => !isDeletedOnServer(m))),
       deletedRecords: serverDeletedRecords,
       blacklist: serverAdminBlacklist,

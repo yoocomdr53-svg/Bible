@@ -12,6 +12,7 @@ import {
   syncProgressToGoogleSheet,
   syncRecordingToGoogleSheet,
   sendPayloadToGoogleScript,
+  enqueuePendingSync,
 } from './googleSheetsSync';
 
 export const SESSION_KEY = 'superbible_auth_session_v3';
@@ -244,38 +245,42 @@ export function isMemberDeleted(identifier: {
   const kEmail = (identifier.email || '').toLowerCase().trim();
   const kName = (identifier.name || '').trim();
   const kLogin = (identifier.loginId || '').toLowerCase().trim();
-  const nClean = kName.replace(/\s+/g, '');
+  const nClean = kName.replace(/\s+/g, '').toLowerCase();
 
-  // 1. Test accounts that must ALWAYS be purged:
-  if (
-    nClean.includes('임시테스트') ||
-    nClean.includes('신규성도') ||
-    nClean.includes('E2E테스터') ||
-    nClean.includes('e2e테스터') ||
-    nClean.includes('라이브테스트성도') ||
-    nClean.includes('삭제실험맨') ||
-    nClean.includes('황희') ||
-    nClean.includes('윤봉길') ||
-    nClean.includes('정회원') ||
-    nClean.includes('유천년') ||
-    nClean.includes('유원희') ||
-    nClean.includes('홍길동') ||
-    nClean.includes('김은혜') ||
-    kEmail === 'temp_delete_test@gmail.com' ||
-    kEmail === 'e2e_tester@superbible.kr' ||
-    kEmail === 'user_live_test@gmail.com' ||
-    kEmail === 'del_experiment@test.com' ||
-    kEmail === 'yoocomdr55@gmail.com' ||
-    kEmail === 'yoocomdr58@gmail.com' ||
-    kEmail === 'realuser1@gmail.com' ||
-    kEmail === 'yocomdr@superbible.kr' ||
-    kEmail === 'yocomdr34@superbible.kr' ||
-    kEmail === 'grace@superbible.kr' ||
-    kEmail === 'yoocomdr53@gmail.com' ||
-    kLogin === 'yocomdr' ||
-    kLogin === 'yocomdr34' ||
-    kLogin === 'yoocomdr53'
-  ) {
+  // 1. Exact dummy test names (NEVER match partial Korean names of real church members!)
+  const exactDummyNames = [
+    '임시테스트',
+    '임시테스트성도',
+    '신규성도',
+    'e2e테스터',
+    'e2e테스터성도',
+    '라이브테스트성도',
+    '삭제실험맨',
+  ];
+  if (exactDummyNames.includes(nClean)) {
+    return true;
+  }
+
+  // 2. Specific test dummy emails and legacy ids
+  const dummyEmails = [
+    'temp_delete_test@gmail.com',
+    'e2e_tester@superbible.kr',
+    'user_live_test@gmail.com',
+    'del_experiment@test.com',
+    'yoocomdr55@gmail.com',
+    'yoocomdr58@gmail.com',
+    'realuser1@gmail.com',
+    'yocomdr@superbible.kr',
+    'yocomdr34@superbible.kr',
+    'grace@superbible.kr',
+    'yoocomdr53@gmail.com',
+  ];
+  if (dummyEmails.includes(kEmail)) {
+    return true;
+  }
+
+  const dummyLogins = ['yocomdr', 'yocomdr34', 'yoocomdr53'];
+  if (dummyLogins.includes(kLogin)) {
     return true;
   }
 
@@ -710,24 +715,34 @@ function cleanupLegacyStorage(): void {
             const n = String(item.name || item.user?.name || '').trim();
             const em = String(item.email || item.user?.email || item.loginId || '').toLowerCase().trim();
             const lid = String(item.loginId || '').toLowerCase().trim();
+            const exactDummyNames = [
+              '임시테스트',
+              '임시테스트성도',
+              '신규성도',
+              'e2e테스터',
+              'e2e테스터성도',
+              '라이브테스트성도',
+              '삭제실험맨',
+            ];
+            const dummyEmails = [
+              'yocomdr@superbible.kr',
+              'yocomdr34@superbible.kr',
+              'yoocomdr55@gmail.com',
+              'yoocomdr58@gmail.com',
+              'realuser1@gmail.com',
+              'temp_delete_test@gmail.com',
+              'e2e_tester@superbible.kr',
+              'user_live_test@gmail.com',
+              'del_experiment@test.com',
+              'grace@superbible.kr',
+              'yoocomdr53@gmail.com',
+            ];
+            const dummyLogins = ['yocomdr', 'yocomdr34', 'yoocomdr53'];
+
             if (
-              n.includes('유천년') ||
-              n.includes('유원희') ||
-              n.includes('홍길동') ||
-              n.includes('황희') ||
-              n.includes('윤봉길') ||
-              n.includes('정회원') ||
-              n.includes('임시테스트') ||
-              n.includes('신규성도') ||
-              n.includes('E2E테스터') ||
-              n.includes('삭제실험맨') ||
-              em === 'yocomdr@superbible.kr' ||
-              em === 'yocomdr34@superbible.kr' ||
-              em === 'yoocomdr55@gmail.com' ||
-              em === 'yoocomdr58@gmail.com' ||
-              em === 'realuser1@gmail.com' ||
-              lid === 'yocomdr' ||
-              lid === 'yocomdr34'
+              exactDummyNames.includes(n.replace(/\s+/g, '').toLowerCase()) ||
+              dummyEmails.includes(em) ||
+              dummyLogins.includes(lid)
             ) {
               return false;
             }
@@ -751,12 +766,12 @@ function cleanupLegacyStorage(): void {
         const curUser = JSON.parse(curUserRaw);
         const curName = (curUser.name || '').trim();
         const curEmail = (curUser.email || '').toLowerCase().trim();
+        const exactPurgeNames = ['임시테스트', '임시테스트성도', '신규성도', 'e2e테스터', '라이브테스트성도', '삭제실험맨'];
         if (
-          curName.includes('유천년') ||
-          curName.includes('유원희') ||
-          curName.includes('홍길동') ||
+          exactPurgeNames.includes(curName.replace(/\s+/g, '').toLowerCase()) ||
           curEmail === 'yocomdr@superbible.kr' ||
-          curEmail === 'yocomdr34@superbible.kr'
+          curEmail === 'yocomdr34@superbible.kr' ||
+          curEmail === 'yoocomdr53@gmail.com'
         ) {
           localStorage.removeItem(USER_KEY);
         }
@@ -813,8 +828,7 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
         currentMembers = parsed.filter(
           (m: MemberReadingProfile) =>
             !isMemberDeleted(m) &&
-            !m.email.includes('@logos.church') &&
-            !['김은혜', '박요셉', '이모세', '최한나', '정다윗', '한수민', '오바울', '강소망'].includes(m.name)
+            !m.email.includes('@logos.church')
         );
       }
     }
@@ -1364,7 +1378,25 @@ export function registerUser(
   const newMemberProfile = syncMemberToAdminRoster(newUser, loginId, phone, chosenDept);
 
   // Auto-sync new member registration directly to Google Sheet (yoocomdr57@gmail.com)
-  syncMemberRegistrationToGoogleSheet(newMemberProfile, loginId).catch(console.error);
+  syncMemberRegistrationToGoogleSheet(newMemberProfile, loginId)
+    .then((res) => {
+      if (!res.success) {
+        console.warn('[Register] Google Sheet sync returned non-success, enqueued for retry:', res.message);
+        enqueuePendingSync('registerMember', {
+          action: 'registerMember',
+          loginId,
+          member: newMemberProfile,
+        });
+      }
+    })
+    .catch((err) => {
+      console.warn('[Register] Google Sheet sync network failure, enqueued for retry:', err);
+      enqueuePendingSync('registerMember', {
+        action: 'registerMember',
+        loginId,
+        member: newMemberProfile,
+      });
+    });
 
   // Auto-login & persist session
   saveActiveSession(newUser, loginId);
@@ -1404,6 +1436,13 @@ export function loginUser(
   );
 
   if (matched) {
+    if (matched.passwordHash && matched.passwordHash.startsWith('REMOTE_SYNC_')) {
+      return {
+        success: false,
+        message: '구글 스프레드시트에서 동기화된 성도 계정입니다. 간편가입을 통해 본인 비밀번호를 설정하시거나 관리자에게 문의해주세요.',
+      };
+    }
+
     if (
       matched.passwordHash &&
       matched.passwordHash !== password &&

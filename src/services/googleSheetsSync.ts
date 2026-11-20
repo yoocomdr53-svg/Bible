@@ -263,26 +263,54 @@ export async function sendPayloadToGoogleScript(
 
     if (res.ok) {
       const data = await res.json();
-      saveGoogleSheetConfig({
-        ...config,
-        lastSynced: `${nowStr} (실시간 동기화 완료)`,
-        syncStatus: 'success',
-        lastSyncMessage: `${config.adminEmail} 중앙 서버 및 구글 시트에 실시간 반영되었습니다.`,
-      });
+      const isSheetSuccess = data.success && (!data.gasResult || data.gasResult.status !== 'error') && !data.gasError;
 
-      addSheetSyncLog({
-        timestamp: nowStr,
-        direction: 'upload',
-        status: 'success',
-        summary: `중앙 동기화 성공: ${payload.action}`,
-        details: `${config.adminEmail} 스프레드시트 갱신 완료`,
-        rowsAffected: 1,
-      });
+      if (isSheetSuccess) {
+        saveGoogleSheetConfig({
+          ...config,
+          lastSynced: `${nowStr} (실시간 동기화 완료)`,
+          syncStatus: 'success',
+          lastSyncMessage: `${config.adminEmail} 중앙 서버 및 구글 시트에 실시간 반영되었습니다.`,
+        });
 
-      return {
-        success: true,
-        message: data.message || '중앙 서버 및 구글 스프레드시트에 성공적으로 저장되었습니다!',
-      };
+        addSheetSyncLog({
+          timestamp: nowStr,
+          direction: 'upload',
+          status: 'success',
+          summary: `중앙 동기화 성공: ${payload.action}`,
+          details: `${config.adminEmail} 스프레드시트 갱신 완료`,
+          rowsAffected: 1,
+        });
+
+        return {
+          success: true,
+          message: data.message || '중앙 서버 및 구글 스프레드시트에 성공적으로 저장되었습니다!',
+        };
+      } else {
+        // Enqueue for background retry so registration / progress is never lost
+        enqueuePendingSync(payload.action as any, fullPayload);
+
+        saveGoogleSheetConfig({
+          ...config,
+          lastSynced: `${nowStr} (서버 보관 / 시트 재시도 대기)`,
+          syncStatus: 'pending',
+          lastSyncMessage: data.message || '중앙 서버 보관 완료, 구글 시트 재시도 대기열 등록',
+        });
+
+        addSheetSyncLog({
+          timestamp: nowStr,
+          direction: 'upload',
+          status: 'in_progress',
+          summary: `시트 전송 대기: ${payload.action}`,
+          details: data.gasError || data.message || '구글 시트 응답 대기',
+          rowsAffected: 0,
+        });
+
+        return {
+          success: false,
+          message: data.message || '중앙 서버에 보관되었으며 구글 시트 반영을 재시도합니다.',
+        };
+      }
     }
   } catch (apiErr) {
     console.warn('[SyncService] /api/sync hub failed, attempting direct Google Script:', apiErr);
@@ -529,7 +557,7 @@ export async function uploadAudioToDrive(params: {
 }
 
 /**
- * Flush all pending sync items to Google Sheet
+ * Flush all pending sync items to Google Sheet via Central Hub
  */
 export async function flushPendingSyncQueue(): Promise<{ success: boolean; flushedCount: number }> {
   const queue = getPendingSyncQueue();
@@ -537,38 +565,43 @@ export async function flushPendingSyncQueue(): Promise<{ success: boolean; flush
     return { success: true, flushedCount: 0 };
   }
 
-  const config = getGoogleSheetConfig();
-  if (!config.scriptUrl || !config.scriptUrl.startsWith('http')) {
-    return { success: false, flushedCount: 0 };
-  }
-
+  const remaining: PendingSyncItem[] = [];
   let count = 0;
+
   for (const item of queue) {
     try {
-      await fetch(config.scriptUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(item.payload),
-        mode: 'no-cors',
-      });
-      count++;
+      const res = await sendPayloadToGoogleScript(item.payload);
+      if (res.success) {
+        count++;
+      } else {
+        remaining.push(item);
+      }
     } catch (e) {
-      console.error('Error flushing pending item:', e);
+      remaining.push(item);
     }
   }
 
-  clearPendingSyncQueue();
-  const nowStr = new Date().toLocaleString('ko-KR');
-  addSheetSyncLog({
-    timestamp: nowStr,
-    direction: 'upload',
-    status: 'success',
-    summary: `대기 중이던 ${count}건 데이터 구글 시트 일괄 전송 완료`,
-    details: `${config.adminEmail} 스프레드시트에 일괄 반영`,
-    rowsAffected: count,
-  });
+  if (remaining.length > 0) {
+    try {
+      localStorage.setItem(PENDING_QUEUE_KEY, JSON.stringify(remaining));
+    } catch (e) {}
+  } else {
+    clearPendingSyncQueue();
+  }
 
-  return { success: true, flushedCount: count };
+  if (count > 0) {
+    const nowStr = new Date().toLocaleString('ko-KR');
+    addSheetSyncLog({
+      timestamp: nowStr,
+      direction: 'upload',
+      status: 'success',
+      summary: `대기 중이던 ${count}건 데이터 구글 시트 전송 완료`,
+      details: `중앙 허브 및 스프레드시트에 일괄 반영`,
+      rowsAffected: count,
+    });
+  }
+
+  return { success: remaining.length === 0, flushedCount: count };
 }
 
 /**
@@ -622,13 +655,48 @@ export async function pullMembersFromGoogleSheet(): Promise<{
             return na - nb;
           });
 
+        // 1. Read existing local members to preserve any newly registered members not yet in remoteMembers
+        let localMembers: MemberReadingProfile[] = [];
+        try {
+          const lRaw = localStorage.getItem('superbible_admin_members_v4');
+          if (lRaw) localMembers = JSON.parse(lRaw);
+        } catch (e) {}
+
+        const remoteKeys = new Set(
+          remoteMembers.map((m: any) => (m.email || m.name || m.id || '').toLowerCase().trim())
+        );
+
+        // Keep local members that are NOT deleted and not yet present in remoteMembers
+        const unsyncedLocalMembers = localMembers.filter((lm) => {
+          if (isMemberDeleted(lm)) return false;
+          const kEmail = (lm.email || '').toLowerCase().trim();
+          const kName = (lm.name || '').toLowerCase().trim();
+          const kId = (lm.id || '').toLowerCase().trim();
+          const exists = remoteKeys.has(kEmail) || remoteKeys.has(kName) || remoteKeys.has(kId);
+          return !exists;
+        });
+
+        // Merge remoteMembers with unsyncedLocalMembers so newly registered members NEVER disappear!
+        const mergedRoster = [...remoteMembers, ...unsyncedLocalMembers].sort((a, b) => {
+          const na = parseInt(String(a.id || '').replace(/\D/g, ''), 10) || 999;
+          const nb = parseInt(String(b.id || '').replace(/\D/g, ''), 10) || 999;
+          return na - nb;
+        });
+
         // Clean obsolete deleted blacklist so active members are never affected
         try {
           localStorage.removeItem('superbible_deleted_members_v2');
         } catch (e) {}
 
-        // Save authoritative active roster directly to localStorage
-        localStorage.setItem('superbible_admin_members_v4', JSON.stringify(remoteMembers));
+        // Save authoritative active roster directly to localStorage (preserving unsynced members!)
+        localStorage.setItem('superbible_admin_members_v4', JSON.stringify(mergedRoster));
+
+        // If there are unsynced local members, retry sending them to Google Sheet
+        if (unsyncedLocalMembers.length > 0) {
+          unsyncedLocalMembers.forEach((ulm) => {
+            syncMemberRegistrationToGoogleSheet(ulm, ulm.email || ulm.name).catch(() => {});
+          });
+        }
 
         // Sync all active remote members into local accounts registry (and prune any deleted accounts)
         try {
@@ -668,7 +736,7 @@ export async function pullMembersFromGoogleSheet(): Promise<{
               const isMasterAdmin = mEmail === 'yoocomdr57@gmail.com' || m.role === '관리자';
               accounts.push({
                 loginId: m.email || m.name,
-                passwordHash: '1234',
+                passwordHash: isMasterAdmin ? '1234' : `REMOTE_SYNC_${Math.random().toString(36).slice(2)}`,
                 user: {
                   id: `user-${m.id || Date.now()}`,
                   name: m.name,

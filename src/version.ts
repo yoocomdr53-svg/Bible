@@ -2,8 +2,8 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 2.6.1';
-export const APP_BUILD_DATE = '2026.11.19';
+export const APP_VERSION = 'Ver 2.6.2';
+export const APP_BUILD_DATE = '2026.11.20';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
 
@@ -15,6 +15,19 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 2.6.2',
+    name: 'SuperBible',
+    releaseDate: '2026.11.20',
+    changes: [
+      '회원가입 오류 정밀 분석 보고서 기반 4대 근본 원인 전면 해결',
+      '원인 1 해결: api/sync.js 구글 응답 검증 강화(HTML 오류 페이지, 404, {status: "error"} 정확 감지) 및 실패 시 대기열 보관 자동 재시도',
+      '원인 2 해결: 클라이언트 요청에 의한 서버 주소 덮어쓰기 원천 차단(setConfig 명시적 액션만 허용) 및 안정적 URL 유지',
+      '원인 3 해결: 8초 동기화 시 아직 시트에 미반영된 로컬 신규 가입 성도 덮어쓰기 소멸 방지(합집합 보존 및 백그라운드 재전송)',
+      '원인 4 해결: 이름 부분일치(김은혜, 황희, 윤봉길 등) 차단 로직 전면 폐지, 실제 성도 가입 차단 버그 원천 해결',
+      '보안 강화: 원격 시트 동기화 시 약한 기본 비밀번호(1234) 자동 부여 차단 및 미설정 계정 보호',
+    ],
+  },
   {
     version: 'Ver 2.6.1',
     name: 'SuperBible',

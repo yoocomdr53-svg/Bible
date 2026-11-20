@@ -12,6 +12,7 @@ import { initAutoUpdateService } from './services/updateService';
 import {
   initGoogleSheetConfigFromServer,
   pullMembersFromGoogleSheet,
+  flushPendingSyncQueue,
 } from './services/googleSheetsSync';
 import {
   getActiveSession,
@@ -133,23 +134,34 @@ export default function App() {
   useEffect(() => {
     initGoogleSheetConfigFromServer();
     pullMembersFromGoogleSheet();
+    flushPendingSyncQueue().catch(() => {});
 
     // Auto-refresh when user returns to window / tab
     const handleFocus = () => {
-      pullMembersFromGoogleSheet();
+      flushPendingSyncQueue().catch(() => {});
+      pullMembersFromGoogleSheet().catch(() => {});
     };
     window.addEventListener('focus', handleFocus);
 
+    // Auto-flush when network goes online
+    const handleOnline = () => {
+      flushPendingSyncQueue().catch(() => {});
+      pullMembersFromGoogleSheet().catch(() => {});
+    };
+    window.addEventListener('online', handleOnline);
+
     // Real-time automatic background synchronization every 8 seconds
-    // Ensures member signups on Smartphone immediately appear on PC & Tablet
+    // Ensures member signups on Smartphone immediately appear on PC & Tablet and retries any pending syncs
     const autoSyncTimer = setInterval(() => {
       if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        flushPendingSyncQueue().catch(() => {});
         pullMembersFromGoogleSheet().catch(() => {});
       }
     }, 8000);
 
     return () => {
       window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('online', handleOnline);
       clearInterval(autoSyncTimer);
     };
   }, []);
