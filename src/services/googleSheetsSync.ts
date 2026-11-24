@@ -1043,7 +1043,6 @@ function createSuperBibleDBase() {
   if (rs.getLastRow() < 2) seedAdmin_();
 
   Logger.log("superbible DBase 준비 완료: " + ss.getUrl());
-  alert_("superbible DBase 준비 완료: " + ss.getUrl());
   return ss.getUrl();
 }
 
