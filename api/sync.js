@@ -11,10 +11,11 @@ let serverAdminBlacklist = globalThis.__SUPERBIBLE_ADMIN_BLACKLIST__ || [];
 // Deletion Tombstones: Tracks deleted member identifiers (ONLY unique emails and loginIds, NEVER sequential IDs)
 let serverDeletedRecords = globalThis.__SUPERBIBLE_DELETED_RECORDS__ || {};
 
-// Sanitize serverDeletedRecords on start (remove any sequential IDs or root master admin)
+// Sanitize serverDeletedRecords on start (only remove protected master admin M-01)
 Object.keys(serverDeletedRecords).forEach(k => {
   if (
-    k.match(/^m-\d+$/i) ||
+    k === 'm-01' ||
+    k === 'id:m-01' ||
     k === 'yoocomdr57@gmail.com' ||
     k === '로고스 관리자' ||
     k === '로고스관리자'
@@ -114,7 +115,11 @@ function isDeletedOnServer(m) {
     return false;
   }
 
-  // 4. Check deletion tombstones (email, loginId, or name)
+  // 4. Check deletion tombstones (id, email, loginId, or name)
+  const kId = (m.id || '').toLowerCase().trim();
+  if (kId && kId !== 'm-01' && (serverDeletedRecords[kId] || serverDeletedRecords[`id:${kId}`])) {
+    return true;
+  }
   if (kEmail && serverDeletedRecords[kEmail]) return true;
   if (kLogin && serverDeletedRecords[kLogin]) return true;
   if (kName) {
@@ -132,10 +137,18 @@ function recordServerDeletion(delId, delEmail, delName, delLoginId) {
   // Record unique email or loginId (never record protected master accounts)
   [delEmail, delLoginId].filter(Boolean).forEach(k => {
     const clean = String(k).toLowerCase().trim();
-    if (clean && !clean.match(/^m-\d+$/i) && clean !== 'yoocomdr57@gmail.com') {
+    if (clean && clean !== 'yoocomdr57@gmail.com') {
       serverDeletedRecords[clean] = now;
     }
   });
+  // Record memberId (e.g. M-02, M-03)
+  if (delId) {
+    const cleanId = String(delId).toLowerCase().trim();
+    if (cleanId && cleanId !== 'm-01') {
+      serverDeletedRecords[cleanId] = now;
+      serverDeletedRecords[`id:${cleanId}`] = now;
+    }
+  }
   // Also record member name if provided (never record protected master accounts)
   if (delName) {
     const cleanName = String(delName).toLowerCase().trim();
@@ -148,10 +161,13 @@ function recordServerDeletion(delId, delEmail, delName, delLoginId) {
 }
 
 function clearServerDeletion(delId, delEmail, delName, delLoginId) {
-  [delEmail, delLoginId].filter(Boolean).forEach(k => {
+  [delEmail, delLoginId, delId].filter(Boolean).forEach(k => {
     const clean = String(k).toLowerCase().trim();
     if (clean && serverDeletedRecords[clean]) {
       delete serverDeletedRecords[clean];
+    }
+    if (clean && serverDeletedRecords[`id:${clean}`]) {
+      delete serverDeletedRecords[`id:${clean}`];
     }
   });
   if (delName) {

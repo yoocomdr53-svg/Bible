@@ -160,11 +160,12 @@ export function getDeletedRecords(): Record<string, number> {
   try {
     const raw = localStorage.getItem(DELETED_RECORDS_KEY);
     const records: Record<string, number> = raw ? JSON.parse(raw) : {};
-    // Sanitize: remove any sequential IDs or master admin account
+    // Sanitize: only remove protected master admin account (M-01)
     let cleaned = false;
     Object.keys(records).forEach((k) => {
       if (
-        k.match(/^m-\d+$/i) ||
+        k === 'm-01' ||
+        k === 'id:m-01' ||
         k === 'yoocomdr57@gmail.com' ||
         k.includes('로고스 관리자') ||
         k.includes('로고스관리자')
@@ -188,10 +189,18 @@ export function recordDeletion(memberId?: string, email?: string, name?: string,
   // Record unique email and loginId (never record protected master accounts)
   [email, loginId].filter(Boolean).forEach((k) => {
     const clean = String(k).toLowerCase().trim();
-    if (clean && !clean.match(/^m-\d+$/i) && clean !== 'yoocomdr57@gmail.com') {
+    if (clean && clean !== 'yoocomdr57@gmail.com') {
       records[clean] = now;
     }
   });
+  // Record memberId (e.g. M-02, M-03)
+  if (memberId) {
+    const cleanId = String(memberId).toLowerCase().trim();
+    if (cleanId && cleanId !== 'm-01') {
+      records[cleanId] = now;
+      records[`id:${cleanId}`] = now;
+    }
+  }
   // Also record member name if provided (never record protected master accounts)
   if (name) {
     const cleanName = String(name).toLowerCase().trim();
@@ -213,6 +222,10 @@ export function clearDeletion(email?: string, loginId?: string, name?: string, m
   keys.forEach((k) => {
     if (k && records[k]) {
       delete records[k];
+      changed = true;
+    }
+    if (k && records[`id:${k}`]) {
+      delete records[`id:${k}`];
       changed = true;
     }
   });
@@ -245,6 +258,7 @@ export function isMemberDeleted(identifier: {
   const kEmail = (identifier.email || '').toLowerCase().trim();
   const kName = (identifier.name || '').trim();
   const kLogin = (identifier.loginId || '').toLowerCase().trim();
+  const kId = (identifier.id || '').toLowerCase().trim();
   const nClean = kName.replace(/\s+/g, '').toLowerCase();
 
   // 1. Exact dummy test names (NEVER match partial Korean names of real church members!)
@@ -293,8 +307,9 @@ export function isMemberDeleted(identifier: {
     return false;
   }
 
-  // 3. Check deletion tombstones (email, loginId, or name)
+  // 3. Check deletion tombstones (id, email, loginId, or name)
   const records = getDeletedRecords();
+  if (kId && kId !== 'm-01' && (records[kId] || records[`id:${kId}`])) return true;
   if (kEmail && records[kEmail]) return true;
   if (kLogin && records[kLogin]) return true;
   if (kName) {

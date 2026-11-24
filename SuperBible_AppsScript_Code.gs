@@ -218,10 +218,26 @@ function loadDeletedKeys_() {
 }
 
 function addTombstone_(t) {
-  var k = memberKey_(t);
-  if (!k) return;
-  if (loadDeletedKeys_()[k]) return;
-  sheet_(SN.DEL).appendRow([k, t.name || "", t.email || "", nowStr_()]);
+  var sh = sheet_(SN.DEL);
+  if (!sh) return;
+  var existing = loadDeletedKeys_();
+  var e = norm_(t.email);
+  var n = norm_(t.name);
+  var id = norm_(t.id || t.memberId);
+  var now = nowStr_();
+
+  if (e && !existing[e]) {
+    sh.appendRow([e, t.name || "", t.email || "", now]);
+    existing[e] = true;
+  }
+  if (n && !existing["name:" + n]) {
+    sh.appendRow(["name:" + n, t.name || "", t.email || "", now]);
+    existing["name:" + n] = true;
+  }
+  if (id && id !== "m-01" && !existing[id]) {
+    sh.appendRow([id, t.name || "", t.email || "", now]);
+    existing[id] = true;
+  }
 }
 
 function removeTombstone_(t) {
@@ -235,21 +251,26 @@ function removeTombstone_(t) {
 }
 
 // ───────────────────────── 행 검색 / 회원번호 ─────────────────────────
-// 우선순위: 이메일 → (이메일 미제공 또는 시트 이메일이 빈 경우) 회원번호 → (이메일·번호 모두 없을 때) 이름
+// 우선순위: 회원번호(ID) 또는 이메일 또는 이름 일치 시 행 검색
 function findRows_(sh, t) {
   if (!sh || sh.getLastRow() < 2) return [];
   var data = sh.getRange(2, 1, sh.getLastRow() - 1, 6).getValues();
-  var id = norm_(t.id), email = norm_(t.email), name = norm_(t.name);
-  function scan(pred) {
-    var out = [];
-    for (var i = 0; i < data.length; i++) if (pred(data[i])) out.push(i + 2);
-    return out;
+  var id = norm_(t.id || t.memberId), email = norm_(t.email), name = norm_(t.name);
+  var out = [];
+  for (var i = 0; i < data.length; i++) {
+    var r = data[i];
+    var rId = norm_(r[0]);
+    var rName = norm_(r[1]);
+    var rEmail = norm_(r[5]);
+
+    var match = false;
+    if (id && rId === id) match = true;
+    else if (email && rEmail === email) match = true;
+    else if (name && rName === name) match = true;
+
+    if (match) out.push(i + 2);
   }
-  var rows = [];
-  if (email) rows = scan(function (r) { return norm_(r[5]) === email; });
-  if (!rows.length && id) rows = scan(function (r) { return norm_(r[0]) === id && (!email || !norm_(r[5])); });
-  if (!rows.length && name && !email && !id) rows = scan(function (r) { return norm_(r[1]) === name; });
-  return rows;
+  return out;
 }
 
 function idInUse_(id) {
@@ -406,24 +427,36 @@ function updateMember_(data) {
 
 // ───────────────────────── 회원 삭제 ─────────────────────────
 function deleteMember_(t) {
-  if (norm_(t.email) === norm_(ADMIN_EMAIL)) {
+  var idNorm = norm_(t.id || t.memberId);
+  var emailNorm = norm_(t.email);
+  var nameNorm = norm_(t.name);
+
+  if (emailNorm === norm_(ADMIN_EMAIL) || nameNorm === "로고스 관리자" || idNorm === "m-01") {
     return { ok: false, message: "마스터 관리자 계정은 삭제할 수 없습니다.", rowsDeleted: 0 };
   }
   var infos = [];
   var deleted = 0;
   [SN.ROSTER, SN.PROG].forEach(function (n) {
     var sh = sheet_(n);
+    if (!sh || sh.getLastRow() < 2) return;
     var rows = findRows_(sh, t);
     for (var i = rows.length - 1; i >= 0; i--) {
-      var v = sh.getRange(rows[i], 1, 1, 6).getValues()[0];
-      infos.push({ name: String(v[1] || ""), email: String(v[5] || "") });
-      sh.deleteRow(rows[i]);
-      deleted++;
+      var rIdx = rows[i];
+      if (rIdx <= sh.getLastRow()) {
+        var v = sh.getRange(rIdx, 1, 1, 6).getValues()[0];
+        infos.push({ id: String(v[0] || ""), name: String(v[1] || ""), email: String(v[5] || "") });
+        sh.deleteRow(rIdx);
+        deleted++;
+      }
     }
   });
   // 삭제 명단 기록 (시트 행 삭제 후에도 앱의 옛 데이터가 되살리지 못하게)
-  infos.forEach(addTombstone_);
-  if (norm_(t.email) || norm_(t.name)) addTombstone_({ name: t.name, email: t.email });
+  infos.forEach(function (info) {
+    addTombstone_({ name: info.name, email: info.email, id: info.id });
+  });
+  if (emailNorm || nameNorm || idNorm) {
+    addTombstone_({ name: t.name, email: t.email, id: idNorm });
+  }
   return { ok: true, rowsDeleted: deleted };
 }
 
@@ -739,7 +772,19 @@ function buildMemberList_() {
     o.consecutiveDays = Number(m[13]) || 1;
   });
 
-  return order.map(function (k) { return map[k]; });
+  var delKeys = loadDeletedKeys_();
+  return order.filter(function (k) {
+    var m = map[k];
+    if (!m) return false;
+    var k1 = memberKey_(m);
+    var k2 = norm_(m.email);
+    var k3 = norm_(m.name);
+    var k4 = norm_(m.id);
+    if (delKeys[k1] || (k2 && delKeys[k2]) || (k3 && (delKeys[k3] || delKeys["name:" + k3])) || (k4 && delKeys[k4])) {
+      return false;
+    }
+    return true;
+  }).map(function (k) { return map[k]; });
 }
 
 // ───────────────────────── 초기화 / 정리 (시트 메뉴용) ─────────────────────────

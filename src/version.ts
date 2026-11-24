@@ -2,8 +2,8 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 2.6.2';
-export const APP_BUILD_DATE = '2026.11.20';
+export const APP_VERSION = 'Ver 2.6.3';
+export const APP_BUILD_DATE = '2026.11.24';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
 
@@ -15,6 +15,18 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 2.6.3',
+    name: 'SuperBible',
+    releaseDate: '2026.11.24',
+    changes: [
+      '구글 스프레드시트(superbible DBase) 회원 삭제 미반영 및 재접속 시 부활 버그 근본 해결',
+      '앱스 스크립트(SuperBible_AppsScript_Code.gs) findRows_ 회원 식별 매칭 버그 수정 (회원번호 ID/성명/이메일 정확 매칭)',
+      '회원 삭제 시 [회원관리] 및 [회원_낭독진도] 시트 즉각 행 삭제 및 [삭제된회원] 시트에 3중 톰스톤 영구 기록',
+      '웹프로그램 로그아웃/재접속 시 서버리스 콜드스타트로 인한 로컬 삭제 기록 덮어쓰기 소멸 방지 (Union 병합)',
+      'authService 및 api/sync.js 회원번호(M-02, M-03 등) 톰스톤 보존 및 다중 기기 실시간 영구 삭제 동기화',
+    ],
+  },
   {
     version: 'Ver 2.6.2',
     name: 'SuperBible',
