@@ -931,13 +931,55 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     );
   };
 
+  // Fallback clipboard copy for browsers blocking navigator.clipboard
+  const fallbackCopyText = (text: string) => {
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-9999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopiedScript(true);
+      setTimeout(() => setCopiedScript(false), 2500);
+      showToast('Google Apps Script(Code.gs) 코드가 클립보드에 복사되었습니다! 📋');
+    } catch (e) {
+      showToast('복사에 실패했습니다. 아래 코드창에서 직접 전체 선택(Ctrl+A)하여 복사해 주세요.');
+    }
+  };
+
   // Copy Google Apps Script code for yoocomdr57@gmail.com
   const handleCopyAppsScript = () => {
     const code = generateAppsScriptCode('yoocomdr57@gmail.com');
-    navigator.clipboard.writeText(code);
-    setCopiedScript(true);
-    setTimeout(() => setCopiedScript(false), 2500);
-    showToast('yoocomdr57 계정용 Google Apps Script 코드가 복사되었습니다! 📋');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).then(() => {
+        setCopiedScript(true);
+        setTimeout(() => setCopiedScript(false), 2500);
+        showToast('Google Apps Script(Code.gs) 코드가 클립보드에 복사되었습니다! 📋');
+      }).catch(() => {
+        fallbackCopyText(code);
+      });
+    } else {
+      fallbackCopyText(code);
+    }
+  };
+
+  // Download Google Apps Script file directly as SuperBible_AppsScript_Code.gs
+  const handleDownloadAppsScriptFile = () => {
+    const code = generateAppsScriptCode('yoocomdr57@gmail.com');
+    const blob = new Blob([code], { type: 'text/javascript;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'SuperBible_AppsScript_Code.gs';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('SuperBible_AppsScript_Code.gs 파일이 다운로드되었습니다! 📥');
   };
 
   // Download Google Sheets 5-Tab Template as CSV (회원관리 포함)
@@ -1032,6 +1074,15 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowAppsScriptModal(true)}
+            className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 text-xs font-black rounded-xl flex items-center gap-1.5 shadow-sm transition cursor-pointer whitespace-nowrap"
+            title="Google Apps Script(Code.gs) 연동 코드 복사 및 전체보기"
+          >
+            <span>📋</span>
+            <span>스크립트 코드 복사</span>
+          </button>
           <button
             type="button"
             onClick={handleOpenSheet}
@@ -1436,7 +1487,16 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-end sm:self-auto">
+                <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setShowAppsScriptModal(true)}
+                    className="px-3 py-2 bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 text-xs font-black rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5"
+                    title="Google Apps Script(Code.gs) 연동 코드 복사 및 전체보기"
+                  >
+                    <span>📋</span>
+                    <span>스크립트 코드</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => setShowAddMemberModal(true)}
@@ -3804,18 +3864,44 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                 </ol>
               </div>
 
-              {/* Code Box with Floating Copy Button */}
+              {/* Code Box with Action Buttons */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
-                  <span>Code.gs 소스코드 (전체 내용)</span>
-                  <button
-                    type="button"
-                    onClick={handleCopyAppsScript}
-                    className="px-3 py-1 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-lg text-xs font-black shadow-xs flex items-center gap-1 transition cursor-pointer"
-                  >
-                    <Share2 className="w-3.5 h-3.5 stroke-[2.5]" />
-                    <span>{copiedScript ? '✓ 복사되었습니다!' : '코드 복사하기'}</span>
-                  </button>
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 flex-wrap gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-extrabold text-slate-900">📄 Code.gs 소스코드</span>
+                    <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 font-bold">
+                      정규식 100% 제거 버전 (문법 오류 차단)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <a
+                      href="https://bible-9lrz.vercel.app/code.txt"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold border border-slate-300 flex items-center gap-1 transition cursor-pointer"
+                      title="웹 브라우저에서 원본 텍스트 보기"
+                    >
+                      <span>🌐</span>
+                      <span>code.txt 바로보기 ↗</span>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={handleDownloadAppsScriptFile}
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold border border-slate-300 flex items-center gap-1 transition cursor-pointer"
+                      title="SuperBible_AppsScript_Code.gs 파일로 내 PC에 저장"
+                    >
+                      <Download className="w-3 h-3" />
+                      <span>파일 다운로드</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyAppsScript}
+                      className="px-3 py-1 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-lg text-xs font-black shadow-xs flex items-center gap-1 transition cursor-pointer active:scale-95"
+                    >
+                      <Share2 className="w-3.5 h-3.5 stroke-[2.5]" />
+                      <span>{copiedScript ? '✓ 복사됨!' : '전체 복사'}</span>
+                    </button>
+                  </div>
                 </div>
                 <div className="bg-slate-900 text-slate-200 rounded-2xl p-3.5 font-mono text-[11px] overflow-x-auto max-h-72 border border-slate-800 select-all leading-relaxed">
                   <pre>{generateAppsScriptCode('yoocomdr57@gmail.com')}</pre>
@@ -3824,7 +3910,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 flex-shrink-0">
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 flex-shrink-0 flex-wrap sm:flex-nowrap">
               <button
                 type="button"
                 onClick={() => setShowAppsScriptModal(false)}
@@ -3832,16 +3918,26 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
               >
                 닫기
               </button>
-              <button
-                type="button"
-                onClick={handleCopyAppsScript}
-                className="flex-1 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black rounded-xl transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
-              >
-                <Share2 className="w-4 h-4 text-slate-950 stroke-[2.5]" />
-                <span className="text-sm font-black">
-                  {copiedScript ? '✓ 클립보드에 복사 완료되었습니다!' : 'Google Apps Script 코드 전체 복사하기'}
-                </span>
-              </button>
+              <div className="flex items-center gap-2 flex-1 justify-end">
+                <button
+                  type="button"
+                  onClick={handleDownloadAppsScriptFile}
+                  className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl border border-slate-300 flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Download className="w-4 h-4 text-slate-700" />
+                  <span className="hidden xs:inline">.gs 파일</span> 다운로드
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyAppsScript}
+                  className="flex-1 sm:flex-initial px-5 py-2.5 bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 text-xs font-black rounded-xl transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Share2 className="w-4 h-4 text-slate-950 stroke-[2.5]" />
+                  <span className="text-sm font-black">
+                    {copiedScript ? '✓ 클립보드에 복사 완료!' : '📋 스크립트 코드 전체 복사하기'}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
