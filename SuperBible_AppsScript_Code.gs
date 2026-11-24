@@ -292,8 +292,11 @@ function nextMemberId_() {
     var sh = sheet_(n);
     if (!sh || sh.getLastRow() < 2) return;
     sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues().forEach(function (r) {
-      var m = /^M-([0-9]+)$/i.exec(String(r[0]));
-      if (m) max = Math.max(max, parseInt(m[1], 10));
+      var val = String(r[0] || "").trim();
+      if (val.toUpperCase().indexOf("M-") === 0) {
+        var num = parseInt(val.substring(2), 10);
+        if (!isNaN(num) && num > max) max = num;
+      }
     });
   });
   var n = max + 1;
@@ -539,19 +542,47 @@ function uploadAudio_(data) {
     rootFolder = roots.hasNext() ? roots.next() : DriveApp.createFolder(rootName);
   }
 
-  var rawName = String(data.memberName || "").replace(/ 성도$/, "").replace(/ 관리자$/, "").replace(/ *[(][^)]*[)]$/, "").trim();
-  var rawId = String(data.loginId || "").replace(/@.*$/, "").trim();
+  var rawName = String(data.memberName || "").trim();
+  while (rawName.slice(-3) === " 성도") rawName = rawName.slice(0, -3).trim();
+  while (rawName.slice(-4) === " 관리자") rawName = rawName.slice(0, -4).trim();
+  var openP = rawName.lastIndexOf("(");
+  var closeP = rawName.lastIndexOf(")");
+  if (openP > -1 && closeP > openP) {
+    rawName = (rawName.substring(0, openP) + rawName.substring(closeP + 1)).trim();
+  }
+  var rawId = String(data.loginId || "").trim();
+  var atPos = rawId.indexOf("@");
+  if (atPos > -1) rawId = rawId.substring(0, atPos).trim();
+
   var cleanName = rawName || "성도";
   var cleanId = rawId || "user";
   var userFolderName = data.userFolderName || (cleanName + "_" + cleanId);
   var uf = rootFolder.getFoldersByName(userFolderName);
   var userFolder = uf.hasNext() ? uf.next() : rootFolder.createFolder(userFolderName);
 
-  // 확장자는 실제 녹음 형식(mimeType)을 따른다. (webm 을 이름만 .mp3 로 바꾸면 재생이 안 되는 경우가 있음)
-  var mime = data.mimeType || "audio/mpeg";
-  var ext = /webm/i.test(mime) ? ".webm" : /mp4|m4a|aac/i.test(mime) ? ".m4a" : /ogg/i.test(mime) ? ".ogg" : /wav/i.test(mime) ? ".wav" : ".mp3";
+  // 확장자는 실제 녹음 형식(mimeType)을 따른다.
+  var mime = String(data.mimeType || "audio/mpeg").toLowerCase();
+  var ext = ".mp3";
+  if (mime.indexOf("webm") > -1) ext = ".webm";
+  else if (mime.indexOf("mp4") > -1 || mime.indexOf("m4a") > -1 || mime.indexOf("aac") > -1) ext = ".m4a";
+  else if (mime.indexOf("ogg") > -1) ext = ".ogg";
+  else if (mime.indexOf("wav") > -1) ext = ".wav";
+
   var bibleName = String(data.bibleName || data.verseRef || data.fileName || "성경낭독").trim();
-  var base = String(data.fileName || bibleName).replace(/[.](webm|mp3|m4a|ogg|wav)$/i, "").replace(new RegExp('[:*?"<>|/]', 'g'), "_").split(String.fromCharCode(92)).join("_").trim();
+  var base = String(data.fileName || bibleName).trim();
+  var knownExts = [".webm", ".mp3", ".m4a", ".ogg", ".wav"];
+  for (var kExt = 0; kExt < knownExts.length; kExt++) {
+    var kx = knownExts[kExt];
+    if (base.toLowerCase().slice(-kx.length) === kx) {
+      base = base.slice(0, -kx.length).trim();
+      break;
+    }
+  }
+  var badChars = [":", "*", "?", '"', "<", ">", "|", "/", String.fromCharCode(92)];
+  for (var bIdx = 0; bIdx < badChars.length; bIdx++) {
+    base = base.split(badChars[bIdx]).join("_");
+  }
+  base = base.trim();
   var fileName = base + ext;
 
   var b64 = String(data.base64Audio || "");
@@ -648,9 +679,12 @@ function sync_(data) {
     if (!k) continue;
     if (k.indexOf("@") > -1) {
       deleteMember_({ email: k });
-    } else if (!/^M-[0-9]+$/i.test(k)) {
-      // 이름 기준 삭제는 동명이인 오삭제를 막기 위해 '딱 1명일 때만' 허용
-      if (findRows_(rs, { name: k }).length === 1) deleteMember_({ name: k });
+    } else {
+      var isMemberId = (k.toUpperCase().indexOf("M-") === 0) && !isNaN(parseInt(k.substring(2), 10));
+      if (!isMemberId) {
+        // 이름 기준 삭제는 동명이인 오삭제를 막기 위해 '딱 1명일 때만' 허용
+        if (findRows_(rs, { name: k }).length === 1) deleteMember_({ name: k });
+      }
     }
   }
 
