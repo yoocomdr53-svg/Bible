@@ -684,22 +684,26 @@ export async function pullMembersFromGoogleSheet(): Promise<{
           });
 
         // Ensure unique sequential IDs (M-01, M-02, M-03...) for cleanRemote
-        const seenIds = new Set<string>();
-        let nextSeq = 1;
-        const finalRoster: MemberReadingProfile[] = cleanRemote.map((m) => {
-          let assignedId = m.id;
+        const master: MemberReadingProfile[] = [];
+        const others: MemberReadingProfile[] = [];
+        cleanRemote.forEach((m) => {
           if (m.email === 'yoocomdr57@gmail.com' || m.name === '로고스 관리자' || m.name === '로고스관리자') {
-            assignedId = 'M-01';
-          } else if (!assignedId || assignedId === 'M-00' || assignedId === 'M-01' || seenIds.has(assignedId)) {
-            while (seenIds.has(`M-${String(nextSeq).padStart(2, '0')}`) || nextSeq === 1) {
-              nextSeq++;
-            }
-            assignedId = `M-${String(nextSeq).padStart(2, '0')}`;
-            nextSeq++;
+            master.push(m);
+          } else {
+            others.push(m);
           }
-          seenIds.add(assignedId);
-          return { ...m, id: assignedId };
         });
+        others.sort((a, b) => {
+          const na = parseInt(String(a.id || '').replace(/\D/g, ''), 10) || 999;
+          const nb = parseInt(String(b.id || '').replace(/\D/g, ''), 10) || 999;
+          if (na !== nb) return na - nb;
+          return (a.registeredDate || '').localeCompare(b.registeredDate || '');
+        });
+
+        const finalRoster: MemberReadingProfile[] = [...master, ...others].map((m, idx) => ({
+          ...m,
+          id: `M-${String(idx + 1).padStart(2, '0')}`,
+        }));
 
         // Clean obsolete deleted blacklist so active members are never affected
         try {
@@ -1659,15 +1663,9 @@ function buildMemberList_() {
     var key = memberKey_({ email: email, name: name });
     if (!key) return;
 
-    // 중복 회원번호 방지 (예: M-02 중복 시 순번 재부여)
-    var assignedId = rawId;
+    // 중복 회원번호 방지 (순번 M-01, M-02, M-03... 고유 정렬)
     var isMaster = (email.toLowerCase() === ADMIN_EMAIL.toLowerCase() || name === "로고스 관리자" || name === "로고스관리자");
-    if (isMaster) {
-      assignedId = "M-01";
-    } else if (!assignedId || assignedId === "M-00" || assignedId === "M-01" || idSeen[assignedId]) {
-      var seq = idx + 1;
-      assignedId = "M-" + (seq < 10 ? "0" + seq : seq);
-    }
+    var assignedId = isMaster ? "M-01" : ("M-" + ((idx + 1) < 10 ? "0" + (idx + 1) : (idx + 1)));
     idSeen[assignedId] = true;
 
     // 시트의 회원번호가 다르면 셀 값 자동 보정

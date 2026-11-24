@@ -57,27 +57,27 @@ function normalizeMember(m) {
 }
 
 function sortMembers(list) {
-  const sorted = (list || []).sort((a, b) => {
-    const na = parseInt(String(a.id || '').replace(/\D/g, ''), 10) || 999;
-    const nb = parseInt(String(b.id || '').replace(/\D/g, ''), 10) || 999;
-    return na - nb;
+  const master = [];
+  const others = [];
+  (list || []).forEach(m => {
+    if (isMasterAdmin(m)) {
+      master.push(normalizeMember(m));
+    } else {
+      others.push(m);
+    }
   });
 
-  // Guarantee strictly unique sequential IDs (M-01, M-02, M-03...)
-  const seenIds = new Set();
-  let nextSeq = 1;
-  return sorted.map((m) => {
-    let assignedId = m.id;
-    if (isMasterAdmin(m)) {
-      assignedId = 'M-01';
-    } else if (!assignedId || assignedId === 'M-00' || assignedId === 'M-01' || seenIds.has(assignedId)) {
-      while (seenIds.has(`M-${String(nextSeq).padStart(2, '0')}`) || nextSeq === 1) {
-        nextSeq++;
-      }
-      assignedId = `M-${String(nextSeq).padStart(2, '0')}`;
-      nextSeq++;
-    }
-    seenIds.add(assignedId);
+  others.sort((a, b) => {
+    const na = parseInt(String(a.id || '').replace(/\D/g, ''), 10) || 999;
+    const nb = parseInt(String(b.id || '').replace(/\D/g, ''), 10) || 999;
+    if (na !== nb) return na - nb;
+    return (a.registeredDate || '').localeCompare(b.registeredDate || '');
+  });
+
+  const fullList = [...master, ...others];
+  return fullList.map((m, idx) => {
+    const seq = idx + 1;
+    const assignedId = `M-${String(seq).padStart(2, '0')}`;
     return { ...m, id: assignedId };
   });
 }

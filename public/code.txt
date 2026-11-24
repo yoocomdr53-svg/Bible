@@ -780,15 +780,9 @@ function buildMemberList_() {
     var key = memberKey_({ email: email, name: name });
     if (!key) return;
 
-    // 중복 회원번호 방지 (예: M-02 중복 시 순번 재부여)
-    var assignedId = rawId;
+    // 중복 회원번호 방지 (순번 M-01, M-02, M-03... 고유 정렬)
     var isMaster = (email.toLowerCase() === ADMIN_EMAIL.toLowerCase() || name === "로고스 관리자" || name === "로고스관리자");
-    if (isMaster) {
-      assignedId = "M-01";
-    } else if (!assignedId || assignedId === "M-00" || assignedId === "M-01" || idSeen[assignedId]) {
-      var seq = idx + 1;
-      assignedId = "M-" + (seq < 10 ? "0" + seq : seq);
-    }
+    var assignedId = isMaster ? "M-01" : ("M-" + ((idx + 1) < 10 ? "0" + (idx + 1) : (idx + 1)));
     idSeen[assignedId] = true;
 
     // 시트의 회원번호가 다르면 셀 값 자동 보정
