@@ -1016,7 +1016,7 @@ function createSuperBibleDBase() {
   if (rs.getLastRow() < 2) seedAdmin_();
 
   Logger.log("superbible DBase 준비 완료: " + ss.getUrl());
-  alert_("superbible DBase 준비 완료!\n\n" + ss.getUrl());
+  alert_("superbible DBase 준비 완료: " + ss.getUrl());
   return ss.getUrl();
 }
 
@@ -1149,7 +1149,7 @@ function nextMemberId_() {
     var sh = sheet_(n);
     if (!sh || sh.getLastRow() < 2) return;
     sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues().forEach(function (r) {
-      var m = /^M-(\d+)$/i.exec(String(r[0]));
+      var m = /^M-([0-9]+)$/i.exec(String(r[0]));
       if (m) max = Math.max(max, parseInt(m[1], 10));
     });
   });
@@ -1396,7 +1396,7 @@ function uploadAudio_(data) {
     rootFolder = roots.hasNext() ? roots.next() : DriveApp.createFolder(rootName);
   }
 
-  var rawName = String(data.memberName || "").replace(/ 성도$/, "").replace(/ 관리자$/, "").replace(/\s*\([^)]*\)$/, "").trim();
+  var rawName = String(data.memberName || "").replace(/ 성도$/, "").replace(/ 관리자$/, "").replace(/ *[(][^)]*[)]$/, "").trim();
   var rawId = String(data.loginId || "").replace(/@.*$/, "").trim();
   var cleanName = rawName || "성도";
   var cleanId = rawId || "user";
@@ -1408,7 +1408,7 @@ function uploadAudio_(data) {
   var mime = data.mimeType || "audio/mpeg";
   var ext = /webm/i.test(mime) ? ".webm" : /mp4|m4a|aac/i.test(mime) ? ".m4a" : /ogg/i.test(mime) ? ".ogg" : /wav/i.test(mime) ? ".wav" : ".mp3";
   var bibleName = String(data.bibleName || data.verseRef || data.fileName || "성경낭독").trim();
-  var base = String(data.fileName || bibleName).replace(/\.(webm|mp3|m4a|ogg|wav)$/i, "").replace(/[\\\/:*?"<>|]/g, "_").trim();
+  var base = String(data.fileName || bibleName).replace(/[.](webm|mp3|m4a|ogg|wav)$/i, "").replace(new RegExp('[:*?"<>|/]', 'g'), "_").split(String.fromCharCode(92)).join("_").trim();
   var fileName = base + ext;
 
   var b64 = String(data.base64Audio || "");
@@ -1505,7 +1505,7 @@ function sync_(data) {
     if (!k) continue;
     if (k.indexOf("@") > -1) {
       deleteMember_({ email: k });
-    } else if (!/^M-\d+$/i.test(k)) {
+    } else if (!/^M-[0-9]+$/i.test(k)) {
       // 이름 기준 삭제는 동명이인 오삭제를 막기 위해 '딱 1명일 때만' 허용
       if (findRows_(rs, { name: k }).length === 1) deleteMember_({ name: k });
     }
@@ -1662,7 +1662,7 @@ function resetSpreadsheetCompletely() {
     if (ans !== ui.Button.YES) return;
   }
   resetCore_();
-  if (ui) ui.alert("초기화 완료!\n\n마스터 관리자(" + ADMIN_EMAIL + ") 1명만 남기고 모든 데이터가 초기화되었습니다.");
+  if (ui) ui.alert("초기화 완료! 마스터 관리자(" + ADMIN_EMAIL + ") 1명만 남기고 모든 데이터가 초기화되었습니다.");
 }
 
 // 테스트 행 정리: 성명·이메일 칸이 키워드와 '정확히 일치'하는 행만 삭제 (메모 등 다른 칸은 보지 않음)
@@ -1965,7 +1965,7 @@ function deleteSelectedMembers() {
   if (!targets.length) { ui.alert("선택한 행에 회원 정보가 없습니다."); return; }
 
   var names = targets.map(function (t) { return t.name || t.email; }).join(", ");
-  var ans = ui.alert("회원 삭제", "다음 " + targets.length + "명을 [회원관리]와 [회원_낭독진도]에서 영구 삭제합니다.\n\n" + names + "\n\n계속할까요?", ui.ButtonSet.YES_NO);
+  var ans = ui.alert("회원 삭제", "다음 " + targets.length + "명을 [회원관리]와 [회원_낭독진도]에서 영구 삭제합니다: (" + names + ") 계속할까요?", ui.ButtonSet.YES_NO);
   if (ans !== ui.Button.YES) return;
 
   var done = withLock_(function () {
