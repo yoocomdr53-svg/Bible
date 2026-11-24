@@ -160,15 +160,17 @@ export function getDeletedRecords(): Record<string, number> {
   try {
     const raw = localStorage.getItem(DELETED_RECORDS_KEY);
     const records: Record<string, number> = raw ? JSON.parse(raw) : {};
-    // Sanitize: only remove protected master admin account (M-01)
+    // Sanitize: remove protected master admin account and sequential IDs (M-01, M-02, etc.)
     let cleaned = false;
     Object.keys(records).forEach((k) => {
       if (
         k === 'm-01' ||
         k === 'id:m-01' ||
+        /^id:m-\d+$/i.test(k) ||
+        /^m-\d+$/i.test(k) ||
         k === 'yoocomdr57@gmail.com' ||
-        k.includes('로고스 관리자') ||
-        k.includes('로고스관리자')
+        k.includes('로고스') ||
+        k.includes('이순신')
       ) {
         delete records[k];
         cleaned = true;
@@ -193,18 +195,10 @@ export function recordDeletion(memberId?: string, email?: string, name?: string,
       records[clean] = now;
     }
   });
-  // Record memberId (e.g. M-02, M-03)
-  if (memberId) {
-    const cleanId = String(memberId).toLowerCase().trim();
-    if (cleanId && cleanId !== 'm-01') {
-      records[cleanId] = now;
-      records[`id:${cleanId}`] = now;
-    }
-  }
-  // Also record member name if provided (never record protected master accounts)
+  // Also record member name if provided (never record protected master accounts or active members)
   if (name) {
     const cleanName = String(name).toLowerCase().trim();
-    if (cleanName && cleanName !== '로고스 관리자' && cleanName !== '로고스관리자') {
+    if (cleanName && cleanName !== '로고스 관리자' && cleanName !== '로고스관리자' && !cleanName.includes('이순신')) {
       records[cleanName] = now;
       records[`name:${cleanName}`] = now;
     }
@@ -258,10 +252,19 @@ export function isMemberDeleted(identifier: {
   const kEmail = (identifier.email || '').toLowerCase().trim();
   const kName = (identifier.name || '').trim();
   const kLogin = (identifier.loginId || '').toLowerCase().trim();
-  const kId = (identifier.id || '').toLowerCase().trim();
   const nClean = kName.replace(/\s+/g, '').toLowerCase();
 
-  // 1. Exact dummy test names (NEVER match partial Korean names of real church members!)
+  // 1. Master system admin and active members strictly protected from deletion
+  if (
+    kEmail === 'yoocomdr57@gmail.com' ||
+    kName.includes('로고스 관리자') ||
+    kName.includes('로고스관리자') ||
+    kName.includes('이순신')
+  ) {
+    return false;
+  }
+
+  // 2. Exact dummy test names (NEVER match partial Korean names of real church members!)
   const exactDummyNames = [
     '임시테스트',
     '임시테스트성도',
@@ -270,12 +273,16 @@ export function isMemberDeleted(identifier: {
     'e2e테스터성도',
     '라이브테스트성도',
     '삭제실험맨',
+    '홍범도',
+    '김은혜',
+    '유천년',
+    '홍길동',
   ];
   if (exactDummyNames.includes(nClean)) {
     return true;
   }
 
-  // 2. Specific test dummy emails and legacy ids
+  // 3. Specific test dummy emails and legacy ids
   const dummyEmails = [
     'temp_delete_test@gmail.com',
     'e2e_tester@superbible.kr',
@@ -288,6 +295,7 @@ export function isMemberDeleted(identifier: {
     'yocomdr34@superbible.kr',
     'grace@superbible.kr',
     'yoocomdr53@gmail.com',
+    'yocomdr@naver.com',
   ];
   if (dummyEmails.includes(kEmail)) {
     return true;
@@ -298,18 +306,8 @@ export function isMemberDeleted(identifier: {
     return true;
   }
 
-  // 2. Master system admin protected from deletion (prevents admin lockout)
-  if (
-    kEmail === 'yoocomdr57@gmail.com' ||
-    kName.includes('로고스 관리자') ||
-    kName.includes('로고스관리자')
-  ) {
-    return false;
-  }
-
-  // 3. Check deletion tombstones (id, email, loginId, or name)
+  // 4. Check deletion tombstones (email, loginId, or name only - NEVER sequential IDs)
   const records = getDeletedRecords();
-  if (kId && kId !== 'm-01' && (records[kId] || records[`id:${kId}`])) return true;
   if (kEmail && records[kEmail]) return true;
   if (kLogin && records[kLogin]) return true;
   if (kName) {

@@ -11,14 +11,16 @@ let serverAdminBlacklist = globalThis.__SUPERBIBLE_ADMIN_BLACKLIST__ || [];
 // Deletion Tombstones: Tracks deleted member identifiers (ONLY unique emails and loginIds, NEVER sequential IDs)
 let serverDeletedRecords = globalThis.__SUPERBIBLE_DELETED_RECORDS__ || {};
 
-// Sanitize serverDeletedRecords on start (only remove protected master admin M-01)
+// Sanitize serverDeletedRecords on start (remove protected accounts and any sequential IDs)
 Object.keys(serverDeletedRecords).forEach(k => {
   if (
     k === 'm-01' ||
     k === 'id:m-01' ||
+    /^id:m-\d+$/i.test(k) ||
+    /^m-\d+$/i.test(k) ||
     k === 'yoocomdr57@gmail.com' ||
-    k === '로고스 관리자' ||
-    k === '로고스관리자'
+    k.includes('로고스') ||
+    k.includes('이순신')
   ) {
     delete serverDeletedRecords[k];
   }
@@ -55,10 +57,28 @@ function normalizeMember(m) {
 }
 
 function sortMembers(list) {
-  return (list || []).sort((a, b) => {
+  const sorted = (list || []).sort((a, b) => {
     const na = parseInt(String(a.id || '').replace(/\D/g, ''), 10) || 999;
     const nb = parseInt(String(b.id || '').replace(/\D/g, ''), 10) || 999;
     return na - nb;
+  });
+
+  // Guarantee strictly unique sequential IDs (M-01, M-02, M-03...)
+  const seenIds = new Set();
+  let nextSeq = 1;
+  return sorted.map((m) => {
+    let assignedId = m.id;
+    if (isMasterAdmin(m)) {
+      assignedId = 'M-01';
+    } else if (!assignedId || assignedId === 'M-00' || assignedId === 'M-01' || seenIds.has(assignedId)) {
+      while (seenIds.has(`M-${String(nextSeq).padStart(2, '0')}`) || nextSeq === 1) {
+        nextSeq++;
+      }
+      assignedId = `M-${String(nextSeq).padStart(2, '0')}`;
+      nextSeq++;
+    }
+    seenIds.add(assignedId);
+    return { ...m, id: assignedId };
   });
 }
 
@@ -69,7 +89,17 @@ function isDeletedOnServer(m) {
   const kLogin = (m.loginId || '').toLowerCase().trim();
   const nClean = kName.replace(/\s+/g, '').toLowerCase();
 
-  // 1. Exact dummy test names (NEVER match partial Korean names of real church members!)
+  // 1. Master system admin and active members strictly protected from deletion
+  if (
+    kEmail === 'yoocomdr57@gmail.com' ||
+    kName === '로고스 관리자' ||
+    kName === '로고스관리자' ||
+    kName.includes('이순신')
+  ) {
+    return false;
+  }
+
+  // 2. Exact dummy test names (NEVER match partial Korean names of real church members!)
   const exactDummyNames = [
     '임시테스트',
     '임시테스트성도',
@@ -78,12 +108,16 @@ function isDeletedOnServer(m) {
     'e2e테스터성도',
     '라이브테스트성도',
     '삭제실험맨',
+    '홍범도',
+    '김은혜',
+    '유천년',
+    '홍길동',
   ];
   if (exactDummyNames.includes(nClean)) {
     return true;
   }
 
-  // 2. Specific test dummy emails and legacy ids
+  // 3. Specific test dummy emails and legacy logins
   const dummyEmails = [
     'temp_delete_test@gmail.com',
     'e2e_tester@superbible.kr',
@@ -96,6 +130,7 @@ function isDeletedOnServer(m) {
     'yocomdr34@superbible.kr',
     'grace@superbible.kr',
     'yoocomdr53@gmail.com',
+    'yocomdr@naver.com',
   ];
   if (dummyEmails.includes(kEmail)) {
     return true;
@@ -106,20 +141,7 @@ function isDeletedOnServer(m) {
     return true;
   }
 
-  // 3. Master system admin protected from deletion (prevents admin lockout)
-  if (
-    kEmail === 'yoocomdr57@gmail.com' ||
-    kName === '로고스 관리자' ||
-    kName === '로고스관리자'
-  ) {
-    return false;
-  }
-
-  // 4. Check deletion tombstones (id, email, loginId, or name)
-  const kId = (m.id || '').toLowerCase().trim();
-  if (kId && kId !== 'm-01' && (serverDeletedRecords[kId] || serverDeletedRecords[`id:${kId}`])) {
-    return true;
-  }
+  // 4. Check deletion tombstones (unique email, loginId, or name only - NEVER sequential IDs)
   if (kEmail && serverDeletedRecords[kEmail]) return true;
   if (kLogin && serverDeletedRecords[kLogin]) return true;
   if (kName) {
@@ -302,6 +324,13 @@ export default async function handler(req, res) {
       return;
     }
 
+    if (action === 'clearCache') {
+      serverCachedMembers = [];
+      globalThis.__SUPERBIBLE_MEMBERS__ = [];
+      res.status(200).json({ success: true, message: '서버 캐시가 성공적으로 비워졌습니다.' });
+      return;
+    }
+
     // Try fetching live data from Google Apps Script if URL is present
     if (targetScriptUrl && targetScriptUrl.startsWith('http')) {
       try {
@@ -329,47 +358,13 @@ export default async function handler(req, res) {
             }
 
           if (gasData && Array.isArray(gasData.members) && gasData.members.length > 0) {
-            // Strictly exclude deleted members and test dummy accounts so stale rows never revive!
+            // GOOGLE SHEETS IS THE SOLE SOURCE OF TRUTH:
+            // Strictly exclude deleted members and test dummy accounts
             const activeGasMembers = gasData.members
               .map(normalizeMember)
               .filter(gm => !isDeletedOnServer(gm));
 
-            const map = new Map();
-            // 1. Add current server cache (only active members, normalized)
-            serverCachedMembers
-              .map(normalizeMember)
-              .filter(m => !isDeletedOnServer(m))
-              .forEach(m => {
-                const k = (m.email || m.name || m.id || '').toLowerCase().trim();
-                if (k) map.set(k, m);
-              });
-
-            // 2. Add / update all active members from Google Sheets
-            activeGasMembers.forEach(gm => {
-              const k = (gm.email || gm.name || gm.id || '').toLowerCase().trim();
-              if (!k) return;
-              if (map.has(k)) {
-                const cur = map.get(k);
-                map.set(k, normalizeMember({
-                  ...cur,
-                  ...gm,
-                  name: gm.name || cur.name,
-                  phone: gm.phone && gm.phone !== '010-미등록' ? gm.phone : (cur.phone || gm.phone),
-                  department: gm.department || cur.department,
-                  totalReadChapters: Math.max(cur.totalReadChapters || 0, gm.totalReadChapters || 0),
-                  currentReadingRound: Math.max(cur.currentReadingRound || 0, gm.currentReadingRound || 0),
-                  recordingsCount: Math.max(cur.recordingsCount || 0, gm.recordingsCount || 0),
-                  currentBook: gm.currentBook || cur.currentBook,
-                  currentChapter: gm.currentChapter || cur.currentChapter,
-                }));
-              } else {
-                map.set(k, normalizeMember(gm));
-              }
-            });
-
-            serverCachedMembers = sortMembers(Array.from(map.values())
-              .map(normalizeMember)
-              .filter(m => !isDeletedOnServer(m)));
+            serverCachedMembers = sortMembers(activeGasMembers);
             globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
 
             res.status(200).json({
@@ -691,6 +686,14 @@ export default async function handler(req, res) {
       return;
     }
 
+    // Action: Clear Cache
+    if (action === 'clearCache') {
+      serverCachedMembers = [];
+      globalThis.__SUPERBIBLE_MEMBERS__ = [];
+      res.status(200).json({ success: true, message: '서버 캐시가 성공적으로 비워졌습니다.' });
+      return;
+    }
+
     // Action: Update Member (회원 정보 수정)
     if (action === 'updateMember') {
       const incomingMember = normalizeMember(body.member);
@@ -824,18 +827,11 @@ export default async function handler(req, res) {
             if (gasResult && gasResult.status === 'error') {
               gasError = gasResult.message || 'Google Apps Script 실행 오류';
             } else if (gasResult && Array.isArray(gasResult.members) && gasResult.members.length > 0) {
-              // Update server cache with Google Sheets merged list (strictly excluding deleted members)
-              const gmap = new Map();
-              serverCachedMembers.map(normalizeMember).filter(m => !isDeletedOnServer(m)).forEach(m => gmap.set((m.email || m.name || m.id).toLowerCase().trim(), m));
-              gasResult.members.map(normalizeMember).filter(gm => !isDeletedOnServer(gm)).forEach(gm => {
-                const gk = (gm.email || gm.name || gm.id).toLowerCase().trim();
-                if (gmap.has(gk)) {
-                  gmap.set(gk, normalizeMember({ ...gmap.get(gk), ...gm }));
-                } else {
-                  gmap.set(gk, gm);
-                }
-              });
-              serverCachedMembers = sortMembers(Array.from(gmap.values()).map(normalizeMember).filter(m => !isDeletedOnServer(m)));
+              // GOOGLE SHEETS IS THE SOLE SOURCE OF TRUTH:
+              const activeGasMembers = gasResult.members
+                .map(normalizeMember)
+                .filter(gm => !isDeletedOnServer(gm));
+              serverCachedMembers = sortMembers(activeGasMembers);
               globalThis.__SUPERBIBLE_MEMBERS__ = serverCachedMembers;
             }
           } catch (jsonErr) {

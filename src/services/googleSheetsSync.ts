@@ -683,32 +683,22 @@ export async function pullMembersFromGoogleSheet(): Promise<{
             return na - nb;
           });
 
-        // 1. Read existing local members to preserve any newly registered members not yet in remoteMembers
-        let localMembers: MemberReadingProfile[] = [];
-        try {
-          const lRaw = localStorage.getItem('superbible_admin_members_v4');
-          if (lRaw) localMembers = JSON.parse(lRaw);
-        } catch (e) {}
-
-        const remoteKeys = new Set(
-          cleanRemote.map((m: any) => (m.email || m.name || m.id || '').toLowerCase().trim())
-        );
-
-        // Keep local members that are strictly NOT deleted and not yet present in remoteMembers
-        const unsyncedLocalMembers = localMembers.filter((lm) => {
-          if (isMemberDeleted(lm)) return false;
-          const kEmail = (lm.email || '').toLowerCase().trim();
-          const kName = (lm.name || '').toLowerCase().trim();
-          const kId = (lm.id || '').toLowerCase().trim();
-          const exists = remoteKeys.has(kEmail) || remoteKeys.has(kName) || remoteKeys.has(kId);
-          return !exists;
-        });
-
-        // Merge cleanRemote with unsyncedLocalMembers (deleted members NEVER revive!)
-        const mergedRoster = [...cleanRemote, ...unsyncedLocalMembers].sort((a, b) => {
-          const na = parseInt(String(a.id || '').replace(/\D/g, ''), 10) || 999;
-          const nb = parseInt(String(b.id || '').replace(/\D/g, ''), 10) || 999;
-          return na - nb;
+        // Ensure unique sequential IDs (M-01, M-02, M-03...) for cleanRemote
+        const seenIds = new Set<string>();
+        let nextSeq = 1;
+        const finalRoster: MemberReadingProfile[] = cleanRemote.map((m) => {
+          let assignedId = m.id;
+          if (m.email === 'yoocomdr57@gmail.com' || m.name === '로고스 관리자' || m.name === '로고스관리자') {
+            assignedId = 'M-01';
+          } else if (!assignedId || assignedId === 'M-00' || assignedId === 'M-01' || seenIds.has(assignedId)) {
+            while (seenIds.has(`M-${String(nextSeq).padStart(2, '0')}`) || nextSeq === 1) {
+              nextSeq++;
+            }
+            assignedId = `M-${String(nextSeq).padStart(2, '0')}`;
+            nextSeq++;
+          }
+          seenIds.add(assignedId);
+          return { ...m, id: assignedId };
         });
 
         // Clean obsolete deleted blacklist so active members are never affected
@@ -716,35 +706,41 @@ export async function pullMembersFromGoogleSheet(): Promise<{
           localStorage.removeItem('superbible_deleted_members_v2');
         } catch (e) {}
 
-        // Save authoritative active roster directly to localStorage (strictly excluding deleted members)
-        localStorage.setItem('superbible_admin_members_v4', JSON.stringify(mergedRoster));
-
-        // If there are unsynced local members, retry sending them to Google Sheet
-        if (unsyncedLocalMembers.length > 0) {
-          unsyncedLocalMembers.forEach((ulm) => {
-            syncMemberRegistrationToGoogleSheet(ulm, ulm.email || ulm.name).catch(() => {});
-          });
-        }
+        // Google Sheet is the SOLE source of truth:
+        // Save authoritative active roster directly to localStorage (no reviving missing members!)
+        localStorage.setItem('superbible_admin_members_v4', JSON.stringify(finalRoster));
 
         // Sync all active remote members into local accounts registry (and prune any deleted accounts)
         try {
           const regRaw = localStorage.getItem('superbible_user_registry_v2');
           let accounts: any[] = regRaw ? JSON.parse(regRaw) : [];
           
-          // Remove accounts matching deleted records
-          accounts = accounts.filter(
-            (a) =>
-              !isMemberDeleted({
+          // Remove accounts matching deleted records OR not present in Google Sheet
+          const validKeys = new Set(
+            finalRoster.map((m) => (m.email || m.name || m.id || '').toLowerCase().trim())
+          );
+          accounts = accounts.filter((a) => {
+            const aLogin = (a.loginId || '').toLowerCase().trim();
+            const aEmail = (a.user?.email || '').toLowerCase().trim();
+            const aName = (a.user?.name || '').toLowerCase().trim();
+            if (
+              isMemberDeleted({
                 id: a.user?.id,
                 email: a.user?.email,
                 loginId: a.loginId,
                 name: a.user?.name,
               })
-          );
+            ) {
+              return false;
+            }
+            // Master admin is always retained
+            if (aEmail === 'yoocomdr57@gmail.com' || aLogin === 'yoocomdr57' || aName.includes('로고스')) return true;
+            return validKeys.has(aLogin) || validKeys.has(aEmail) || validKeys.has(aName);
+          });
 
           let regChanged = true;
 
-          mergedRoster.forEach((m) => {
+          finalRoster.forEach((m) => {
             const mEmail = (m.email || '').toLowerCase().trim();
             const mName = (m.name || '').toLowerCase().trim();
             const matchedAcc = accounts.find((a) => {
@@ -1015,14 +1011,18 @@ function schema_(name) {
   return null;
 }
 
-// 스프레드시트 얻기: 시트에 붙은 스크립트면 그 시트, 독립 스크립트면 저장해 둔 DB 파일
+var TARGET_SPREADSHEET_ID = "1a0LH7AT9F0l5UXdvnHQCojnK-vduQQ40nagRUxvLv3k";
+
+// 스프레드시트 얻기: 시트에 붙은 스크립트면 그 시트, 독립 스크립트면 지정된 DB 파일
 function getSS_() {
   var ss = null;
   try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) {}
   if (ss) return ss;
-  var id = PropertiesService.getScriptProperties().getProperty("DB_ID");
-  if (id) return SpreadsheetApp.openById(id);
-  throw new Error("DB 스프레드시트가 없습니다. createSuperBibleDBase 함수를 먼저 실행하세요.");
+  var id = PropertiesService.getScriptProperties().getProperty("DB_ID") || TARGET_SPREADSHEET_ID;
+  if (id) {
+    try { return SpreadsheetApp.openById(id); } catch (e2) {}
+  }
+  return SpreadsheetApp.openById(TARGET_SPREADSHEET_ID);
 }
 
 // ★ 최초 1회 실행: "superbible DBase" 스프레드시트 + 모든 시트 + 한글 필드명 자동 생성
@@ -1639,43 +1639,78 @@ function sync_(data) {
 }
 
 // ───────────────────────── 회원 목록 구성 ─────────────────────────
+// ★ 오직 [회원관리] 시트에 있는 회원만 기준입니다.
+// [회원_낭독진도]에만 남아있는 유령 행은 절대 회원을 부활시키지 않고 자동으로 삭제(정리)합니다.
+// 또한 회원번호(M-01, M-02, M-03...) 중복을 방지하여 순차적으로 고유하게 정렬합니다.
 function buildMemberList_() {
   var rs = sheet_(SN.ROSTER), ps = sheet_(SN.PROG);
   var rRows = (rs && rs.getLastRow() > 1) ? rs.getRange(2, 1, rs.getLastRow() - 1, 13).getValues() : [];
   var pRows = (ps && ps.getLastRow() > 1) ? ps.getRange(2, 1, ps.getLastRow() - 1, 15).getValues() : [];
   var map = {}, order = [];
+  var idSeen = {};
 
-  rRows.forEach(function (r) {
-    var key = memberKey_({ email: r[5], name: r[1] });
+  // 1. [회원관리] 시트 순회 (기준 데이터)
+  rRows.forEach(function (r, idx) {
+    var rawId = cell_(r[0]).trim();
+    var name = cell_(r[1]).trim();
+    var email = cell_(r[5]).trim();
+    if (!name && !email) return;
+
+    var key = memberKey_({ email: email, name: name });
     if (!key) return;
-    if (!map[key]) order.push(key);
+
+    // 중복 회원번호 방지 (예: M-02 중복 시 순번 재부여)
+    var assignedId = rawId;
+    var isMaster = (email.toLowerCase() === ADMIN_EMAIL.toLowerCase() || name === "로고스 관리자" || name === "로고스관리자");
+    if (isMaster) {
+      assignedId = "M-01";
+    } else if (!assignedId || assignedId === "M-00" || assignedId === "M-01" || idSeen[assignedId]) {
+      var seq = idx + 1;
+      assignedId = "M-" + (seq < 10 ? "0" + seq : seq);
+    }
+    idSeen[assignedId] = true;
+
+    // 시트의 회원번호가 다르면 셀 값 자동 보정
+    if (assignedId !== rawId && rs) {
+      try { rs.getRange(idx + 2, 1).setValue(assignedId); } catch (e) {}
+    }
+
+    order.push(key);
     map[key] = {
-      id: cell_(r[0]), name: cell_(r[1]),
-      department: cell_(r[2]) || "다이나믹팀", role: cell_(r[3]) || "성도",
-      phone: cell_(r[4]) || "010-미등록", email: cell_(r[5]),
-      registeredDate: cell_(r[6]), birthdate: cell_(r[7]) || "1995.01.01",
-      baptismStatus: cell_(r[8]) || "원입", smallGroup: cell_(r[9]),
-      accountRole: cell_(r[10]) || "member", accountStatus: cell_(r[11]) || "active",
-      memo: cell_(r[12]),
-      currentReadingRound: 0, targetRounds: 12, currentBook: "창세기", currentChapter: 1,
-      totalReadChapters: 0, recordingsCount: 0, lastActive: "방금",
-      status: "active", consecutiveDays: 1, featuredCount: 0
+      id: assignedId,
+      name: name,
+      department: cell_(r[2]) || "다이나믹팀",
+      role: cell_(r[3]) || "성도",
+      phone: cell_(r[4]) || "010-미등록",
+      email: email,
+      registeredDate: cell_(r[6]) || todayStr_(),
+      birthdate: cell_(r[7]) || "1995.01.01",
+      baptismStatus: cell_(r[8]) || "원입",
+      smallGroup: cell_(r[9]) || "",
+      accountRole: isMaster ? "admin" : (cell_(r[10]) || "member"),
+      accountStatus: cell_(r[11]) || "active",
+      memo: cell_(r[12]) || "",
+      currentReadingRound: 0,
+      targetRounds: 12,
+      currentBook: "창세기",
+      currentChapter: 1,
+      totalReadChapters: 0,
+      recordingsCount: 0,
+      lastActive: "방금",
+      status: "active",
+      consecutiveDays: 1,
+      featuredCount: 0
     };
   });
 
-  pRows.forEach(function (m) {
+  // 2. [회원_낭독진도] 시트: 회원관리 시트에 이미 존재하는 회원의 진도만 채워넣음!
+  //    ★ 회원관리에 없는 회원은 절대로 새로 생성하지 않고, 유령 행은 즉시 삭제 정리함!
+  var orphanRows = [];
+  pRows.forEach(function (m, pIdx) {
     var key = memberKey_({ email: m[5], name: m[1] });
-    if (!key) return;
-    if (!map[key]) {
-      order.push(key);
-      map[key] = {
-        id: cell_(m[0]), name: cell_(m[1]),
-        department: cell_(m[2]) || "다이나믹팀", role: cell_(m[3]) || "성도",
-        phone: cell_(m[4]) || "010-미등록", email: cell_(m[5]),
-        registeredDate: "", birthdate: "1995.01.01", baptismStatus: "원입", smallGroup: "",
-        accountRole: "member", accountStatus: "active", memo: cell_(m[14]),
-        targetRounds: 12, featuredCount: 0
-      };
+    if (!key || !map[key]) {
+      orphanRows.push(pIdx + 2);
+      return;
     }
     var o = map[key];
     o.currentReadingRound = Number(m[6]) || 0;
@@ -1686,7 +1721,19 @@ function buildMemberList_() {
     o.lastActive = cell_(m[11]) || "방금";
     o.status = cell_(m[12]) || "active";
     o.consecutiveDays = Number(m[13]) || 1;
+
+    // 진도 시트의 회원번호도 회원관리와 완벽 일치시킴
+    if (cell_(m[0]) !== o.id && ps) {
+      try { ps.getRange(pIdx + 2, 1).setValue(o.id); } catch (e) {}
+    }
   });
+
+  // 유령 행 역순 일괄 삭제
+  if (orphanRows.length > 0 && ps) {
+    for (var d = orphanRows.length - 1; d >= 0; d--) {
+      try { ps.deleteRow(orphanRows[d]); } catch (e) {}
+    }
+  }
 
   var delKeys = loadDeletedKeys_();
   return order.filter(function (k) {
@@ -1695,8 +1742,9 @@ function buildMemberList_() {
     var k1 = memberKey_(m);
     var k2 = norm_(m.email);
     var k3 = norm_(m.name);
-    var k4 = norm_(m.id);
-    if (delKeys[k1] || (k2 && delKeys[k2]) || (k3 && (delKeys[k3] || delKeys["name:" + k3])) || (k4 && delKeys[k4])) {
+    var isMaster = (k2 === norm_(ADMIN_EMAIL) || k3.indexOf("로고스") !== -1);
+    if (isMaster || k3.indexOf("이순신") !== -1) return true;
+    if (delKeys[k1] || (k2 && delKeys[k2]) || (k3 && (delKeys[k3] || delKeys["name:" + k3]))) {
       return false;
     }
     return true;
@@ -1729,8 +1777,9 @@ function resetSpreadsheetCompletely() {
 function cleanTestMembers() {
   var keywords = ["임시테스트", "e2e테스터", "e2e테스트", "신규 성도", "신규성도",
     "temp_delete_test", "e2e_tester", "라이브테스트성도", "user_live_test",
-    "삭제실험맨", "del_experiment", "황희", "윤봉길",
-    "yoocomdr55@gmail.com", "yoocomdr58@gmail.com", "realuser1@gmail.com"].map(norm_);
+    "삭제실험맨", "del_experiment", "황희", "윤봉길", "홍범도", "김은혜", "유천년", "홍길동",
+    "yocomdr@naver.com", "yocomdr@superbible.kr", "yocomdr34@superbible.kr",
+    "grace@superbible.kr", "yoocomdr53@gmail.com", "yoocomdr55@gmail.com", "yoocomdr58@gmail.com", "realuser1@gmail.com"].map(norm_);
   var count = 0;
   [SN.ROSTER, SN.PROG].forEach(function (n) {
     var sh = sheet_(n);
