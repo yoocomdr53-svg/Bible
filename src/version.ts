@@ -20,6 +20,7 @@ export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
     name: 'SuperBible',
     releaseDate: '2026.11.24',
     changes: [
+      '구글 스프레드시트 시트보기 링크를 yoocomdr57 계정 전용 스프레드시트(1a0LH7AT9F0l5UXdvnHQCojnK-vduQQ40nagRUxvLv3k)로 전면 갱신 및 yoocomdr53 계정 원천 배제',
       '구글 앱스 스크립트 코드(SuperBible_AppsScript_Code.gs) 내 문자열 줄바꿈(\n) 토큰 오류 수정 (SyntaxError Invalid or unexpected token 라인 163 해결)',
       '구글 스프레드시트(superbible DBase) 회원 삭제 미반영 및 재접속 시 부활 버그 근본 해결',
       '앱스 스크립트 findRows_ 회원 식별 매칭 버그 수정 (회원번호 ID/성명/이메일 정확 매칭)',

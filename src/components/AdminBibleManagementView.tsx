@@ -913,12 +913,22 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
   // Open real Google Spreadsheet in new tab
   const handleOpenSheet = () => {
     const url = sheetConfig.sheetUrl;
-    if (url && !url.includes('1yoocomdr57_SuperBible_MasterRoster_2026') && url.startsWith('http') && !url.endsWith('/u/0/')) {
+    if (
+      url &&
+      !url.includes('1yoocomdr57_SuperBible_MasterRoster_2026') &&
+      !url.includes('10AYmeENdos') &&
+      !url.includes('yoocomdr53') &&
+      url.startsWith('http') &&
+      !url.endsWith('/u/0/')
+    ) {
       window.open(url, '_blank');
       return;
     }
     // Direct link to yoocomdr57@gmail.com Google Spreadsheet
-    window.open('https://docs.google.com/spreadsheets/d/10AYmeENdosIjbtPLMA4SprgUriDbUO_DeHU0cjdVmqc/edit', '_blank');
+    window.open(
+      'https://docs.google.com/spreadsheets/d/1a0LH7AT9F0l5UXdvnHQCojnK-vduQQ40nagRUxvLv3k/edit?gid=430155078#gid=430155078',
+      '_blank'
+    );
   };
 
   // Copy Google Apps Script code for yoocomdr57@gmail.com

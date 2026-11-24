@@ -2,8 +2,8 @@
 // Synchronizes member registrations, progress, deletions, URLs, and audio across PC, Smartphone, Tablet, and Google Sheets
 
 let serverCachedScriptUrl = globalThis.__SUPERBIBLE_SCRIPT_URL__ || process.env.GOOGLE_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbzHnO0-Yvmfr2A0ImQewLiWhvVEt1HG9pLFUEEexaBr0GwEnYRNGtNyBibvOJdRQW2lPg/exec';
-let serverCachedSheetUrl = globalThis.__SUPERBIBLE_SHEET_URL__ || process.env.GOOGLE_SHEET_URL || 'https://docs.google.com/spreadsheets/d/10AYmeENdosIjbtPLMA4SprgUriDbUO_DeHU0cjdVmqc/edit';
-let serverCachedSheetId = globalThis.__SUPERBIBLE_SHEET_ID__ || process.env.GOOGLE_SHEET_ID || '10AYmeENdosIjbtPLMA4SprgUriDbUO_DeHU0cjdVmqc';
+let serverCachedSheetUrl = globalThis.__SUPERBIBLE_SHEET_URL__ || process.env.GOOGLE_SHEET_URL || 'https://docs.google.com/spreadsheets/d/1a0LH7AT9F0l5UXdvnHQCojnK-vduQQ40nagRUxvLv3k/edit?gid=430155078#gid=430155078';
+let serverCachedSheetId = globalThis.__SUPERBIBLE_SHEET_ID__ || process.env.GOOGLE_SHEET_ID || '1a0LH7AT9F0l5UXdvnHQCojnK-vduQQ40nagRUxvLv3k';
 let serverCachedMembers = globalThis.__SUPERBIBLE_MEMBERS__ || [];
 let serverCachedRecordings = globalThis.__SUPERBIBLE_RECORDINGS__ || [];
 // Explicit Admin-Designated Blacklist (관리자가 직접 지정한 차단 목록만 관리)
@@ -205,11 +205,11 @@ export default async function handler(req, res) {
         serverCachedScriptUrl = scriptUrl;
         globalThis.__SUPERBIBLE_SCRIPT_URL__ = scriptUrl;
       }
-      if (sheetUrl) {
+      if (sheetUrl && !sheetUrl.includes('10AYmeENdos') && !sheetUrl.includes('yoocomdr53')) {
         serverCachedSheetUrl = sheetUrl;
         globalThis.__SUPERBIBLE_SHEET_URL__ = sheetUrl;
       }
-      if (sheetId) {
+      if (sheetId && sheetId !== '10AYmeENdosIjbtPLMA4SprgUriDbUO_DeHU0cjdVmqc') {
         serverCachedSheetId = sheetId;
         globalThis.__SUPERBIBLE_SHEET_ID__ = sheetId;
       }
@@ -425,11 +425,11 @@ export default async function handler(req, res) {
         serverCachedScriptUrl = scriptUrl;
         globalThis.__SUPERBIBLE_SCRIPT_URL__ = scriptUrl;
       }
-      if (sheetUrl) {
+      if (sheetUrl && !sheetUrl.includes('10AYmeENdos') && !sheetUrl.includes('yoocomdr53')) {
         serverCachedSheetUrl = sheetUrl;
         globalThis.__SUPERBIBLE_SHEET_URL__ = sheetUrl;
       }
-      if (sheetId) {
+      if (sheetId && sheetId !== '10AYmeENdosIjbtPLMA4SprgUriDbUO_DeHU0cjdVmqc') {
         serverCachedSheetId = sheetId;
         globalThis.__SUPERBIBLE_SHEET_ID__ = sheetId;
       }
@@ -573,11 +573,11 @@ export default async function handler(req, res) {
         serverCachedScriptUrl = body.scriptUrl;
         globalThis.__SUPERBIBLE_SCRIPT_URL__ = serverCachedScriptUrl;
       }
-      if (body.sheetUrl !== undefined) {
+      if (body.sheetUrl !== undefined && !body.sheetUrl.includes('10AYmeENdos') && !body.sheetUrl.includes('yoocomdr53')) {
         serverCachedSheetUrl = body.sheetUrl;
         globalThis.__SUPERBIBLE_SHEET_URL__ = serverCachedSheetUrl;
       }
-      if (body.sheetId !== undefined) {
+      if (body.sheetId !== undefined && body.sheetId !== '10AYmeENdosIjbtPLMA4SprgUriDbUO_DeHU0cjdVmqc') {
         serverCachedSheetId = body.sheetId;
         globalThis.__SUPERBIBLE_SHEET_ID__ = serverCachedSheetId;
       }

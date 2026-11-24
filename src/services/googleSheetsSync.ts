@@ -56,9 +56,13 @@ export function getSyncApiUrl(endpoint: string = '/api/sync'): string {
   return endpoint;
 }
 
+export const TARGET_SHEET_ID = '1a0LH7AT9F0l5UXdvnHQCojnK-vduQQ40nagRUxvLv3k';
+export const TARGET_SHEET_URL =
+  'https://docs.google.com/spreadsheets/d/1a0LH7AT9F0l5UXdvnHQCojnK-vduQQ40nagRUxvLv3k/edit?gid=430155078#gid=430155078';
+
 export const DEFAULT_SHEET_CONFIG: GoogleSheetConfig = {
-  sheetId: '10AYmeENdosIjbtPLMA4SprgUriDbUO_DeHU0cjdVmqc',
-  sheetUrl: 'https://docs.google.com/spreadsheets/d/10AYmeENdosIjbtPLMA4SprgUriDbUO_DeHU0cjdVmqc/edit',
+  sheetId: TARGET_SHEET_ID,
+  sheetUrl: TARGET_SHEET_URL,
   adminEmail: 'yoocomdr57@gmail.com',
   scriptUrl:
     'https://script.google.com/macros/s/AKfycbzHnO0-Yvmfr2A0ImQewLiWhvVEt1HG9pLFUEEexaBr0GwEnYRNGtNyBibvOJdRQW2lPg/exec',
@@ -71,7 +75,21 @@ export const DEFAULT_SHEET_CONFIG: GoogleSheetConfig = {
 export function getGoogleSheetConfig(): GoogleSheetConfig {
   try {
     const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
-    if (raw) return { ...DEFAULT_SHEET_CONFIG, ...JSON.parse(raw) };
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Migrate legacy or invalid sheet URLs
+      if (
+        !parsed.sheetUrl ||
+        parsed.sheetUrl.includes('10AYmeENdos') ||
+        parsed.sheetUrl.includes('1yoocomdr57_SuperBible_MasterRoster_2026') ||
+        parsed.sheetUrl.includes('yoocomdr53')
+      ) {
+        parsed.sheetUrl = TARGET_SHEET_URL;
+        parsed.sheetId = TARGET_SHEET_ID;
+        try { localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(parsed)); } catch {}
+      }
+      return { ...DEFAULT_SHEET_CONFIG, ...parsed };
+    }
   } catch (e) {
     console.error('Failed to load Google Sheet config', e);
   }
@@ -144,11 +162,20 @@ export async function initGoogleSheetConfigFromServer(): Promise<GoogleSheetConf
         current.scriptUrl = data.scriptUrl;
         modified = true;
       }
-      if (data.sheetUrl && (!current.sheetUrl || current.sheetUrl !== data.sheetUrl)) {
+      if (
+        data.sheetUrl &&
+        !data.sheetUrl.includes('10AYmeENdos') &&
+        !data.sheetUrl.includes('yoocomdr53') &&
+        (!current.sheetUrl || current.sheetUrl !== data.sheetUrl)
+      ) {
         current.sheetUrl = data.sheetUrl;
         modified = true;
       }
-      if (data.sheetId && (!current.sheetId || current.sheetId !== data.sheetId)) {
+      if (
+        data.sheetId &&
+        data.sheetId !== '10AYmeENdosIjbtPLMA4SprgUriDbUO_DeHU0cjdVmqc' &&
+        (!current.sheetId || current.sheetId !== data.sheetId)
+      ) {
         current.sheetId = data.sheetId;
         modified = true;
       }
