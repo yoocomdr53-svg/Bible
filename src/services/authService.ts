@@ -12,7 +12,7 @@ import {
   syncProgressToGoogleSheet,
   syncRecordingToGoogleSheet,
   sendPayloadToGoogleScript,
-  enqueuePendingSync,
+  removePendingSyncForEmail,
 } from './googleSheetsSync';
 
 export const SESSION_KEY = 'superbible_auth_session_v3';
@@ -186,23 +186,13 @@ export function getDeletedRecords(): Record<string, number> {
 }
 
 export function recordDeletion(memberId?: string, email?: string, name?: string, loginId?: string): Record<string, number> {
+  // v4: 삭제기록은 이메일/로그인아이디로만 남긴다. (이름·회원번호로 남기면 동명이인·새 회원까지 숨겨짐)
   const records = getDeletedRecords();
   const now = Date.now();
-  // Record unique email and loginId (never record protected master accounts)
   [email, loginId].filter(Boolean).forEach((k) => {
     const clean = String(k).toLowerCase().trim();
-    if (clean && clean !== 'yoocomdr57@gmail.com') {
-      records[clean] = now;
-    }
+    if (clean && clean !== 'yoocomdr57@gmail.com') records[clean] = now;
   });
-  // Also record member name if provided (never record protected master accounts or active members)
-  if (name) {
-    const cleanName = String(name).toLowerCase().trim();
-    if (cleanName && cleanName !== '로고스 관리자' && cleanName !== '로고스관리자' && !cleanName.includes('이순신')) {
-      records[cleanName] = now;
-      records[`name:${cleanName}`] = now;
-    }
-  }
   try {
     localStorage.setItem(DELETED_RECORDS_KEY, JSON.stringify(records));
   } catch {}
@@ -211,29 +201,16 @@ export function recordDeletion(memberId?: string, email?: string, name?: string,
 
 export function clearDeletion(email?: string, loginId?: string, name?: string, memberId?: string): Record<string, number> {
   const records = getDeletedRecords();
-  const keys = [email, loginId, memberId].filter(Boolean).map((k) => String(k).toLowerCase().trim());
   let changed = false;
-  keys.forEach((k) => {
-    if (k && records[k]) {
-      delete records[k];
-      changed = true;
-    }
-    if (k && records[`id:${k}`]) {
-      delete records[`id:${k}`];
-      changed = true;
-    }
+  [email, loginId, memberId, name].filter(Boolean).forEach((k) => {
+    const clean = String(k).toLowerCase().trim();
+    [clean, `id:${clean}`, `name:${clean}`].forEach((key) => {
+      if (records[key]) {
+        delete records[key];
+        changed = true;
+      }
+    });
   });
-  if (name) {
-    const cleanName = String(name).toLowerCase().trim();
-    if (records[cleanName]) {
-      delete records[cleanName];
-      changed = true;
-    }
-    if (records[`name:${cleanName}`]) {
-      delete records[`name:${cleanName}`];
-      changed = true;
-    }
-  }
   if (changed) {
     try {
       localStorage.setItem(DELETED_RECORDS_KEY, JSON.stringify(records));
@@ -242,6 +219,9 @@ export function clearDeletion(email?: string, loginId?: string, name?: string, m
   return records;
 }
 
+// 이 기기에서 "방금(2분 이내)" 삭제한 회원인지. 시트 반영 전 잠깐 화면에서 숨기는 용도로만 쓴다.
+// (회원 목록의 기준은 구글 시트이므로, 오래된 삭제기록으로 회원을 숨기지 않는다)
+const RECENT_DELETE_WINDOW_MS = 2 * 60 * 1000;
 export function isMemberDeleted(identifier: {
   email?: string;
   name?: string;
@@ -249,75 +229,14 @@ export function isMemberDeleted(identifier: {
   loginId?: string;
 }): boolean {
   if (!identifier) return false;
-  const kEmail = (identifier.email || '').toLowerCase().trim();
-  const kName = (identifier.name || '').trim();
-  const kLogin = (identifier.loginId || '').toLowerCase().trim();
-  const nClean = kName.replace(/\s+/g, '').toLowerCase();
-
-  // 1. Master system admin and active members strictly protected from deletion
-  if (
-    kEmail === 'yoocomdr57@gmail.com' ||
-    kName.includes('로고스 관리자') ||
-    kName.includes('로고스관리자') ||
-    kName.includes('이순신')
-  ) {
-    return false;
-  }
-
-  // 2. Exact dummy test names (NEVER match partial Korean names of real church members!)
-  const exactDummyNames = [
-    '임시테스트',
-    '임시테스트성도',
-    '신규성도',
-    'e2e테스터',
-    'e2e테스터성도',
-    '라이브테스트성도',
-    '삭제실험맨',
-    '홍범도',
-    '김은혜',
-    '유천년',
-    '홍길동',
-  ];
-  if (exactDummyNames.includes(nClean)) {
-    return true;
-  }
-
-  // 3. Specific test dummy emails and legacy ids
-  const dummyEmails = [
-    'temp_delete_test@gmail.com',
-    'e2e_tester@superbible.kr',
-    'user_live_test@gmail.com',
-    'del_experiment@test.com',
-    'yoocomdr55@gmail.com',
-    'yoocomdr58@gmail.com',
-    'realuser1@gmail.com',
-    'yocomdr@superbible.kr',
-    'yocomdr34@superbible.kr',
-    'grace@superbible.kr',
-    'yoocomdr53@gmail.com',
-    'yocomdr@naver.com',
-  ];
-  if (dummyEmails.includes(kEmail)) {
-    return true;
-  }
-
-  const dummyLogins = ['yocomdr', 'yocomdr34', 'yoocomdr53'];
-  if (dummyLogins.includes(kLogin)) {
-    return true;
-  }
-
-  // 4. Check deletion tombstones (email, loginId, or name only - NEVER sequential IDs)
+  const keys = [identifier.email, identifier.loginId]
+    .map((k) => String(k || '').toLowerCase().trim())
+    .filter((k) => k && k !== 'yoocomdr57@gmail.com');
+  if (!keys.length) return false;
   const records = getDeletedRecords();
-  if (kEmail && records[kEmail]) return true;
-  if (kLogin && records[kLogin]) return true;
-  if (kName) {
-    const cleanName = kName.toLowerCase().trim();
-    if (records[cleanName] || records[`name:${cleanName}`]) return true;
-  }
-
-  return false;
+  const cut = Date.now() - RECENT_DELETE_WINDOW_MS;
+  return keys.some((k) => (records[k] || 0) > cut);
 }
-
 export function getDeletedMembers(): string[] {
   return Object.keys(getDeletedRecords());
 }
@@ -352,11 +271,6 @@ export function generateNextMemberId(existingMembers: MemberReadingProfile[]): s
   return `M-${String(maxNum + 1).padStart(2, '0')}`;
 }
 
-/**
- * Permanently delete member from Admin Roster, Accounts Registry, Server Cache, and Google Sheets
- * ※ Clean and Complete Deletion: Recorded as deleted tombstone so stale Google Sheets rows never revive them!
- * ※ Re-registration is 100% permitted and cleans the tombstone.
- */
 export async function deleteMemberCompletely(
   memberId: string,
   memberEmail?: string,
@@ -364,67 +278,62 @@ export async function deleteMemberCompletely(
 ): Promise<{ success: boolean; message: string }> {
   try {
     const emailNorm = (memberEmail || '').toLowerCase().trim();
-    const nameNorm = (memberName || '').toLowerCase().trim();
     const idNorm = (memberId || '').toLowerCase().trim();
+    if (emailNorm === 'yoocomdr57@gmail.com' || idNorm === 'm-01') {
+      return { success: false, message: '마스터 관리자 계정은 삭제할 수 없습니다.' };
+    }
 
-    // 1. Record deletion tombstone in local registry
-    recordDeletion(memberId, memberEmail, memberName);
+    // 1. 이 기기에서 즉시 숨김 (2분간) + 이 회원의 대기 중인 가입/진도 요청 제거
+    recordDeletion(memberId, memberEmail);
+    removePendingSyncForEmail(emailNorm);
 
-    // 2. Remove from ADMIN_MEMBERS_KEY
+    // 2. 명부에서 제거 (이메일 기준, 이메일이 없을 때만 회원번호 기준 — 이름으로는 지우지 않음)
     const rawMembers = localStorage.getItem(ADMIN_MEMBERS_KEY);
     if (rawMembers) {
       const parsed: MemberReadingProfile[] = JSON.parse(rawMembers);
       const filtered = parsed.filter((m) => {
         const mEmail = (m.email || '').toLowerCase().trim();
-        const mName = (m.name || '').toLowerCase().trim();
-        const mId = (m.id || '').toLowerCase().trim();
-        if (emailNorm && mEmail === emailNorm) return false;
-        if (nameNorm && mName === nameNorm) return false;
-        if (idNorm && mId === idNorm) return false;
-        return !isMemberDeleted(m);
+        if (emailNorm) return mEmail !== emailNorm;
+        return (m.id || '').toLowerCase().trim() !== idNorm;
       });
       localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(filtered));
     }
 
-    // 3. Remove from REGISTRY_KEY (accounts)
-    const rawAccs = localStorage.getItem(REGISTRY_KEY);
-    if (rawAccs) {
-      const accounts: RegisteredAccount[] = JSON.parse(rawAccs);
-      const filteredAccs = accounts.filter((acc) => {
-        const aId = (acc.user?.id || '').toLowerCase().trim();
-        const aEmail = (acc.user?.email || '').toLowerCase().trim();
-        const aLogin = (acc.loginId || '').toLowerCase().trim();
-        const aName = (acc.user?.name || '').toLowerCase().trim();
-        if (emailNorm && (aEmail === emailNorm || aLogin === emailNorm)) return false;
-        if (nameNorm && aName === nameNorm) return false;
-        if (idNorm && aId === idNorm) return false;
-        return !isMemberDeleted({ id: aId, email: aEmail, loginId: aLogin, name: aName });
-      });
-      localStorage.setItem(REGISTRY_KEY, JSON.stringify(filteredAccs));
+    // 3. 이 기기의 로그인 계정 제거
+    if (emailNorm) {
+      const rawAccs = localStorage.getItem(REGISTRY_KEY);
+      if (rawAccs) {
+        const accounts: RegisteredAccount[] = JSON.parse(rawAccs);
+        const filteredAccs = accounts.filter((acc) => {
+          const aEmail = (acc.user?.email || '').toLowerCase().trim();
+          const aLogin = (acc.loginId || '').toLowerCase().trim();
+          return aEmail !== emailNorm && aLogin !== emailNorm;
+        });
+        localStorage.setItem(REGISTRY_KEY, JSON.stringify(filteredAccs));
+      }
     }
 
-    // 4. Dispatch global change event for instant local UI update
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('superbible_members_changed'));
     }
 
-    // 5. Notify central sync hub and Google Sheets
-    try {
-      await sendPayloadToGoogleScript({
-        action: 'deleteMember',
-        memberId,
-        email: memberEmail,
-        name: memberName,
-        id: memberId,
-        deletedAt: Date.now(),
-      });
-    } catch (e) {
-      console.warn('Failed to notify server/Google Sheets of deletion:', e);
-    }
+    // 4. 구글 시트에서 삭제 (이메일 + 회원번호만 전달)
+    const res = await sendPayloadToGoogleScript({
+      action: 'deleteMember',
+      id: memberId,
+      memberId,
+      email: emailNorm,
+      name: memberName,
+    });
 
+    if (res.success) {
+      return { success: true, message: `'${memberName || memberEmail || memberId}' 회원이 구글 시트에서 삭제되었습니다.` };
+    }
     return {
-      success: true,
-      message: `'${memberName || memberEmail || memberId}' 회원이 명부 및 구글 시트에서 완전히 영구 삭제되었습니다.`,
+      success: !!res.retryable,
+      message: res.retryable
+        ? `'${memberName || memberEmail}' 회원을 이 기기에서 삭제했고, 구글 시트 삭제는 연결되면 자동으로 다시 시도합니다. (${res.message})`
+        : `구글 시트 삭제 실패: ${res.message}`,
     };
   } catch (err: any) {
     console.error('deleteMemberCompletely error:', err);
@@ -433,40 +342,28 @@ export async function deleteMemberCompletely(
 }
 
 /**
- * Completely reset entire member database, server cache, and Google Spreadsheet
- * Leaves ONLY the master administrator (yoocomdr57@gmail.com).
+ * 앱 기기 데이터를 관리자 1명으로 초기화. (구글 시트 전면 초기화는 안전을 위해 시트 메뉴에서만 가능)
  */
 export async function resetAllMembersCompletely(): Promise<{ success: boolean; message: string }> {
   try {
-    // 1. Reset localStorage
     localStorage.removeItem(ADMIN_MEMBERS_KEY);
     localStorage.removeItem(REGISTRY_KEY);
-    localStorage.removeItem('superbible_deleted_records_v2');
+    localStorage.removeItem(DELETED_RECORDS_KEY);
     localStorage.removeItem('superbible_admin_recordings_v4');
-
-    // 2. Set only master admin
-    const masterAdminList = [...INITIAL_MEMBERS];
-    localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(masterAdminList));
+    localStorage.removeItem('superbible_pending_sheet_sync_v2');
+    localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify([...INITIAL_MEMBERS]));
     localStorage.setItem(REGISTRY_KEY, JSON.stringify(DEFAULT_ACCOUNTS));
-    localStorage.setItem('superbible_deleted_records_v2', JSON.stringify({}));
 
-    // 3. Dispatch global change event
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('superbible_members_changed'));
     }
 
-    // 4. Notify central sync hub and Google Sheets
-    try {
-      await sendPayloadToGoogleScript({
-        action: 'resetAll',
-      });
-    } catch (e) {
-      console.warn('Failed to notify server/Google Sheets of resetAll:', e);
-    }
-
+    const res = await sendPayloadToGoogleScript({ action: 'resetAll' }, undefined, { enqueueOnFail: false });
     return {
       success: true,
-      message: '회원 명부와 구글 시트가 마스터 관리자(yoocomdr57@gmail.com) 1명 체제로 전면 초기화되었습니다.',
+      message: res.success
+        ? '앱과 구글 시트가 마스터 관리자 1명으로 초기화되었습니다.'
+        : '이 기기의 데이터를 초기화했습니다. 구글 시트 초기화는 시트 상단 메뉴 [★ 수퍼바이블 DB] > [전면 초기화] 에서 실행하세요.',
     };
   } catch (err: any) {
     console.error('resetAllMembersCompletely error:', err);
@@ -475,62 +372,65 @@ export async function resetAllMembersCompletely(): Promise<{ success: boolean; m
 }
 
 /**
- * Update member information in localStorage, central hub, and Google Sheets
+ * 회원 정보 수정 → 구글 시트 반영 (회원번호로 찾고, 이메일을 바꾼 경우 원래 이메일을 함께 보냄)
  */
 export async function updateMemberProfile(
   updatedMember: MemberReadingProfile
 ): Promise<{ success: boolean; message: string }> {
   try {
     const raw = localStorage.getItem(ADMIN_MEMBERS_KEY);
-    let members: MemberReadingProfile[] = raw ? JSON.parse(raw) : [];
-    const idx = members.findIndex(
-      (m) =>
-        m.id === updatedMember.id ||
-        (updatedMember.email && m.email.toLowerCase() === updatedMember.email.toLowerCase())
-    );
-    if (idx !== -1) {
-      members[idx] = { ...members[idx], ...updatedMember };
-    } else {
-      members.push(updatedMember);
+    const members: MemberReadingProfile[] = raw ? JSON.parse(raw) : [];
+    const idx = members.findIndex((m) => m.id === updatedMember.id);
+    const original = idx !== -1 ? members[idx] : undefined;
+    const originalEmail = (original?.email || updatedMember.email || '').toLowerCase().trim();
+    const newEmail = (updatedMember.email || '').toLowerCase().trim();
+
+    if (
+      newEmail &&
+      newEmail !== originalEmail &&
+      members.some((m, i) => i !== idx && (m.email || '').toLowerCase().trim() === newEmail)
+    ) {
+      return { success: false, message: `이미 다른 회원이 사용 중인 이메일입니다: ${newEmail}` };
     }
+
+    const res = await sendPayloadToGoogleScript(
+      { action: 'updateMember', member: { ...updatedMember, email: newEmail }, originalEmail },
+      undefined,
+      { enqueueOnFail: true }
+    );
+    if (!res.success && !res.retryable) {
+      return { success: false, message: `구글 시트 수정 실패: ${res.message}` };
+    }
+
+    // 시트가 받아들였으면(또는 재시도 대기면) 이 기기에도 반영
+    if (idx !== -1) members[idx] = { ...members[idx], ...updatedMember, email: newEmail };
     localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(members));
 
-    // Also update account in REGISTRY_KEY if matching
     const rawAccs = localStorage.getItem(REGISTRY_KEY);
-    if (rawAccs) {
+    if (rawAccs && originalEmail) {
       const accounts: RegisteredAccount[] = JSON.parse(rawAccs);
-      const accIdx = accounts.findIndex(
-        (a) =>
-          a.user?.id === updatedMember.id ||
-          (updatedMember.email && a.user?.email.toLowerCase() === updatedMember.email.toLowerCase())
+      const acc = accounts.find(
+        (a) => (a.user?.email || '').toLowerCase() === originalEmail || (a.loginId || '').toLowerCase() === originalEmail
       );
-      if (accIdx !== -1) {
-        accounts[accIdx].user.name = updatedMember.name;
-        accounts[accIdx].user.department = updatedMember.department;
-        accounts[accIdx].user.phone = updatedMember.phone;
-        accounts[accIdx].user.role = updatedMember.accountRole === 'admin' ? 'admin' : 'saint';
+      if (acc) {
+        acc.user.name = updatedMember.name;
+        acc.user.department = updatedMember.department;
+        acc.user.phone = updatedMember.phone;
+        acc.user.email = newEmail || acc.user.email;
+        acc.user.role = updatedMember.accountRole === 'admin' ? 'admin' : 'saint';
         localStorage.setItem(REGISTRY_KEY, JSON.stringify(accounts));
       }
     }
 
-    // Dispatch event so UI updates everywhere
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('superbible_members_changed'));
     }
 
-    // Send update to central hub and Google Sheets
-    try {
-      await sendPayloadToGoogleScript({
-        action: 'updateMember',
-        member: updatedMember,
-      });
-    } catch (e) {
-      console.warn('Failed to send updateMember to Google Script:', e);
-    }
-
     return {
       success: true,
-      message: `'${updatedMember.name}' 회원 정보가 명부 및 구글 시트에 실시간 수정·반영되었습니다.`,
+      message: res.success
+        ? `'${updatedMember.name}' 회원 정보가 구글 시트에 수정·반영되었습니다.`
+        : `'${updatedMember.name}' 회원 정보를 저장했고, 구글 시트 반영은 연결되면 자동으로 다시 시도합니다.`,
     };
   } catch (err: any) {
     console.error('updateMemberProfile error:', err);
@@ -539,37 +439,30 @@ export async function updateMemberProfile(
 }
 
 /**
- * Create a new member directly from Admin View and synchronize to Central Server & Google Sheets
+ * 관리자 화면에서 신규 회원 등록 → 구글 시트가 회원번호를 발급
  */
 export async function createMemberByAdmin(
   formData: Partial<MemberReadingProfile>
 ): Promise<{ success: boolean; member?: MemberReadingProfile; message: string }> {
   try {
     const raw = localStorage.getItem(ADMIN_MEMBERS_KEY);
-    let members: MemberReadingProfile[] = raw ? JSON.parse(raw) : [];
+    const members: MemberReadingProfile[] = raw ? JSON.parse(raw) : [];
 
-    // Calculate next sequential M-ID
-    let maxNum = 0;
-    members.forEach((m) => {
-      const match = String(m.id || '').match(/M-(\d+)/i);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (!isNaN(num) && num > maxNum) maxNum = num;
-      }
-    });
-    const nextId = `M-${String(maxNum + 1).padStart(2, '0')}`;
-
-    const cleanName = (formData.name || '신규 성도').trim();
-    const cleanEmail = (formData.email || '').trim().toLowerCase() || `${nextId.toLowerCase()}@superbible.kr`;
+    const cleanName = (formData.name || '').trim();
+    if (!cleanName) return { success: false, message: '회원 성명을 입력해주세요.' };
+    const cleanEmail =
+      (formData.email || '').trim().toLowerCase() || `member${Date.now().toString().slice(-8)}@superbible.kr`;
+    if (members.some((m) => (m.email || '').toLowerCase().trim() === cleanEmail)) {
+      return { success: false, message: `이미 등록된 이메일입니다: ${cleanEmail}` };
+    }
     const cleanPhone = (formData.phone || '010-미등록').trim();
     const cleanDept = formData.department || '경영팀';
     const cleanRole = formData.role || '성도';
 
-    // Clear any past deletion tombstone
-    clearDeletion(cleanEmail, '', cleanName, nextId);
+    clearDeletion(cleanEmail);
 
     const newMember: MemberReadingProfile = {
-      id: nextId,
+      id: generateNextMemberId(members), // 임시 번호 — 시트가 발급한 번호로 곧 바뀜
       name: cleanName,
       department: cleanDept,
       role: cleanRole,
@@ -580,7 +473,7 @@ export async function createMemberByAdmin(
       baptismStatus: formData.baptismStatus || '세례',
       smallGroup: formData.smallGroup || `${cleanDept} 1구역`,
       accountRole: formData.accountRole || (cleanRole === '관리자' ? 'admin' : 'member'),
-      accountStatus: formData.accountStatus || 'active',
+      accountStatus: (formData.accountStatus as any) === '정상' ? 'active' : formData.accountStatus || 'active',
       avatarColor: 'bg-blue-600',
       avatarText: cleanName.slice(0, 2).toUpperCase(),
       currentReadingRound: 0,
@@ -596,11 +489,20 @@ export async function createMemberByAdmin(
       memo: formData.memo || '관리자 직접 등록 회원',
     };
 
-    // Add to members list
+    const res = await sendPayloadToGoogleScript({
+      action: 'registerMember',
+      loginId: cleanEmail,
+      member: newMember,
+      requestedAt: Date.now(),
+    });
+    if (!res.success && !res.retryable) {
+      return { success: false, message: `구글 시트 등록 실패: ${res.message}` };
+    }
+    if (res.data?.memberId) newMember.id = res.data.memberId;
+
     members.push(newMember);
     localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(members));
 
-    // Also register user account in REGISTRY_KEY for login capability
     const rawAccs = localStorage.getItem(REGISTRY_KEY);
     const accounts: RegisteredAccount[] = rawAccs ? JSON.parse(rawAccs) : [];
     if (!accounts.some((a) => a.loginId.toLowerCase() === cleanEmail)) {
@@ -608,7 +510,7 @@ export async function createMemberByAdmin(
         loginId: cleanEmail,
         passwordHash: 'user1234',
         user: {
-          id: `user-${nextId.toLowerCase()}`,
+          id: `user-${newMember.id.toLowerCase()}`,
           name: cleanName,
           email: cleanEmail,
           phone: cleanPhone,
@@ -627,26 +529,16 @@ export async function createMemberByAdmin(
       localStorage.setItem(REGISTRY_KEY, JSON.stringify(accounts));
     }
 
-    // Dispatch event
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('superbible_members_changed'));
-    }
-
-    // Send to central hub & Google Sheets
-    try {
-      await sendPayloadToGoogleScript({
-        action: 'registerMember',
-        loginId: cleanEmail,
-        member: newMember,
-      });
-    } catch (e) {
-      console.warn('Failed to send registerMember to Google Script:', e);
     }
 
     return {
       success: true,
       member: newMember,
-      message: `신규 회원 '${cleanName}'(${newMember.id})님이 성공적으로 등록되어 구글 시트와 3대 기기에 실시간 동기화되었습니다! 🎉`,
+      message: res.success
+        ? `신규 회원 '${cleanName}'(${newMember.id})님이 구글 시트에 등록되었습니다. 🎉`
+        : `신규 회원 '${cleanName}'님을 저장했고, 구글 시트 등록은 연결되면 자동으로 다시 시도합니다.`,
     };
   } catch (err: any) {
     console.error('createMemberByAdmin error:', err);
@@ -774,7 +666,7 @@ function cleanupLegacyStorage(): void {
 
     // Sanitize current active session if it was a purged test account
     try {
-      const curUserRaw = localStorage.getItem(USER_KEY);
+      const curUserRaw = localStorage.getItem(SESSION_KEY);
       if (curUserRaw) {
         const curUser = JSON.parse(curUserRaw);
         const curName = (curUser.name || '').trim();
@@ -786,7 +678,7 @@ function cleanupLegacyStorage(): void {
           curEmail === 'yocomdr34@superbible.kr' ||
           curEmail === 'yoocomdr53@gmail.com'
         ) {
-          localStorage.removeItem(USER_KEY);
+          localStorage.removeItem(SESSION_KEY);
         }
       }
     } catch (e) {}
@@ -841,7 +733,7 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
         currentMembers = parsed.filter(
           (m: MemberReadingProfile) =>
             !isMemberDeleted(m) &&
-            !m.email.includes('@logos.church')
+            !String(m.email || '').includes('@logos.church')
         );
       }
     }
@@ -861,75 +753,9 @@ export function getOrSyncAdminMembers(): MemberReadingProfile[] {
       return { ...m, department: dept, currentReadingRound: actualRound };
     });
 
-    // Ensure all active registered accounts exist in currentMembers
-    let changed = false;
-    for (const acc of accounts) {
-      if (
-        isMemberDeleted({
-          id: acc.user?.id,
-          email: acc.user?.email,
-          loginId: acc.loginId,
-          name: acc.user?.name,
-        })
-      ) {
-        continue;
-      }
-      const aEmail = (acc.user?.email || '').toLowerCase().trim();
-      const aName = (acc.user?.name || '').trim();
-      const existingIdx = currentMembers.findIndex(
-        (m) =>
-          (aEmail && m.email && m.email.toLowerCase() === aEmail) ||
-          (aName && m.name && m.name === aName)
-      );
-
-      if (existingIdx !== -1) {
-        // already exists
-      } else {
-        const isMasterAdmin =
-          acc.loginId.toLowerCase() === 'yoocomdr57@gmail.com' ||
-          acc.loginId.toLowerCase() === 'yoocomdr57' ||
-          acc.loginId.toLowerCase() === 'admin';
-
-        const dept =
-          acc.user.department && validDepts.has(acc.user.department)
-            ? acc.user.department
-            : isMasterAdmin
-            ? '경영팀'
-            : '다이나믹팀';
-
-        const realName = acc.user.name;
-
-        const newProfile: MemberReadingProfile = {
-          id: generateNextMemberId(currentMembers),
-          name: realName,
-          department: dept,
-          role: isMasterAdmin ? '관리자' : '성도',
-          phone: acc.user.phone || '010-미등록',
-          email: acc.user.email,
-          registeredDate: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
-          birthdate: '1995.01.01',
-          baptismStatus: '원입',
-          smallGroup: `${dept} 1구역`,
-          accountRole: isMasterAdmin ? 'admin' : 'member',
-          accountStatus: 'active',
-          avatarColor: isMasterAdmin ? 'bg-amber-500' : 'bg-blue-500',
-          avatarText: realName.slice(0, 2),
-          currentReadingRound: 0,
-          targetRounds: 12,
-          currentBook: '창세기',
-          currentChapter: 1,
-          totalReadChapters: 0,
-          recordingsCount: 0,
-          lastActive: '방금 가입',
-          status: 'active',
-          consecutiveDays: 1,
-          featuredCount: 0,
-          memo: `웹 간편가입 회원 (아이디: ${acc.loginId})`,
-        };
-        currentMembers.push(newProfile);
-        changed = true;
-      }
-    }
+    // v4: 로그인 계정 목록으로 명부에 회원을 자동 추가하지 않는다.
+    //     (명부의 기준은 구글 시트 — 계정 목록에서 다시 채우면 삭제된 회원이 되살아남)
+    const changed = false;
 
     if (changed || !raw) {
       localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(currentMembers));
@@ -949,11 +775,11 @@ export function syncMemberToAdminRoster(
   departmentInput?: string
 ): MemberReadingProfile {
   try {
-    removeDeletedMember({ email: user.email, name: user.name, id: user.id, loginId });
+    removeDeletedMember({ email: user.email, loginId });
     const currentMembers = getOrSyncAdminMembers();
-    const existing = currentMembers.find(
-      (m) => m.email.toLowerCase() === user.email.toLowerCase() || m.name === user.name
-    );
+    const myEmail = (user.email || '').toLowerCase().trim();
+    // 같은 사람 = 같은 이메일 (이름이 같아도 다른 사람)
+    const existing = currentMembers.find((m) => (m.email || '').toLowerCase().trim() === myEmail);
     if (existing) {
       let modified = false;
       if (phoneInput && (!existing.phone || existing.phone === '010-미등록')) {
@@ -1300,7 +1126,30 @@ export function deleteUserRecordingFromStore(id: string, userEmail?: string): vo
   } catch (e) {}
 }
 
-// Register new member with simple ID/Email + Password + Phone + Department
+// 이 기기에서 만든 회원을 구글 시트에 등록하고, 시트가 발급한 회원번호로 맞춘다.
+function pushRegistrationToSheet(member: MemberReadingProfile, loginId: string): void {
+  syncMemberRegistrationToGoogleSheet(member, loginId)
+    .then((res) => {
+      const newId = res.data?.memberId;
+      if (res.success && newId && newId !== member.id) {
+        try {
+          const raw = localStorage.getItem(ADMIN_MEMBERS_KEY);
+          const list: MemberReadingProfile[] = raw ? JSON.parse(raw) : [];
+          const e = (member.email || '').toLowerCase().trim();
+          const m = list.find((x) => (x.email || '').toLowerCase().trim() === e);
+          if (m) {
+            m.id = newId;
+            localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(list));
+            window.dispatchEvent(new CustomEvent('superbible_members_changed'));
+          }
+        } catch {}
+      }
+      if (!res.success) console.warn('[Register] 구글 시트 등록 결과:', res.message);
+    })
+    .catch((err) => console.warn('[Register] 구글 시트 등록 오류:', err));
+}
+
+// 간편 회원가입: 아이디(이메일) + 비밀번호 + 성명 + 전화번호 + 소속부서
 export function registerUser(
   loginIdInput: string,
   passwordInput: string,
@@ -1316,11 +1165,13 @@ export function registerUser(
   if (!loginId) {
     return { success: false, message: '아이디 또는 이메일을 입력해주세요.' };
   }
+  if (/\s/.test(loginId)) {
+    return { success: false, message: '아이디/이메일에는 공백을 넣을 수 없습니다.' };
+  }
   if (!password || password.length < 4) {
     return { success: false, message: '비밀번호를 4자리 이상 입력해주세요.' };
   }
 
-  // Check admin-designated blacklist
   if (isAccountInAdminBlacklist(loginId)) {
     return {
       success: false,
@@ -1328,28 +1179,30 @@ export function registerUser(
     };
   }
 
-  const accounts = getRegisteredAccounts();
-  const existing = accounts.find(
-    (a) => a.loginId.toLowerCase() === loginId.toLowerCase()
-  );
-  if (existing) {
-    return { success: false, message: '이미 등록된 아이디/이메일입니다. 로그인해주세요.' };
-  }
-
   const isAdmin =
     loginId.toLowerCase() === 'yoocomdr57@gmail.com' ||
     loginId.toLowerCase() === 'yoocomdr57' ||
     loginId.toLowerCase() === 'admin';
+  const userEmail = (loginId.includes('@') ? loginId : `${loginId}@superbible.kr`).toLowerCase();
+
+  const accounts = getRegisteredAccounts();
+  const existingIdx = accounts.findIndex(
+    (a) =>
+      a.loginId.toLowerCase() === loginId.toLowerCase() ||
+      (a.user?.email || '').toLowerCase() === userEmail
+  );
+  const existing = existingIdx !== -1 ? accounts[existingIdx] : undefined;
+  // 다른 기기에서 가입해 시트로만 내려온 계정(REMOTE_SYNC_)은 이 기기에서 비밀번호를 정하고 이어서 사용 가능
+  const isRemoteOnly = !!existing && String(existing.passwordHash || '').startsWith('REMOTE_SYNC_');
+  if (existing && !isRemoteOnly) {
+    return { success: false, message: '이미 등록된 아이디/이메일입니다. 로그인해주세요.' };
+  }
 
   const displayName = rawName
     ? rawName
     : isAdmin
     ? '로고스 관리자'
-    : loginId.includes('@')
-    ? `${loginId.split('@')[0]} 성도`
-    : `${loginId} 성도`;
-
-  const userEmail = loginId.includes('@') ? loginId : `${loginId}@superbible.kr`;
+    : `${loginId.split('@')[0]} 성도`;
 
   const chosenDept =
     departmentInput && OFFICIAL_DEPARTMENTS.includes(departmentInput as any)
@@ -1359,20 +1212,21 @@ export function registerUser(
       : '다이나믹팀';
 
   const newUser: User = {
-    id: `user-${Date.now()}`,
+    ...(existing?.user || {}),
+    id: existing?.user?.id || `user-${Date.now()}`,
     name: displayName,
     email: userEmail,
-    phone: phone || undefined,
+    phone: phone || existing?.user?.phone || undefined,
     avatarText: (rawName || loginId).slice(0, 2).toUpperCase(),
     role: isAdmin ? 'admin' : 'saint',
     provider: 'standard',
     schoolName: '로고스 수퍼바이블 공동체',
     department: chosenDept,
-    consecutiveDays: 1,
-    ntProgress: 0,
-    todayVersesRead: 0,
-    recordingsCount: 0,
-  };
+    consecutiveDays: existing?.user?.consecutiveDays || 1,
+    ntProgress: existing?.user?.ntProgress || 0,
+    todayVersesRead: existing?.user?.todayVersesRead || 0,
+    recordingsCount: existing?.user?.recordingsCount || 0,
+  } as User;
 
   const newAccount: RegisteredAccount = {
     loginId,
@@ -1381,39 +1235,20 @@ export function registerUser(
     createdAt: new Date().toISOString(),
   };
 
-  // Clear any past deletion tombstone so re-registration is completely fresh and never blocked
-  clearDeletion(userEmail, loginId, displayName, newUser.id);
+  // 예전 삭제기록이 있어도 새 가입은 막지 않음 (시트도 requestedAt 으로 새 가입임을 확인)
+  clearDeletion(userEmail, loginId);
 
-  const updatedAccounts = [...accounts, newAccount];
+  const updatedAccounts = [...accounts];
+  if (existingIdx !== -1) updatedAccounts[existingIdx] = newAccount;
+  else updatedAccounts.push(newAccount);
   saveRegisteredAccounts(updatedAccounts);
 
-  // Sync to Admin Member Management Roster with phone number and department (starts at 0 chapters/recordings)
+  // 명부에 추가하고 구글 시트로 전송 (실패 시 자동 재전송 대기열)
   const newMemberProfile = syncMemberToAdminRoster(newUser, loginId, phone, chosenDept);
+  newMemberProfile.name = displayName;
+  pushRegistrationToSheet(newMemberProfile, loginId);
 
-  // Auto-sync new member registration directly to Google Sheet (yoocomdr57@gmail.com)
-  syncMemberRegistrationToGoogleSheet(newMemberProfile, loginId)
-    .then((res) => {
-      if (!res.success) {
-        console.warn('[Register] Google Sheet sync returned non-success, enqueued for retry:', res.message);
-        enqueuePendingSync('registerMember', {
-          action: 'registerMember',
-          loginId,
-          member: newMemberProfile,
-        });
-      }
-    })
-    .catch((err) => {
-      console.warn('[Register] Google Sheet sync network failure, enqueued for retry:', err);
-      enqueuePendingSync('registerMember', {
-        action: 'registerMember',
-        loginId,
-        member: newMemberProfile,
-      });
-    });
-
-  // Auto-login & persist session
   saveActiveSession(newUser, loginId);
-
   return { success: true, user: newUser };
 }
 
@@ -1532,7 +1367,8 @@ export function loginUser(
     createdAt: new Date().toISOString(),
   };
   saveRegisteredAccounts([...accounts, newAccount]);
-  syncMemberToAdminRoster(newUser, loginId, undefined, newUser.department);
+  const autoProfile = syncMemberToAdminRoster(newUser, loginId, undefined, newUser.department);
+  pushRegistrationToSheet(autoProfile, loginId);
 
   if (rememberMe) saveRememberedId(loginId);
   saveActiveSession(newUser, loginId);

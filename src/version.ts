@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 2.6.3';
+export const APP_VERSION = 'Ver 2.6.4';
 export const APP_BUILD_DATE = '2026.11.24';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,17 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 2.6.4',
+    name: 'SuperBible',
+    releaseDate: '2026.11.25',
+    changes: [
+      '구글 시트(superbible DBase) 동기화 v4: 회원은 이메일로만 구분, 회원번호는 시트가 발급한 번호 그대로 사용',
+      '회원가입이 시트에 반영되지 않던 문제 수정 (재가입 숨김·다른 기기 계정 충돌·로그인 자동가입 미전송)',
+      '회원 수정·삭제가 다른 회원(동명이인·번호 어긋남)에 적용되던 문제 수정',
+      '동기화 시 삭제한 회원이 다시 나타나던 문제 수정 (오래된 대기열 요청 차단, 삭제기록 초기화 제거)',
+    ],
+  },
   {
     version: 'Ver 2.6.3',
     name: 'SuperBible',
