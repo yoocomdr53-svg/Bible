@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { X, Mic, ChevronRight, Flame, Target, CheckSquare, Square, RotateCcw, ChevronDown } from 'lucide-react';
+import { X, Mic, ChevronRight, Flame, CheckSquare, Square, RotateCcw, ChevronDown } from 'lucide-react';
 import {
   REV_SECTIONS,
-  REV_DAILY_GOAL_OPTIONS,
   REV_PERIOD_LABEL,
   REV_CHANGED_EVENT,
   RevPeriodStats,
@@ -78,7 +77,6 @@ export const RevelationReadingCard: React.FC<Props> = ({ userEmail, onReadChapte
   const next = nextChapter(userEmail);
 
   const setSection = (id: RevSectionId) => saveRevSettings({ ...stats.settings, section: id }, userEmail);
-  const setGoal = (g: number) => saveRevSettings({ ...stats.settings, dailyGoal: g }, userEmail);
 
   // 녹음 없이 읽음 체크
   const checkDate = (() => {
@@ -91,11 +89,10 @@ export const RevelationReadingCard: React.FC<Props> = ({ userEmail, onReadChapte
     setNotice(msg);
     window.setTimeout(() => setNotice(null), 2500);
   };
-  const toggleChapter = (ch: number) => setRevChaptersChecked([ch], checkDate, !readSet.has(ch));
   const setGroup = (start: number, end: number, checked: boolean) => {
     const chs = Array.from({ length: end - start + 1 }, (_, i) => start + i);
     const n = setRevChaptersChecked(chs, checkDate, checked);
-    flash(n ? `${start}–${end}장 ${n}개 ${checked ? '체크' : '해제'}했습니다.` : '바뀐 장이 없습니다.');
+    flash(n ? `${start}–${end}장을 ${checked ? '읽음으로 체크' : '체크 해제'}했습니다.` : '바뀐 내용이 없습니다.');
   };
   const doReset = (scope: RevResetScope) => {
     if (!window.confirm(`계시록 ${REV_RESET_LABEL[scope]}을 지울까요?\n(이 기기와 관리자 화면 기록이 함께 지워지며 되돌릴 수 없습니다)`)) return;
@@ -103,7 +100,7 @@ export const RevelationReadingCard: React.FC<Props> = ({ userEmail, onReadChapte
     flash(`${REV_RESET_LABEL[scope]} ${n}건을 지웠습니다.`);
   };
   const doResetSettings = () => {
-    if (!window.confirm('구간을 1–11장, 하루 목표를 1장으로 되돌릴까요? (기록은 그대로 둡니다)')) return;
+    if (!window.confirm('낭독 구간을 1–11장으로 되돌릴까요? (기록은 그대로 둡니다)')) return;
     resetRevSettings(userEmail);
     flash('설정을 처음 상태로 되돌렸습니다.');
   };
@@ -121,7 +118,7 @@ export const RevelationReadingCard: React.FC<Props> = ({ userEmail, onReadChapte
             <div>
               <h3 className="text-sm font-black text-slate-800 leading-tight">계시록 낭독관리</h3>
               <p className="text-[11px] text-slate-500">
-                {sec.label} ({sec.title}) · 하루 {stats.settings.dailyGoal}장 목표
+                {sec.label} ({sec.title}) · 하루 1장 목표
               </p>
             </div>
           </div>
@@ -194,30 +191,6 @@ export const RevelationReadingCard: React.FC<Props> = ({ userEmail, onReadChapte
               </div>
             </div>
 
-            {/* 하루 목표 */}
-            <div className="space-y-2">
-              <p className="text-xs font-bold text-slate-600 flex items-center gap-1">
-                <Target className="w-3.5 h-3.5" /> 하루 목표
-              </p>
-              <div className="flex gap-2">
-                {REV_DAILY_GOAL_OPTIONS.map((g) => (
-                  <button
-                    key={g}
-                    type="button"
-                    onClick={() => setGoal(g)}
-                    className={`flex-1 rounded-xl py-2 text-xs font-bold border transition ${
-                      stats.settings.dailyGoal === g ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-600'
-                    }`}
-                  >
-                    {g === 11 ? '11장(1회독)' : `${g}장`}
-                  </button>
-                ))}
-              </div>
-              <p className="text-[10px] text-slate-400">
-                주간 목표 {stats.week.goal}장 · 월간 목표 {stats.month.goal}장 (하루 목표 × 일수)
-              </p>
-            </div>
-
             {/* 진행률 */}
             <div className="space-y-3 bg-slate-50 rounded-2xl p-4">
               <ProgressRow s={stats.day} />
@@ -286,47 +259,34 @@ export const RevelationReadingCard: React.FC<Props> = ({ userEmail, onReadChapte
               {(['A', 'B'] as RevSectionId[]).map((id) => {
                 const g = REV_SECTIONS[id];
                 const chs = Array.from({ length: g.end - g.start + 1 }, (_, i) => g.start + i);
-                const all = chs.every((c) => readSet.has(c));
+                const done = chs.filter((c) => readSet.has(c)).length;
+                const all = done === chs.length;
                 return (
-                  <div key={id} className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-slate-600">
-                        {g.label} <span className="font-normal text-slate-400">({chs.filter((c) => readSet.has(c)).length}/11)</span>
-                        {stats.settings.section === id && <span className="ml-1 text-indigo-600">· 진행률 반영</span>}
+                  <button
+                    key={id}
+                    type="button"
+                    role="checkbox"
+                    aria-checked={all}
+                    onClick={() => setGroup(g.start, g.end, !all)}
+                    className={`w-full flex items-center gap-3 rounded-xl px-4 py-3 border text-left transition ${
+                      all ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white border-slate-200 text-slate-700 hover:border-emerald-300'
+                    }`}
+                  >
+                    {all ? <CheckSquare className="w-5 h-5 flex-shrink-0" /> : <Square className="w-5 h-5 flex-shrink-0 text-slate-400" />}
+                    <span className="flex-1">
+                      <span className="block text-sm font-black">
+                        {g.label} <span className="font-bold text-xs">({g.title})</span>
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => setGroup(g.start, g.end, !all)}
-                        className="text-[11px] font-bold text-emerald-700 hover:underline"
-                      >
-                        {all ? '전체 해제' : '전체 체크'}
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-6 gap-1.5">
-                      {chs.map((ch) => {
-                        const on = readSet.has(ch);
-                        return (
-                          <button
-                            key={ch}
-                            type="button"
-                            role="checkbox"
-                            aria-checked={on}
-                            onClick={() => toggleChapter(ch)}
-                            className={`flex items-center justify-center gap-0.5 rounded-lg py-1.5 text-[11px] font-bold border transition ${
-                              on ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-600 border-slate-200'
-                            }`}
-                          >
-                            {on ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3" />}
-                            {ch}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                      <span className={`block text-[11px] ${all ? 'text-emerald-50' : 'text-slate-400'}`}>
+                        {all ? `${checkDay === 'today' ? '오늘' : '어제'} 읽음` : done ? `${done}/11장 낭독됨 · 누르면 나머지까지 읽음 처리` : '누르면 읽음 처리'}
+                        {stats.settings.section === id && ' · 진행률 반영'}
+                      </span>
+                    </span>
+                  </button>
                 );
               })}
               <p className="text-[10px] text-slate-400">
-                체크한 장은 낭독 녹음과 똑같이 진행률과 관리자 화면에 반영됩니다. 진행률은 선택한 구간만 계산합니다.
+                체크하면 그 구간 11장을 읽은 것으로 기록되어 진행률과 관리자 화면에 반영됩니다. 다시 누르면 해제됩니다.
               </p>
             </div>
 
@@ -363,7 +323,7 @@ export const RevelationReadingCard: React.FC<Props> = ({ userEmail, onReadChapte
                     onClick={doResetSettings}
                     className="w-full rounded-xl py-2 text-[11px] font-bold border border-slate-200 text-slate-600"
                   >
-                    설정 초기화 (1–11장 · 하루 1장)
+                    설정 초기화 (구간 1–11장)
                   </button>
                   <p className="text-[10px] text-slate-400">기록 초기화는 이 기기와 관리자 화면(구글 시트)의 내 기록을 함께 지웁니다.</p>
                 </div>
