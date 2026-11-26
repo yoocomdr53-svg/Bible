@@ -20,6 +20,7 @@
  *
  * ■ 시트(테이블): 회원관리 / 회원_낭독진도 / 낭독_음원검수 / 통독_캠페인 / 실시간_동기화로그 / 삭제된회원 /
  *                 계시록_낭독기록 (v4.1: 앱 홈의 [계시록 낭독관리] 기록, 관리자 [계시록 낭독] 탭에서 조회)
+ *                 v4.2: revAdd(여러 장 한 번에 기록) / revReset(기간·장별 기록 삭제)
  *
  * ■ 웹앱 API (POST, JSON 본문)
  *   가입   {"action":"registerMember","member":{...},"loginId":"...","requestedAt":1730000000000}
@@ -30,7 +31,7 @@
  *   조회   GET  (회원 목록)  /  GET ?action=ping (버전 확인)
  */
 
-var VERSION = "v4.1";
+var VERSION = "v4.2";
 var ADMIN_EMAIL = "yoocomdr57@gmail.com";
 var TZ = "Asia/Seoul";
 
@@ -994,6 +995,8 @@ function doPost(e) {
     }
     if (action === "registerMember" || action === "register" || action === "registerUser") return registerMember_(data);
 
+    if (action === "revAdd") return revAdd_(data);
+    if (action === "revReset") return revReset_(data);
     if (action === "dbInsert") return dbInsert_(data);
     if (action === "dbUpdate") return dbUpdate_(data);
     if (action === "dbDelete") return dbDelete_(data);
@@ -1154,6 +1157,53 @@ function dbList_(data) {
   }
   return json_({ status: "success", table: sc.name, headers: sc.headers, count: rows.length, rows: rows });
 }
+
+// ═════════════════════ 계시록 낭독기록 (v4.2) ═════════════════════
+// 여러 줄 한 번에 추가  {"action":"revAdd","rows":[{"이메일":"a@x.com","장":3,"낭독일자":"2026-11-26",...}]}
+function revAdd_(data) {
+  if (!writeAllowed_(data)) return json_({ status: "error", message: "권한이 없습니다." });
+  var sc = schema_(SN.REV), sh = sheet_(SN.REV);
+  var rows = data.rows || [];
+  var stamp = new Date().getTime();
+  var out = [];
+  for (var i = 0; i < rows.length; i++) {
+    var v = rows[i] || {};
+    if (!norm_(v["이메일"]) || !(Number(v["장"]) >= 1 && Number(v["장"]) <= 22)) continue;
+    var id = "RV-" + stamp + "-" + i;
+    out.push(sc.headers.map(function (h) { return h === "기록ID" ? id : (has_(v[h]) ? v[h] : ""); }));
+  }
+  if (out.length) sh.getRange(sh.getLastRow() + 1, 1, out.length, sc.headers.length).setValues(out);
+  return json_({ status: "success", message: "계시록 낭독기록 " + out.length + "건 추가", count: out.length });
+}
+
+// 기록 지우기  {"action":"revReset","email":"a@x.com","from":"2026-11-01","to":"2026-11-30","chapter":3 또는 "chapters":[1,2]}
+//  from/to/chapter 를 비우면 그 회원의 전체 기록 삭제
+function revReset_(data) {
+  if (!writeAllowed_(data)) return json_({ status: "error", message: "권한이 없습니다." });
+  var email = norm_(data.email);
+  if (!email) return json_({ status: "error", message: "email 이 필요합니다." });
+  var from = String(data.from || ""), to = String(data.to || ""), ch = Number(data.chapter) || 0;
+  var chs = {};
+  (data.chapters || []).forEach(function (c) { if (Number(c)) chs[Number(c)] = true; });
+  var useChs = Object.keys(chs).length > 0;
+  var sh = sheet_(SN.REV), n = SCHEMA_REV_COLS_();
+  if (!sh || sh.getLastRow() < 2) return json_({ status: "success", removed: 0 });
+  var vals = sh.getRange(2, 1, sh.getLastRow() - 1, n).getValues();
+  var keep = [], removed = 0;
+  vals.forEach(function (r) {
+    var d = cell_(r[6]).replace(/\./g, "-").slice(0, 10);
+    var hit = norm_(r[3]) === email && (!from || d >= from) && (!to || d <= to) && (!ch || Number(r[5]) === ch) && (!useChs || chs[Number(r[5])]);
+    if (hit) removed++; else keep.push(r);
+  });
+  if (removed) {
+    sh.getRange(2, 1, vals.length, n).clearContent();
+    if (keep.length) sh.getRange(2, 1, keep.length, n).setValues(keep);
+    if (vals.length > keep.length) sh.deleteRows(2 + keep.length, vals.length - keep.length);
+  }
+  log_("계시록 초기화", email + " " + (from || "전체") + "~" + (to || "") + (ch ? " " + ch + "장" : ""), removed);
+  return json_({ status: "success", message: "계시록 낭독기록 " + removed + "건 삭제", removed: removed });
+}
+function SCHEMA_REV_COLS_() { return schema_(SN.REV).headers.length; }
 
 // ═════════════════════ 시트 메뉴: 회원 추가 / 선택 행 삭제 ═════════════════════
 function addMemberPrompt() {
