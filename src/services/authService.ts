@@ -442,7 +442,7 @@ export async function updateMemberProfile(
  * 관리자 화면에서 신규 회원 등록 → 구글 시트가 회원번호를 발급
  */
 export async function createMemberByAdmin(
-  formData: Partial<MemberReadingProfile>
+  formData: Partial<MemberReadingProfile> & { loginId?: string; password?: string }
 ): Promise<{ success: boolean; member?: MemberReadingProfile; message: string }> {
   try {
     const raw = localStorage.getItem(ADMIN_MEMBERS_KEY);
@@ -450,10 +450,25 @@ export async function createMemberByAdmin(
 
     const cleanName = (formData.name || '').trim();
     if (!cleanName) return { success: false, message: '회원 성명을 입력해주세요.' };
+    // 아이디·비밀번호 (관리자가 정해 주는 로그인 정보)
+    const loginId = (formData.loginId || '').trim();
+    const password = (formData.password || '').trim();
+    if (!loginId) return { success: false, message: '아이디를 입력해주세요.' };
+    if (/\s/.test(loginId)) return { success: false, message: '아이디에는 공백을 넣을 수 없습니다.' };
+    if (password.length < 4) return { success: false, message: '비밀번호를 4자리 이상 입력해주세요.' };
+    const loginLower = loginId.toLowerCase();
+    // 이메일을 따로 안 쓰면: 아이디가 이메일이면 그대로, 아니면 아이디@superbible.kr (가입 화면과 같은 규칙)
     const cleanEmail =
-      (formData.email || '').trim().toLowerCase() || `member${Date.now().toString().slice(-8)}@superbible.kr`;
+      (formData.email || '').trim().toLowerCase() || (loginLower.includes('@') ? loginLower : `${loginLower}@superbible.kr`);
     if (members.some((m) => (m.email || '').toLowerCase().trim() === cleanEmail)) {
       return { success: false, message: `이미 등록된 이메일입니다: ${cleanEmail}` };
+    }
+    {
+      const accs: RegisteredAccount[] = JSON.parse(localStorage.getItem(REGISTRY_KEY) || '[]');
+      const taken = accs.find((a) => (a.loginId || '').toLowerCase() === loginLower);
+      if (taken && !String(taken.passwordHash || '').startsWith('REMOTE_SYNC_')) {
+        return { success: false, message: `이미 사용 중인 아이디입니다: ${loginId}` };
+      }
     }
     const cleanPhone = (formData.phone || '010-미등록').trim();
     const cleanDept = formData.department || '경영팀';
@@ -486,12 +501,12 @@ export async function createMemberByAdmin(
       status: 'active',
       consecutiveDays: 1,
       featuredCount: 0,
-      memo: formData.memo || '관리자 직접 등록 회원',
+      memo: formData.memo || `관리자 직접 등록 (아이디: ${loginId})`,
     };
 
     const res = await sendPayloadToGoogleScript({
       action: 'registerMember',
-      loginId: cleanEmail,
+      loginId,
       member: newMember,
       requestedAt: Date.now(),
     });
@@ -505,10 +520,16 @@ export async function createMemberByAdmin(
 
     const rawAccs = localStorage.getItem(REGISTRY_KEY);
     const accounts: RegisteredAccount[] = rawAccs ? JSON.parse(rawAccs) : [];
-    if (!accounts.some((a) => a.loginId.toLowerCase() === cleanEmail)) {
+    // 같은 아이디/이메일의 원격 자리(REMOTE_SYNC_)는 정리하고 관리자가 정한 비밀번호로 계정 생성
+    for (let i = accounts.length - 1; i >= 0; i--) {
+      const a = accounts[i];
+      const k = [(a.loginId || '').toLowerCase(), (a.user?.email || '').toLowerCase()];
+      if ((k.includes(loginLower) || k.includes(cleanEmail)) && String(a.passwordHash || '').startsWith('REMOTE_SYNC_')) accounts.splice(i, 1);
+    }
+    if (!accounts.some((a) => a.loginId.toLowerCase() === loginLower)) {
       accounts.push({
-        loginId: cleanEmail,
-        passwordHash: 'user1234',
+        loginId,
+        passwordHash: password,
         user: {
           id: `user-${newMember.id.toLowerCase()}`,
           name: cleanName,
