@@ -1,6 +1,7 @@
 import React, { useState, useEffect, Component, ReactNode, ErrorInfo } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { User, ActiveTab, ActiveModal, BibleVerse, ReadingDayPlan, UserRecording } from './types';
+import { REV_BOOK, recordRevelationReading } from './services/revelationService';
 import { TODAY_VERSE, INITIAL_READING_PLANS, INITIAL_RECORDINGS, addTodayReadChapter, markChapterRangeCompleted } from './data/bibleData';
 import { LoginView } from './components/LoginView';
 import { BibleDashboard } from './components/BibleDashboard';
@@ -128,6 +129,16 @@ export default function App() {
       setUpdatingVersion(newVer);
     });
     return cleanup;
+  }, []);
+
+  // 계시록 낭독관리: 요한계시록 장을 낭독하면 기록 (이 기기 + 구글 시트)
+  useEffect(() => {
+    const onChapterRead = (e: Event) => {
+      const d = (e as CustomEvent).detail || {};
+      if (d.book === REV_BOOK) recordRevelationReading(Number(d.chapter));
+    };
+    window.addEventListener('superbible_chapter_read', onChapterRead);
+    return () => window.removeEventListener('superbible_chapter_read', onChapterRead);
   }, []);
 
   // Synchronize Google Sheet config & cloud member roster across PC, Tablet, and Mobile
