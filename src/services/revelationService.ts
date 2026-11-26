@@ -29,6 +29,7 @@ export interface RevLogEntry {
   d: string; // YYYY-MM-DD (기기 시간 기준)
   ch: number;
   t: number;
+  src?: 'rec' | 'check'; // rec = 낭독 녹음, check = 녹음 없이 직접 체크
 }
 export interface RevPeriodStats {
   period: RevPeriod;
@@ -128,40 +129,121 @@ function memberIdForEmail(email?: string): string {
   }
 }
 
+function currentEmail(): string {
+  return (currentSession()?.email || '').toLowerCase().trim();
+}
+
+function sheetRow(chapter: number, d: string, when: Date) {
+  const session = currentSession();
+  const settings = getRevSettings();
+  const email = currentEmail();
+  return {
+    회원번호: memberIdForEmail(email),
+    성명: session?.name || '',
+    이메일: email,
+    구간: REV_SECTIONS[settings.section].label,
+    장: chapter,
+    낭독일자: d,
+    일목표: settings.dailyGoal,
+    기록일시: when.toLocaleString('ko-KR'),
+  };
+}
+
+/** 구글 시트 [계시록_낭독기록] 에 여러 줄 추가 (실패하면 자동 재전송 대기열) */
+function pushRowsToSheet(rows: any[]): void {
+  if (!rows.length || !currentEmail()) return;
+  sendPayloadToGoogleScript({ action: 'revAdd', rows }).catch(() => {});
+}
+
+/** 구글 시트에서 이 회원의 기록 삭제 (from/to/chapter 비우면 전체) */
+function deleteFromSheet(opts: { from?: string; to?: string; chapter?: number; chapters?: number[] }): void {
+  const email = currentEmail();
+  if (!email) return;
+  sendPayloadToGoogleScript({ action: 'revReset', email, ...opts }).catch(() => {});
+}
+
 /**
- * 계시록 장을 낭독했을 때 호출. 같은 날 같은 장은 한 번만 기록한다.
+ * 계시록 장을 낭독했을 때 호출 (녹음 저장 시 자동). 같은 날 같은 장은 한 번만 기록한다.
  * @returns 새로 기록됐으면 true
  */
-export function recordRevelationReading(chapter: number, when: Date = new Date()): boolean {
+export function recordRevelationReading(chapter: number, when: Date = new Date(), src: 'rec' | 'check' = 'rec'): boolean {
   if (!(chapter >= 1 && chapter <= 22)) return false;
-  const session = currentSession();
   const d = toDateStr(when);
   const log = getRevLog();
   if (log.some((e) => e.d === d && e.ch === chapter)) return false;
-  log.push({ d, ch: chapter, t: when.getTime() });
+  log.push({ d, ch: chapter, t: when.getTime(), src });
   saveRevLog(log);
   window.dispatchEvent(new CustomEvent(REV_CHANGED_EVENT));
-
-  // 관리자 화면용: 구글 시트 [계시록_낭독기록] 에 한 줄 추가 (실패하면 자동 재전송 대기열)
-  const settings = getRevSettings();
-  const email = (session?.email || '').toLowerCase().trim();
-  if (email) {
-    sendPayloadToGoogleScript({
-      action: 'dbInsert',
-      table: REV_SHEET,
-      values: {
-        회원번호: memberIdForEmail(email),
-        성명: session?.name || '',
-        이메일: email,
-        구간: REV_SECTIONS[settings.section].label,
-        장: chapter,
-        낭독일자: d,
-        일목표: settings.dailyGoal,
-        기록일시: when.toLocaleString('ko-KR'),
-      },
-    }).catch(() => {});
-  }
+  pushRowsToSheet([sheetRow(chapter, d, when)]);
   return true;
+}
+
+/** 특정 날짜에 그 장을 읽었는지 */
+export function isRevChapterRead(chapter: number, dateStr: string, email?: string): boolean {
+  return getRevLog(email).some((e) => e.d === dateStr && e.ch === chapter);
+}
+
+/**
+ * 녹음 없이 직접 체크 / 해제 (여러 장 한 번에 가능)
+ * @param dateStr YYYY-MM-DD (오늘 또는 어제 등)
+ */
+export function setRevChaptersChecked(chapters: number[], dateStr: string, checked: boolean): number {
+  const log = getRevLog();
+  const changed: number[] = [];
+  if (checked) {
+    chapters.forEach((ch) => {
+      if (ch < 1 || ch > 22 || log.some((e) => e.d === dateStr && e.ch === ch)) return;
+      log.push({ d: dateStr, ch, t: Date.now(), src: 'check' });
+      changed.push(ch);
+    });
+    if (changed.length) pushRowsToSheet(changed.map((ch) => sheetRow(ch, dateStr, new Date())));
+  } else {
+    const set = new Set(chapters);
+    for (let i = log.length - 1; i >= 0; i--) {
+      if (log[i].d === dateStr && set.has(log[i].ch)) {
+        changed.push(log[i].ch);
+        log.splice(i, 1);
+      }
+    }
+    if (changed.length) deleteFromSheet({ from: dateStr, to: dateStr, chapters: changed });
+  }
+  if (changed.length) {
+    saveRevLog(log);
+    window.dispatchEvent(new CustomEvent(REV_CHANGED_EVENT));
+  }
+  return changed.length;
+}
+
+export type RevResetScope = 'day' | 'week' | 'month' | 'all';
+export const REV_RESET_LABEL: Record<RevResetScope, string> = {
+  day: '오늘 기록',
+  week: '이번 주 기록',
+  month: '이번 달 기록',
+  all: '전체 기록',
+};
+
+/** 기록 초기화 (이 기기 + 구글 시트) — 지운 개수 반환 */
+export function resetRevelation(scope: RevResetScope): number {
+  const log = getRevLog();
+  let keep: RevLogEntry[];
+  if (scope === 'all') {
+    keep = [];
+    deleteFromSheet({});
+  } else {
+    const { from, to } = periodRange(scope);
+    const f = toDateStr(from), t = toDateStr(to);
+    keep = log.filter((e) => e.d < f || e.d > t);
+    deleteFromSheet({ from: f, to: t });
+  }
+  const removed = log.length - keep.length;
+  saveRevLog(keep);
+  window.dispatchEvent(new CustomEvent(REV_CHANGED_EVENT));
+  return removed;
+}
+
+/** 구간·하루 목표를 처음 상태(1–11장, 하루 1장)로 */
+export function resetRevSettings(email?: string): void {
+  saveRevSettings({ section: 'A', dailyGoal: 1 }, email);
 }
 
 // ───────────── 통계 ─────────────
