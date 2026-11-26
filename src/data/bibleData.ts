@@ -708,6 +708,8 @@ export function addTodayReadChapter(book: string, chapter: number): number {
         detail: { count: set.size, chapters: data.chapters },
       })
     );
+    // 장 단위 낭독 이벤트 (계시록 낭독관리 등에서 사용)
+    window.dispatchEvent(new CustomEvent('superbible_chapter_read', { detail: { book, chapter } }));
     return set.size;
   } catch (e) {
     console.error('Failed to add today read chapter:', e);
