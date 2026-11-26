@@ -1,3 +1,4 @@
+import { RevelationAdminPanel } from './RevelationAdminPanel';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   ChevronLeft,
@@ -95,7 +96,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
   onNavigateToBible,
 }) => {
   // Navigation Sub-tabs: 'overview' | 'roster' | 'members' | 'recordings' | 'campaigns' | 'reports' | 'sheets' | 'blacklist'
-  const [adminTab, setAdminTab] = useState<'overview' | 'roster' | 'members' | 'recordings' | 'campaigns' | 'reports' | 'sheets' | 'blacklist'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'roster' | 'members' | 'revelation' | 'recordings' | 'campaigns' | 'reports' | 'sheets' | 'blacklist'>('overview');
 
   // Admin-Designated Blacklist State (관리자 수동 지정 차단 목록 관리)
   const [adminBlacklist, setAdminBlacklist] = useState<AdminBlacklistItem[]>(() => {
@@ -1166,6 +1167,19 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
 
           <button
             type="button"
+            onClick={() => setAdminTab('revelation')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
+              adminTab === 'revelation'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <span>📕</span>
+            <span>계시록 낭독</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setAdminTab('recordings')}
             className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
               adminTab === 'recordings'
@@ -1257,6 +1271,8 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
         {/* ========================================================
             TAB 1: 종합 대시보드 (Overview)
            ======================================================== */}
+        {adminTab === 'revelation' && <RevelationAdminPanel members={members} />}
+
         {adminTab === 'overview' && (
           <div className="space-y-4">
             {/* KPI Cards Grid */}

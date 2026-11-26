@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LogOut,
   Search,
@@ -27,6 +27,7 @@ import {
 } from '../data/bibleData';
 import { BibleReaderView } from './BibleReaderView';
 import { StatsView } from './StatsView';
+import { RevelationReadingCard } from './RevelationReadingCard';
 import { ChallengeView } from './ChallengeView';
 import { SettingsView } from './SettingsView';
 import { BibleSelectorView } from './BibleSelectorView';
@@ -358,6 +359,15 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                 setActiveTab('bible');
               }}
               isEmbedded={true}
+            />
+
+            {/* 계시록 낭독관리 (1–11장 / 12–22장, 매일·매주·매월 진행률) */}
+            <RevelationReadingCard
+              userEmail={user?.email}
+              onReadChapter={(ch) => {
+                setOpenInRecordingMode(true);
+                navigateToPortion('요한계시록', ch);
+              }}
             />
 
             {/* Daily Verse Section (오늘의 말씀 - 날짜별 365일 자동 갱신 및 순환 교체) */}
