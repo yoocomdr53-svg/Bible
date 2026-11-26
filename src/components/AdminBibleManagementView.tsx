@@ -3428,7 +3428,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 gap-2.5">
                 <div>
                   <label className="text-[11px] font-bold text-slate-600 block mb-1">성명 <span className="text-rose-500">*</span></label>
                   <input
@@ -3438,22 +3438,6 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                     placeholder="예: 홍길동"
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
                   />
-                </div>
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600 block mb-1">직분</label>
-                  <select
-                    value={newMemberForm.role}
-                    onChange={(e) => setNewMemberForm({ ...newMemberForm, role: e.target.value })}
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
-                  >
-                    <option value="성도">성도</option>
-                    <option value="청년">청년</option>
-                    <option value="서리집사">서리집사</option>
-                    <option value="안수집사">안수집사</option>
-                    <option value="권사">권사</option>
-                    <option value="장로">장로</option>
-                    <option value="교역자">교역자</option>
-                  </select>
                 </div>
               </div>
 
@@ -3507,17 +3491,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600 block mb-1">생년월일</label>
-                  <input
-                    type="text"
-                    value={newMemberForm.birthdate}
-                    onChange={(e) => setNewMemberForm({ ...newMemberForm, birthdate: e.target.value })}
-                    placeholder="YYYY.MM.DD"
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 font-mono"
-                  />
-                </div>
+              <div className="grid grid-cols-1 gap-2.5">
                 <div>
                   <label className="text-[11px] font-bold text-slate-600 block mb-1">등록일자</label>
                   <input
