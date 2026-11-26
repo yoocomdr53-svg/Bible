@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 2.6.6';
+export const APP_VERSION = 'Ver 2.6.7';
 export const APP_BUILD_DATE = '2026.11.26';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,15 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 2.6.7',
+    name: 'SuperBible',
+    releaseDate: '2026.11.26',
+    changes: [
+      '계시록 낭독관리: 녹음 없이 읽음 체크(1–11장 / 12–22장 체크박스, 구간 전체 체크·해제, 오늘/어제)',
+      '계시록 낭독관리: 초기화 설정(오늘·이번 주·이번 달·전체 기록 초기화, 설정 초기화)',
+    ],
+  },
   {
     version: 'Ver 2.6.6',
     name: 'SuperBible',
