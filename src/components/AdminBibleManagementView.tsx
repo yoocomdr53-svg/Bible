@@ -215,6 +215,8 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [newMemberForm, setNewMemberForm] = useState({
     name: '',
+    loginId: '',
+    password: '',
     department: '다이나믹팀',
     role: '성도',
     phone: '010-',
@@ -222,7 +224,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     registeredDate: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
     birthdate: '1985.01.01',
     baptismStatus: '세례' as '유아세례' | '세례' | '입교' | '학습' | '원입',
-    smallGroup: '믿음 1구역',
+    smallGroup: '',
     accountRole: 'member' as 'admin' | 'pastor' | 'leader' | 'member',
     accountStatus: '정상' as '정상' | '휴면' | '정지',
     memo: '',
@@ -506,6 +508,14 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
       alert('회원 성명을 입력해주세요.');
       return;
     }
+    if (!newMemberForm.loginId.trim()) {
+      alert('아이디를 입력해주세요.');
+      return;
+    }
+    if (newMemberForm.password.trim().length < 4) {
+      alert('비밀번호를 4자리 이상 입력해주세요.');
+      return;
+    }
     const res = await createMemberByAdmin(newMemberForm);
     if (res.success && res.member) {
       setMembers((prev) => [res.member!, ...prev.filter((m) => m.id !== res.member!.id)]);
@@ -513,6 +523,8 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
       setShowAddMemberModal(false);
       setNewMemberForm({
         name: '',
+        loginId: '',
+        password: '',
         department: '다이나믹팀',
         role: '성도',
         phone: '010-',
@@ -520,7 +532,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
         registeredDate: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
         birthdate: '1995.01.01',
         baptismStatus: '세례',
-        smallGroup: '다이나믹팀 1구역',
+        smallGroup: '',
         accountRole: 'member',
         accountStatus: '정상',
         memo: '',
@@ -3443,6 +3455,31 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">아이디 <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    value={newMemberForm.loginId}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, loginId: e.target.value.replace(/\s/g, '') })}
+                    placeholder="예: hong123"
+                    autoComplete="off"
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">비밀번호 <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    value={newMemberForm.password}
+                    onChange={(e) => setNewMemberForm({ ...newMemberForm, password: e.target.value })}
+                    placeholder="4자리 이상"
+                    autoComplete="new-password"
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2.5">
+                <div>
                   <label className="text-[11px] font-bold text-slate-600 block mb-1">소속 부서</label>
                   <select
                     value={newMemberForm.department}
@@ -3455,16 +3492,6 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                       </option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600 block mb-1">구역/목장</label>
-                  <input
-                    type="text"
-                    value={newMemberForm.smallGroup}
-                    onChange={(e) => setNewMemberForm({ ...newMemberForm, smallGroup: e.target.value })}
-                    placeholder="예: 믿음 1구역"
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
-                  />
                 </div>
               </div>
 
@@ -3485,7 +3512,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                     type="email"
                     value={newMemberForm.email}
                     onChange={(e) => setNewMemberForm({ ...newMemberForm, email: e.target.value })}
-                    placeholder="email@example.com"
+                    placeholder="비우면 아이디로 자동"
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 font-mono"
                   />
                 </div>
