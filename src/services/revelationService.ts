@@ -78,7 +78,7 @@ export function getRevSettings(email?: string): RevSettings {
       const p = JSON.parse(raw);
       return {
         section: p.section === 'B' ? 'B' : 'A',
-        dailyGoal: Math.max(1, Math.min(22, Number(p.dailyGoal) || 1)),
+        dailyGoal: 1, // 하루 목표는 1장 고정 (v2.6.8)
       };
     }
   } catch {}
@@ -86,7 +86,7 @@ export function getRevSettings(email?: string): RevSettings {
 }
 export function saveRevSettings(s: RevSettings, email?: string): void {
   try {
-    localStorage.setItem(getUserScopeKey(SETTINGS_KEY, email), JSON.stringify(s));
+    localStorage.setItem(getUserScopeKey(SETTINGS_KEY, email), JSON.stringify({ ...s, dailyGoal: 1 }));
     window.dispatchEvent(new CustomEvent(REV_CHANGED_EVENT));
   } catch {}
 }
@@ -241,7 +241,7 @@ export function resetRevelation(scope: RevResetScope): number {
   return removed;
 }
 
-/** 구간·하루 목표를 처음 상태(1–11장, 하루 1장)로 */
+/** 구간을 처음 상태(1–11장)로 */
 export function resetRevSettings(email?: string): void {
   saveRevSettings({ section: 'A', dailyGoal: 1 }, email);
 }
