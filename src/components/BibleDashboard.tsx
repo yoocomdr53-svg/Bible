@@ -523,48 +523,6 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
               </div>
             </section>
 
-            {/* Sponsor Support Banner */}
-            <section className="rounded-2xl p-4 bg-gradient-to-r from-[#ffe17d] via-[#fcd34d] to-[#fbbf24] shadow-soft relative overflow-hidden">
-              <div className="relative z-10 flex items-center justify-between">
-                <div className="space-y-1 max-w-[210px]">
-                  <div className="flex items-center gap-1.5">
-                    <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                    </svg>
-                    <h3 className="text-sm font-black text-slate-900 leading-tight">
-                      SuperBible 제작동참하기
-                    </h3>
-                  </div>
-                  <p className="text-[11px] font-medium text-slate-800 leading-snug">
-                    성경보급과 복음전파는 우리의 소명입니다!
-                  </p>
-                  <div className="pt-1.5">
-                    <button
-                      type="button"
-                      onClick={() => openModal('sponsor')}
-                      className="inline-block bg-[#ef4444] hover:bg-red-600 text-white font-bold text-xs px-4 py-1.5 rounded-full shadow-xs transition-all active:scale-95 cursor-pointer"
-                    >
-                      후원하기
-                    </button>
-                  </div>
-                </div>
-
-                <div className="relative flex-shrink-0 w-20 h-24 flex items-center justify-center">
-                  <div className="w-16 h-20 bg-amber-900 rounded-md shadow-lg transform rotate-6 flex items-center justify-center border-l-4 border-amber-950">
-                    <svg
-                      className="w-7 h-7 text-amber-200"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      viewBox="0 0 24 24"
-                    >
-                      <path d="M12 4v16m-5-11h10" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-            </section>
-
             {/* 1. 스마트폰 앱설치 메뉴 (맨 아래쪽으로 이동) */}
             <section
               onClick={() => (onOpenInstall ? onOpenInstall() : setShowInstallModal(true))}
