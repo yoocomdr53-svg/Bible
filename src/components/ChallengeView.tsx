@@ -2400,16 +2400,16 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
             </div>
 
             <div className="pt-4 pb-1">
-              <div className="relative w-full h-8 flex items-center">
+              <div className="relative w-full h-12 flex items-center">
                 <div
-                  className="absolute bottom-1 transition-all duration-300"
+                  className="absolute bottom-0.5 transition-all duration-300"
                   style={{
                     left: `${Math.max(2, Math.min(96, goal12ProgressPercent))}%`,
                     transform: 'translateX(-50%)',
                   }}
                 >
                   <span
-                    className="text-2xl select-none inline-block transition-transform"
+                    className="text-4xl leading-none select-none inline-block transition-transform"
                     style={{ transform: 'scaleX(-1)' }}
                     role="img"
                     aria-label="runner"
