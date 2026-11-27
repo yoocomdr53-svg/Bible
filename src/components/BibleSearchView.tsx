@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Search, X, Clock, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { ArrowLeft, Search, X, Clock, Loader2 } from 'lucide-react';
 import { BIBLE_BOOKS } from '../data/bibleData';
 
 /**
@@ -116,7 +116,7 @@ export const BibleSearchView: React.FC<Props> = ({ onClose, onOpen, currentBook 
 
   // 입력이 멈추면 검색 실행
   useEffect(() => {
-    const t = setTimeout(() => setTerm(query.trim().replace(/\s+/g, ' ')), 250);
+    const t = setTimeout(() => setTerm(query.trim().replace(/\s+/g, ' ')), 120);
     return () => clearTimeout(t);
   }, [query]);
 
@@ -162,7 +162,6 @@ export const BibleSearchView: React.FC<Props> = ({ onClose, onOpen, currentBook 
     return out;
   }, [term, data]);
 
-  const totalHits = results.reduce((n, r) => n + r.hits.length, 0);
   const current = BIBLE_BOOKS.find((b) => b.name === currentBook) || BIBLE_BOOKS.find((b) => b.name === '요한계시록');
 
   const openChapter = (book: string, ch: number, v?: number) => {
@@ -199,6 +198,7 @@ export const BibleSearchView: React.FC<Props> = ({ onClose, onOpen, currentBook 
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onCompositionEnd={(e) => setQuery((e.target as HTMLInputElement).value)}
             placeholder="검색어 입력"
             enterKeyHint="search"
             className="flex-1 min-w-0 bg-transparent text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none [&::-webkit-search-cancel-button]:hidden"
@@ -302,9 +302,6 @@ export const BibleSearchView: React.FC<Props> = ({ onClose, onOpen, currentBook 
               </p>
             ) : (
               <section>
-                <p className="text-[12px] text-slate-400 pb-1">
-                  {results.length}권 · 총 {totalHits.toLocaleString()}절
-                </p>
                 <ul>
                   {results.map((r) => {
                     const open = expanded === r.bookIndex;
@@ -313,12 +310,11 @@ export const BibleSearchView: React.FC<Props> = ({ onClose, onOpen, currentBook 
                         <button
                           type="button"
                           onClick={() => setExpanded(open ? null : r.bookIndex)}
-                          className="w-full flex items-center justify-between py-4 text-left cursor-pointer"
+                          className="w-full flex items-center py-[18px] text-left cursor-pointer"
                         >
-                          <span className="text-[16px] font-semibold text-slate-800">
+                          <span className="text-[17px] font-medium text-slate-800 tracking-tight">
                             {r.name} ({r.hits.length} 건)
                           </span>
-                          {open ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-300" />}
                         </button>
                         {open && (
                           <ul className="pb-3 space-y-1">
