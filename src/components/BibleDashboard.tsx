@@ -357,6 +357,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                   setOpenInRecordingMode(true);
                   navigateToPortion('요한계시록', ch);
                 }}
+                inline
               />
             )}
           </div>

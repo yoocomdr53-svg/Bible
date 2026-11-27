@@ -22,6 +22,8 @@ interface Props {
   userEmail?: string;
   /** 해당 장을 낭독(녹음) 화면으로 연다 */
   onReadChapter: (chapter: number) => void;
+  /** true = 상세 내용(구간·장별 현황·읽음 체크·초기화)을 팝업 대신 카드 밑에 펼쳐서 표시 */
+  inline?: boolean;
 }
 
 function barColor(p: number): string {
@@ -53,7 +55,7 @@ const ProgressRow: React.FC<{ s: RevPeriodStats; compact?: boolean }> = ({ s, co
   );
 };
 
-export const RevelationReadingCard: React.FC<Props> = ({ userEmail, onReadChapter }) => {
+export const RevelationReadingCard: React.FC<Props> = ({ userEmail, onReadChapter, inline = false }) => {
   const [stats, setStats] = useState(() => getMyRevStats(userEmail));
   const [open, setOpen] = useState(false);
   const [checkDay, setCheckDay] = useState<'today' | 'yesterday'>('today');
@@ -105,68 +107,8 @@ export const RevelationReadingCard: React.FC<Props> = ({ userEmail, onReadChapte
     flash('설정을 처음 상태로 되돌렸습니다.');
   };
 
-  return (
+  const detailBody = (
     <>
-      {/* ── 홈 카드 ── */}
-      <section
-        className="bg-white rounded-3xl p-4 sm:p-5 shadow-soft border border-slate-100 space-y-3 cursor-pointer hover:border-blue-200 transition"
-        onClick={() => setOpen(true)}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-black">계</span>
-            <div>
-              <h3 className="text-sm font-black text-slate-800 leading-tight">계시록 낭독관리</h3>
-              <p className="text-[11px] text-slate-500">
-                {sec.label} ({sec.title}) · 하루 1장 목표
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 text-[11px] text-slate-400">
-            {stats.streak > 0 && (
-              <span className="flex items-center gap-0.5 text-orange-500 font-bold mr-1">
-                <Flame className="w-3.5 h-3.5" />
-                {stats.streak}일
-              </span>
-            )}
-            자세히
-            <ChevronRight className="w-4 h-4" />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <ProgressRow s={stats.day} compact />
-          <ProgressRow s={stats.week} compact />
-          <ProgressRow s={stats.month} compact />
-        </div>
-
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onReadChapter(next);
-          }}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 active:scale-[0.98] transition"
-        >
-          <Mic className="w-4 h-4" />
-          계시록 {next}장 낭독하기
-        </button>
-      </section>
-
-      {/* ── 상세 화면 ── */}
-      {open && (
-        <div className="fixed inset-0 z-[80] bg-black/40 flex items-end sm:items-center justify-center" onClick={() => setOpen(false)}>
-          <div
-            className="w-full sm:max-w-md max-h-[92vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-3xl p-5 space-y-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-black text-slate-800">📕 계시록 낭독관리</h2>
-              <button type="button" onClick={() => setOpen(false)} className="p-1.5 rounded-full hover:bg-slate-100" aria-label="닫기">
-                <X className="w-5 h-5 text-slate-500" />
-              </button>
-            </div>
-
             {/* 구간 선택 */}
             <div className="space-y-2">
               <p className="text-xs font-bold text-slate-600">낭독 구간</p>
@@ -189,13 +131,6 @@ export const RevelationReadingCard: React.FC<Props> = ({ userEmail, onReadChapte
                   );
                 })}
               </div>
-            </div>
-
-            {/* 진행률 */}
-            <div className="space-y-3 bg-slate-50 rounded-2xl p-4">
-              <ProgressRow s={stats.day} />
-              <ProgressRow s={stats.week} />
-              <ProgressRow s={stats.month} />
             </div>
 
             {/* 장별 현황 (이번 달) */}
@@ -333,6 +268,95 @@ export const RevelationReadingCard: React.FC<Props> = ({ userEmail, onReadChapte
             {notice && (
               <div className="text-center text-[11px] font-bold text-emerald-700 bg-emerald-50 rounded-xl py-2">{notice}</div>
             )}
+
+    </>
+  );
+
+  return (
+    <>
+      {/* ── 홈 카드 ── */}
+      <section
+        className={`bg-white rounded-3xl p-4 sm:p-5 shadow-soft border border-slate-100 space-y-3 ${
+          inline ? '' : 'cursor-pointer hover:border-blue-200 transition'
+        }`}
+        onClick={() => {
+          if (!inline) setOpen(true);
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-black">계</span>
+            <div>
+              <h3 className="text-sm font-black text-slate-800 leading-tight">계시록 낭독관리</h3>
+              <p className="text-[11px] text-slate-500">
+                {sec.label} ({sec.title}) · 하루 1장 목표
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-[11px] text-slate-400">
+            {stats.streak > 0 && (
+              <span className="flex items-center gap-0.5 text-orange-500 font-bold mr-1">
+                <Flame className="w-3.5 h-3.5" />
+                {stats.streak}일
+              </span>
+            )}
+            {!inline && (
+              <>
+                자세히
+                <ChevronRight className="w-4 h-4" />
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <ProgressRow s={stats.day} compact={!inline} />
+          <ProgressRow s={stats.week} compact={!inline} />
+          <ProgressRow s={stats.month} compact={!inline} />
+        </div>
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onReadChapter(next);
+          }}
+          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 active:scale-[0.98] transition"
+        >
+          <Mic className="w-4 h-4" />
+          계시록 {next}장 낭독하기
+        </button>
+      </section>
+
+      {/* ── 상세 내용: 카드 밑에 펼쳐서 표시 (요한계시록 낭독 관리 화면) ── */}
+      {inline && (
+        <section className="bg-white rounded-3xl p-4 sm:p-5 shadow-soft border border-slate-100 space-y-5">
+          {detailBody}
+        </section>
+      )}
+
+      {/* ── 상세 화면 (팝업) ── */}
+      {!inline && open && (
+        <div className="fixed inset-0 z-[80] bg-black/40 flex items-end sm:items-center justify-center" onClick={() => setOpen(false)}>
+          <div
+            className="w-full sm:max-w-md max-h-[92vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-3xl p-5 space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-black text-slate-800">📕 계시록 낭독관리</h2>
+              <button type="button" onClick={() => setOpen(false)} className="p-1.5 rounded-full hover:bg-slate-100" aria-label="닫기">
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+
+            {/* 진행률 */}
+            <div className="space-y-3 bg-slate-50 rounded-2xl p-4">
+              <ProgressRow s={stats.day} />
+              <ProgressRow s={stats.week} />
+              <ProgressRow s={stats.month} />
+            </div>
+
+            {detailBody}
 
             <button
               type="button"
