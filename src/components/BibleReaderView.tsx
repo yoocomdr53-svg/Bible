@@ -62,6 +62,8 @@ interface BibleReaderViewProps {
   onBackToHome?: () => void;
   onGoToChallenge?: () => void;
   onBackToSelector?: () => void;
+  /** 성경 전체 검색 화면 열기 (있으면 상단 [검색] 버튼이 이 화면을 연다) */
+  onOpenSearch?: () => void;
 }
 
 // Fallback inspiring Scripture pool without redundant book/chapter/verse announcement prefix
@@ -439,6 +441,7 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
   onBackToHome,
   onGoToChallenge,
   onBackToSelector,
+  onOpenSearch,
 }) => {
   const [selectedBook, setSelectedBook] = useState(initialBook);
   const [selectedChapter, setSelectedChapter] = useState(initialChapter);
@@ -2160,9 +2163,9 @@ export const BibleReaderView: React.FC<BibleReaderViewProps> = ({
           {/* 검색 */}
           <button
             type="button"
-            onClick={() => setShowSearch(!showSearch)}
+            onClick={() => (onOpenSearch ? onOpenSearch() : setShowSearch(!showSearch))}
             className="flex flex-col items-center justify-center px-1.5 py-0.5 hover:bg-white/15 rounded-lg transition cursor-pointer"
-            title="본문 검색"
+            title="성경 검색"
           >
             <Search className="w-4 h-4 text-white" />
             <span className="text-[9px] font-medium leading-tight mt-0.5 text-center">검색</span>

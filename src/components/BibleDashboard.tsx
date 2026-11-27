@@ -705,6 +705,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
             }}
             onOpenVerseCard={onOpenVerseCard}
             onOpenRecorder={onOpenRecorder}
+            onOpenSearch={() => setSearchOpen(true)}
           />
         )
       )}
