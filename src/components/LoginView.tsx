@@ -54,6 +54,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
   const [regName, setRegName] = useState('');
   const [regId, setRegId] = useState('');
   const [regPhone, setRegPhone] = useState('');
+  const [regEmail, setRegEmail] = useState('');
   const [regDepartment, setRegDepartment] = useState<string>('다이나믹팀');
   const [regPassword, setRegPassword] = useState('');
   const [regPasswordConfirm, setRegPasswordConfirm] = useState('');
@@ -190,7 +191,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       return;
     }
     if (!cleanId) {
-      setErrorMessage('아이디 또는 이메일을 입력해주세요.');
+      setErrorMessage('아이디를 입력해주세요.');
       return;
     }
     if (!cleanPw || cleanPw.length < 4) {
@@ -205,7 +206,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
     setIsLoading(true);
 
     setTimeout(() => {
-      const res = registerUser(cleanId, cleanPw, cleanName, cleanPhone, regDepartment);
+      const res = registerUser(cleanId, cleanPw, cleanName, cleanPhone, regDepartment, regEmail.trim());
       setIsLoading(false);
 
       if (res.success && res.user) {
@@ -523,18 +524,18 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 <span>간편 가입 안내</span>
               </div>
               <p className="text-slate-600 leading-tight">
-                성명, 아이디, 비밀번호만 입력하면 3초 만에 가입됩니다. 소속 및 직분 등 상세 정보는
-                <strong className="text-blue-700"> 관리자가 회원관리 폼에서 배정 및 조정</strong>합니다.
+                성명, 아이디, 비밀번호만 입력하면 바로 가입됩니다. 세례 구분·계정 권한 등 상세 정보는
+                <strong className="text-blue-700"> 관리자가 회원관리 명부에서 배정 및 조정</strong>합니다.
               </p>
             </div>
 
-            {/* Field 0: Name (성명/이름) */}
+            {/* 1. 성명 */}
             <div className="relative">
               <label
                 htmlFor="regName"
                 className="absolute -top-2 left-3.5 bg-white px-1.5 text-[11px] font-bold text-slate-500 z-10"
               >
-                성명 (이름) <span className="text-red-500">*</span>
+                성명 <span className="text-red-500">*</span>
               </label>
               <div className="relative flex items-center">
                 <div className="absolute left-3.5 text-slate-400 pointer-events-none flex items-center">
@@ -545,67 +546,102 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   type="text"
                   value={regName}
                   onChange={(e) => setRegName(e.target.value)}
-                  placeholder="실명(이름)을 입력하세요 (예: 김은혜)"
+                  placeholder="예: 홍길동"
                   required
                   className="w-full h-11 pl-10 pr-3 text-[13px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-600 focus:border-blue-600 transition shadow-xs"
                 />
               </div>
             </div>
 
-            {/* Field 1: ID / Email */}
+            {/* 2. 아이디 */}
             <div className="relative">
               <label
                 htmlFor="regId"
                 className="absolute -top-2 left-3.5 bg-white px-1.5 text-[11px] font-bold text-slate-500 z-10"
               >
-                아이디 또는 이메일 <span className="text-red-500">*</span>
+                아이디 <span className="text-red-500">*</span>
               </label>
               <div className="relative flex items-center">
                 <div className="absolute left-3.5 text-slate-400 pointer-events-none flex items-center">
-                  <Mail className="w-4 h-4 text-slate-500" />
+                  <UserIcon className="w-4 h-4 text-slate-500" />
                 </div>
                 <input
                   id="regId"
                   type="text"
                   value={regId}
-                  onChange={(e) => setRegId(e.target.value)}
-                  placeholder="사용할 아이디 또는 이메일 (예: paul2026)"
+                  onChange={(e) => setRegId(e.target.value.replace(/\s/g, ''))}
+                  placeholder="예: hong123"
                   required
                   className="w-full h-11 pl-10 pr-3 text-[13px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-600 focus:border-blue-600 transition shadow-xs"
                 />
               </div>
             </div>
 
-            {/* Field 2: Phone Number (전화번호) */}
+            {/* 3. 비밀번호 */}
             <div className="relative">
               <label
-                htmlFor="regPhone"
+                htmlFor="regPassword"
                 className="absolute -top-2 left-3.5 bg-white px-1.5 text-[11px] font-bold text-slate-500 z-10"
               >
-                전화번호 (휴대폰 번호)
+                비밀번호 <span className="text-red-500">*</span>
               </label>
               <div className="relative flex items-center">
                 <div className="absolute left-3.5 text-slate-400 pointer-events-none flex items-center">
-                  <Phone className="w-4 h-4 text-slate-500" />
+                  <Lock className="w-4 h-4 text-slate-500" />
                 </div>
                 <input
-                  id="regPhone"
-                  type="tel"
-                  value={regPhone}
-                  onChange={(e) => setRegPhone(e.target.value)}
-                  placeholder="010-1234-5678 (휴대폰 연락처 입력)"
-                  className="w-full h-11 pl-10 pr-3 text-[13px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-600 focus:border-blue-600 transition shadow-xs"
+                  id="regPassword"
+                  type={showRegPassword ? 'text' : 'password'}
+                  value={regPassword}
+                  onChange={(e) => setRegPassword(e.target.value)}
+                  placeholder="4자리 이상"
+                  required
+                  minLength={4}
+                  className="w-full h-11 pl-10 pr-10 text-[14px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl tracking-wider focus:outline-none focus:ring-1.5 focus:ring-blue-600 focus:border-blue-600 transition shadow-xs"
+                />
+                <button
+                  type="button"
+                  aria-label={showRegPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
+                  onClick={() => setShowRegPassword(!showRegPassword)}
+                  className="absolute right-3 text-slate-400 hover:text-slate-600 focus:outline-none p-1 cursor-pointer"
+                >
+                  {showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* 3-1. 비밀번호 확인 */}
+            <div className="relative">
+              <label
+                htmlFor="regPasswordConfirm"
+                className="absolute -top-2 left-3.5 bg-white px-1.5 text-[11px] font-bold text-slate-500 z-10"
+              >
+                비밀번호 확인 <span className="text-red-500">*</span>
+              </label>
+              <div className="relative flex items-center">
+                <div className="absolute left-3.5 text-slate-400 pointer-events-none flex items-center">
+                  <Lock className="w-4 h-4 text-slate-500" />
+                </div>
+                <input
+                  id="regPasswordConfirm"
+                  type={showRegPassword ? 'text' : 'password'}
+                  value={regPasswordConfirm}
+                  onChange={(e) => setRegPasswordConfirm(e.target.value)}
+                  placeholder="비밀번호 다시 입력"
+                  required
+                  minLength={4}
+                  className="w-full h-11 pl-10 pr-3 text-[14px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl tracking-wider focus:outline-none focus:ring-1.5 focus:ring-blue-600 focus:border-blue-600 transition shadow-xs"
                 />
               </div>
             </div>
 
-            {/* Field 3: Department (소속 부서 선택) */}
+            {/* 4. 소속 부서 */}
             <div className="relative">
               <label
                 htmlFor="regDepartment"
                 className="absolute -top-2 left-3.5 bg-white px-1.5 text-[11px] font-bold text-slate-500 z-10"
               >
-                소속 부서 선택 <span className="text-red-500">*</span>
+                소속 부서
               </label>
               <div className="relative flex items-center">
                 <div className="absolute left-3.5 text-slate-400 pointer-events-none flex items-center">
@@ -629,60 +665,48 @@ export const LoginView: React.FC<LoginViewProps> = ({
               </div>
             </div>
 
-            {/* Field 4: Password */}
+            {/* 5. 전화번호 */}
             <div className="relative">
               <label
-                htmlFor="regPassword"
+                htmlFor="regPhone"
                 className="absolute -top-2 left-3.5 bg-white px-1.5 text-[11px] font-bold text-slate-500 z-10"
               >
-                비밀번호 (4자리 이상) <span className="text-red-500">*</span>
+                전화번호
               </label>
               <div className="relative flex items-center">
                 <div className="absolute left-3.5 text-slate-400 pointer-events-none flex items-center">
-                  <Lock className="w-4 h-4 text-slate-500" />
+                  <Phone className="w-4 h-4 text-slate-500" />
                 </div>
                 <input
-                  id="regPassword"
-                  type={showRegPassword ? 'text' : 'password'}
-                  value={regPassword}
-                  onChange={(e) => setRegPassword(e.target.value)}
-                  placeholder="비밀번호 입력 (4자리 이상)"
-                  required
-                  minLength={4}
-                  className="w-full h-11 pl-10 pr-10 text-[14px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl tracking-wider focus:outline-none focus:ring-1.5 focus:ring-blue-600 focus:border-blue-600 transition shadow-xs"
+                  id="regPhone"
+                  type="tel"
+                  value={regPhone}
+                  onChange={(e) => setRegPhone(e.target.value)}
+                  placeholder="010-0000-0000"
+                  className="w-full h-11 pl-10 pr-3 text-[13px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-600 focus:border-blue-600 transition shadow-xs"
                 />
-                <button
-                  type="button"
-                  aria-label={showRegPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
-                  onClick={() => setShowRegPassword(!showRegPassword)}
-                  className="absolute right-3 text-slate-400 hover:text-slate-600 focus:outline-none p-1 cursor-pointer"
-                >
-                  {showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
               </div>
             </div>
 
-            {/* Field 3: Password Confirmation */}
+            {/* 6. 이메일 (선택) */}
             <div className="relative">
               <label
-                htmlFor="regPasswordConfirm"
+                htmlFor="regEmail"
                 className="absolute -top-2 left-3.5 bg-white px-1.5 text-[11px] font-bold text-slate-500 z-10"
               >
-                비밀번호 확인 <span className="text-red-500">*</span>
+                이메일
               </label>
               <div className="relative flex items-center">
                 <div className="absolute left-3.5 text-slate-400 pointer-events-none flex items-center">
-                  <Lock className="w-4 h-4 text-slate-500" />
+                  <Mail className="w-4 h-4 text-slate-500" />
                 </div>
                 <input
-                  id="regPasswordConfirm"
-                  type={showRegPassword ? 'text' : 'password'}
-                  value={regPasswordConfirm}
-                  onChange={(e) => setRegPasswordConfirm(e.target.value)}
-                  placeholder="비밀번호 다시 입력"
-                  required
-                  minLength={4}
-                  className="w-full h-11 pl-10 pr-3 text-[14px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl tracking-wider focus:outline-none focus:ring-1.5 focus:ring-blue-600 focus:border-blue-600 transition shadow-xs"
+                  id="regEmail"
+                  type="email"
+                  value={regEmail}
+                  onChange={(e) => setRegEmail(e.target.value)}
+                  placeholder="비우면 아이디로 자동"
+                  className="w-full h-11 pl-10 pr-3 text-[13px] font-medium text-slate-800 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-600 focus:border-blue-600 transition shadow-xs"
                 />
               </div>
             </div>
