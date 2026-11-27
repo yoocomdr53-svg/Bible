@@ -31,6 +31,7 @@ import {
 import { BibleReaderView } from './BibleReaderView';
 import { StatsView } from './StatsView';
 import { RevelationReadingCard } from './RevelationReadingCard';
+import { BibleSearchView } from './BibleSearchView';
 import { ChallengeView } from './ChallengeView';
 import { SettingsView } from './SettingsView';
 import { BibleSelectorView } from './BibleSelectorView';
@@ -932,56 +933,17 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
       </nav>
       )}
 
-      {/* Global Search Modal */}
+      {/* 성경 검색 (개역한글 본문 전체 검색) */}
       {searchOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-start justify-center p-4 pt-16 animate-in fade-in"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setSearchOpen(false);
+        <BibleSearchView
+          currentBook={getCurrentReadingLocation().book}
+          onClose={() => setSearchOpen(false)}
+          onOpen={(book, ch, v) => {
+            setSearchOpen(false);
+            setOpenInRecordingMode(false);
+            navigateToPortion(book, ch, v);
           }}
-        >
-          <div className="w-full max-w-[400px] bg-white rounded-2xl shadow-2xl p-4 border border-slate-100">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-              <Search className="w-5 h-5 text-slate-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="성경 본문 구절, 단어 검색 (예: 사랑, 빛, 시편)"
-                autoFocus
-                className="flex-1 text-sm focus:outline-none text-slate-800"
-              />
-              <button
-                onClick={() => setSearchOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="py-3 max-h-[300px] overflow-y-auto space-y-2">
-              <p className="text-[11px] text-slate-400 font-semibold px-1">추천 말씀 검색어</p>
-              {POPULAR_VERSES.map((v, i) => (
-                <div
-                  key={i}
-                  onClick={() => {
-                    setSearchOpen(false);
-                    setActiveTab('bible');
-                  }}
-                  className="p-2.5 rounded-xl hover:bg-slate-50 border border-slate-100 cursor-pointer transition text-left"
-                >
-                  <div className="flex items-center justify-between text-xs font-bold text-blue-600 mb-0.5">
-                    <span>
-                      {v.book} {v.chapter}:{v.verse}
-                    </span>
-                    <span className="text-[10px] text-slate-400">{v.translation}</span>
-                  </div>
-                  <p className="text-xs text-slate-700 line-clamp-2">{v.text}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        />
       )}
 
       {/* SuperBible App Installation & APK Modal */}
