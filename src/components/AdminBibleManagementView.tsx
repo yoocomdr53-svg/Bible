@@ -79,7 +79,7 @@ import {
   getAdminDesignatedBlacklist,
   addAdminDesignatedBlacklist,
   removeAdminDesignatedBlacklist,
-  clearAllAdminBlacklist,
+  clearAllAdminBlacklist, getLoginIdForMember
 } from '../services/authService';
 
 interface AdminBibleManagementViewProps {
@@ -230,6 +230,15 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
     memo: '',
   });
   const [editingMember, setEditingMember] = useState<MemberReadingProfile | null>(null);
+  const [editLoginId, setEditLoginId] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  useEffect(() => {
+    if (editingMember) {
+      setEditLoginId(getLoginIdForMember(editingMember));
+      setEditPassword('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingMember?.id]);
 
   // Recordings state (localStorage 연동 지속 보관)
   const [recordings, setRecordings] = useState<MemberRecordingItem[]>(() => {
@@ -549,10 +558,18 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
       alert('회원 성명을 입력해주세요.');
       return;
     }
-    const res = await updateMemberProfile(editingMember);
+    if (editPassword.trim() && editPassword.trim().length < 4) {
+      alert('새 비밀번호는 4자리 이상 입력해주세요.');
+      return;
+    }
+    const lid = editLoginId.trim();
+    const fixedEmail =
+      (editingMember.email || '').trim() || (lid.includes('@') ? lid : lid ? `${lid}@superbible.kr` : '');
+    const toSave = { ...editingMember, email: fixedEmail };
+    const res = await updateMemberProfile(toSave, { loginId: lid, newPassword: editPassword });
     if (res.success) {
       setMembers((prev) =>
-        prev.map((m) => (m.id === editingMember.id ? editingMember : m))
+        prev.map((m) => (m.id === editingMember.id ? toSave : m))
       );
       showToast(res.message);
       setEditingMember(null);
@@ -3502,7 +3519,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                     type="text"
                     value={newMemberForm.phone}
                     onChange={(e) => setNewMemberForm({ ...newMemberForm, phone: e.target.value })}
-                    placeholder="010-1234-5678"
+                    placeholder="010-0000-0000"
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 font-mono"
                   />
                 </div>
@@ -3634,35 +3651,44 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 gap-2.5">
                 <div>
                   <label className="text-[11px] font-bold text-slate-600 block mb-1">성명 <span className="text-rose-500">*</span></label>
                   <input
                     type="text"
                     value={editingMember.name}
                     onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
+                    placeholder="예: 홍길동"
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
                   />
-                </div>
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600 block mb-1">직분</label>
-                  <select
-                    value={editingMember.role}
-                    onChange={(e) => setEditingMember({ ...editingMember, role: e.target.value })}
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
-                  >
-                    <option value="성도">성도</option>
-                    <option value="청년">청년</option>
-                    <option value="서리집사">서리집사</option>
-                    <option value="안수집사">안수집사</option>
-                    <option value="권사">권사</option>
-                    <option value="장로">장로</option>
-                    <option value="교역자">교역자</option>
-                  </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">아이디</label>
+                  <input
+                    type="text"
+                    value={editLoginId}
+                    readOnly
+                    title="아이디는 변경할 수 없습니다"
+                    className="w-full p-2 bg-slate-100 border border-slate-200 rounded-xl font-bold text-slate-500 font-mono cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 block mb-1">비밀번호</label>
+                  <input
+                    type="text"
+                    value={editPassword}
+                    onChange={(e) => setEditPassword(e.target.value)}
+                    placeholder="변경 시에만 입력"
+                    autoComplete="new-password"
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2.5">
                 <div>
                   <label className="text-[11px] font-bold text-slate-600 block mb-1">소속 부서</label>
                   <select
@@ -3677,16 +3703,6 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600 block mb-1">구역/목장</label>
-                  <input
-                    type="text"
-                    value={editingMember.smallGroup || ''}
-                    onChange={(e) => setEditingMember({ ...editingMember, smallGroup: e.target.value })}
-                    placeholder="예: 믿음 1구역"
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800"
-                  />
-                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
@@ -3696,6 +3712,7 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                     type="text"
                     value={editingMember.phone}
                     onChange={(e) => setEditingMember({ ...editingMember, phone: e.target.value })}
+                    placeholder="010-0000-0000"
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 font-mono"
                   />
                 </div>
@@ -3705,22 +3722,13 @@ export const AdminBibleManagementView: React.FC<AdminBibleManagementViewProps> =
                     type="email"
                     value={editingMember.email}
                     onChange={(e) => setEditingMember({ ...editingMember, email: e.target.value })}
+                    placeholder="비우면 아이디로 자동"
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 font-mono"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600 block mb-1">생년월일</label>
-                  <input
-                    type="text"
-                    value={editingMember.birthdate || ''}
-                    onChange={(e) => setEditingMember({ ...editingMember, birthdate: e.target.value })}
-                    placeholder="YYYY.MM.DD"
-                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 font-mono"
-                  />
-                </div>
+              <div className="grid grid-cols-1 gap-2.5">
                 <div>
                   <label className="text-[11px] font-bold text-slate-600 block mb-1">등록일자</label>
                   <input
