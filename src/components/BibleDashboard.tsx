@@ -14,6 +14,8 @@ import {
   Music,
   RefreshCw,
   X,
+  Sparkles,
+  ChevronLeft,
 } from 'lucide-react';
 import { ActiveTab, ActiveModal, User, BibleVerse, ReadingDayPlan, UserRecording } from '../types';
 import {
@@ -24,6 +26,7 @@ import {
   getBibleAbbreviation,
   getCurrentReadingLocation,
   saveCurrentReadingLocation,
+  getCompletedChapters,
 } from '../data/bibleData';
 import { BibleReaderView } from './BibleReaderView';
 import { StatsView } from './StatsView';
@@ -74,6 +77,15 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
   }, [initialTab]);
 
   const [showInstallModal, setShowInstallModal] = useState(false);
+  // 홈 안의 관리 메뉴 화면: 'main' = 홈, 'bibleManage' = 성경 낭독 관리, 'revManage' = 요한계시록 낭독
+  const [homeSub, setHomeSub] = useState<'main' | 'bibleManage' | 'revManage'>('main');
+  const completedChapterCount = (() => {
+    try {
+      return getCompletedChapters(user?.email).size;
+    } catch {
+      return 0;
+    }
+  })();
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -243,7 +255,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
         <header className="flex-shrink-0 bg-white border-b border-slate-100 z-30 px-3.5 sm:px-4 pt-2.5 pb-2 flex items-center justify-between">
           {/* Brand: SuperBible Ver with High Quality App Icon */}
           <button
-            onClick={() => setActiveTab('home')}
+            onClick={() => { setHomeSub('main'); setActiveTab('home'); }}
             className="flex items-center gap-2 cursor-pointer focus:outline-none text-left"
           >
             <img
@@ -309,7 +321,49 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
       )}
 
       {/* Main Tab Content */}
-      {activeTab === 'home' && (
+      {activeTab === 'home' && homeSub !== 'main' && (
+        <main className="flex-1 overflow-y-auto smooth-scroll no-scrollbar bg-[#f8fafc] pb-24">
+          <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-100 px-3 py-2.5 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setHomeSub('main')}
+              aria-label="홈으로"
+              className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 cursor-pointer"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <h2 className="text-[15px] font-black text-slate-900 tracking-tight">
+              {homeSub === 'bibleManage' ? '성경 낭독 관리' : '요한계시록 낭독 관리'}
+            </h2>
+          </div>
+          <div className="px-4 py-3 space-y-3.5">
+            {homeSub === 'bibleManage' ? (
+              <StatsView
+                user={user}
+                recordings={recordings}
+                onDeleteRecording={onDeleteRecording}
+                onNavigateToRecord={() => {
+                  setOpenInRecordingMode(true);
+                  setBibleSubView('reader');
+                  setActiveTab('bible');
+                }}
+                isEmbedded={true}
+                section="progress"
+              />
+            ) : (
+              <RevelationReadingCard
+                userEmail={user?.email}
+                onReadChapter={(ch) => {
+                  setOpenInRecordingMode(true);
+                  navigateToPortion('요한계시록', ch);
+                }}
+              />
+            )}
+          </div>
+        </main>
+      )}
+
+      {activeTab === 'home' && homeSub === 'main' && (
         <main className="flex-1 overflow-y-auto smooth-scroll no-scrollbar bg-[#f8fafc] pb-24">
           {/* Cards & Content Area */}
           <div className="px-4 py-3 space-y-3.5">
@@ -348,7 +402,54 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
               </div>
             </section>
 
-            {/* 통계자료 전체 화면 (중복 5개 메뉴 및 스트릭 카드 자리에 전면 이동) */}
+            {/* 성경 관리 메뉴 · 계시록 관리 메뉴 */}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setHomeSub('bibleManage')}
+                className="text-left rounded-2xl p-3.5 bg-gradient-to-br from-[#2b2f7a] via-[#2a2466] to-[#4b1f6f] border border-indigo-400/40 shadow-md text-white active:scale-[0.98] transition cursor-pointer flex flex-col justify-between min-h-[128px]"
+              >
+                <div className="flex items-start justify-between gap-1">
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <BookOpen className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-[10px] font-black bg-indigo-500/80 text-white px-2 py-0.5 rounded-full border border-indigo-300/50 whitespace-nowrap">
+                    {completedChapterCount.toLocaleString()}장 완독
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[14.5px] font-black tracking-tight">성경 낭독 관리</span>
+                    <ChevronRight className="w-4 h-4 text-white/70 flex-shrink-0" />
+                  </div>
+                  <p className="text-[11px] text-indigo-100/80 mt-0.5 truncate">신약·구약 통독 진행현황</p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setHomeSub('revManage')}
+                className="text-left rounded-2xl p-3.5 bg-gradient-to-br from-[#4a1d7a] via-[#3a1a63] to-[#24124a] border border-fuchsia-400/40 shadow-md text-white active:scale-[0.98] transition cursor-pointer flex flex-col justify-between min-h-[128px]"
+              >
+                <div className="flex items-start justify-between gap-1">
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="w-5 h-5 text-amber-300" />
+                  </div>
+                  <span className="text-[10px] font-black bg-fuchsia-600/90 text-white px-2 py-0.5 rounded-full border border-fuchsia-300/50 whitespace-nowrap">
+                    계시록 22장
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[14.5px] font-black tracking-tight">요한계시록 낭독</span>
+                    <ChevronRight className="w-4 h-4 text-white/70 flex-shrink-0" />
+                  </div>
+                  <p className="text-[11px] text-fuchsia-100/80 mt-0.5 truncate">서버 실시간 저장</p>
+                </div>
+              </button>
+            </div>
+
+            {/* 일일 통독 현황 · 나의 낭독 녹음 보관함 (신약·구약 진행현황은 성경 낭독 관리로 이동) */}
             <StatsView
               user={user}
               recordings={recordings}
@@ -359,15 +460,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                 setActiveTab('bible');
               }}
               isEmbedded={true}
-            />
-
-            {/* 계시록 낭독관리 (1–11장 / 12–22장, 매일·매주·매월 진행률) */}
-            <RevelationReadingCard
-              userEmail={user?.email}
-              onReadChapter={(ch) => {
-                setOpenInRecordingMode(true);
-                navigateToPortion('요한계시록', ch);
-              }}
+              section="activity"
             />
 
             {/* Daily Verse Section (오늘의 말씀 - 날짜별 365일 자동 갱신 및 순환 교체) */}
@@ -883,7 +976,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
         {/* Tab 1: 홈 */}
         <button
           type="button"
-          onClick={() => setActiveTab('home')}
+          onClick={() => { setHomeSub('main'); setActiveTab('home'); }}
           className={`flex flex-col items-center justify-center py-1 px-3 transition-colors cursor-pointer ${
             activeTab === 'home' ? 'text-[#0083e3]' : 'text-slate-500 hover:text-slate-800'
           }`}
