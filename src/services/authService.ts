@@ -374,10 +374,30 @@ export async function resetAllMembersCompletely(): Promise<{ success: boolean; m
 /**
  * 회원 정보 수정 → 구글 시트 반영 (회원번호로 찾고, 이메일을 바꾼 경우 원래 이메일을 함께 보냄)
  */
+export function getLoginIdForMember(member: Partial<MemberReadingProfile>): string {
+  const email = (member.email || '').toLowerCase().trim();
+  try {
+    const accounts: RegisteredAccount[] = JSON.parse(localStorage.getItem(REGISTRY_KEY) || '[]');
+    const acc = accounts.find(
+      (a) => (a.user?.email || '').toLowerCase() === email || (a.loginId || '').toLowerCase() === email
+    );
+    if (acc?.loginId) return acc.loginId;
+  } catch {}
+  const m = String(member.memo || '').match(/아이디:\s*([^\s)]+)/);
+  if (m) return m[1];
+  if (email.endsWith('@superbible.kr')) return email.split('@')[0];
+  return email;
+}
+
 export async function updateMemberProfile(
-  updatedMember: MemberReadingProfile
+  updatedMember: MemberReadingProfile,
+  login?: { loginId?: string; newPassword?: string }
 ): Promise<{ success: boolean; message: string }> {
   try {
+    const newPassword = (login?.newPassword || '').trim();
+    if (newPassword && newPassword.length < 4) {
+      return { success: false, message: '새 비밀번호는 4자리 이상 입력해주세요.' };
+    }
     const raw = localStorage.getItem(ADMIN_MEMBERS_KEY);
     const members: MemberReadingProfile[] = raw ? JSON.parse(raw) : [];
     const idx = members.findIndex((m) => m.id === updatedMember.id);
@@ -407,8 +427,8 @@ export async function updateMemberProfile(
     localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(members));
 
     const rawAccs = localStorage.getItem(REGISTRY_KEY);
-    if (rawAccs && originalEmail) {
-      const accounts: RegisteredAccount[] = JSON.parse(rawAccs);
+    if (originalEmail) {
+      const accounts: RegisteredAccount[] = rawAccs ? JSON.parse(rawAccs) : [];
       const acc = accounts.find(
         (a) => (a.user?.email || '').toLowerCase() === originalEmail || (a.loginId || '').toLowerCase() === originalEmail
       );
@@ -418,6 +438,30 @@ export async function updateMemberProfile(
         acc.user.phone = updatedMember.phone;
         acc.user.email = newEmail || acc.user.email;
         acc.user.role = updatedMember.accountRole === 'admin' ? 'admin' : 'saint';
+        if (newPassword) acc.passwordHash = newPassword; // 관리자가 새 비밀번호를 정한 경우 (이 기기)
+        localStorage.setItem(REGISTRY_KEY, JSON.stringify(accounts));
+      } else if (newPassword) {
+        const loginId = (login?.loginId || '').trim() || getLoginIdForMember(updatedMember);
+        accounts.push({
+          loginId,
+          passwordHash: newPassword,
+          user: {
+            id: `user-${String(updatedMember.id).toLowerCase()}`,
+            name: updatedMember.name,
+            email: newEmail,
+            phone: updatedMember.phone,
+            avatarText: updatedMember.name.slice(0, 2).toUpperCase(),
+            role: updatedMember.accountRole === 'admin' ? 'admin' : 'saint',
+            provider: 'standard',
+            schoolName: '로고스 수퍼바이블 공동체',
+            department: updatedMember.department,
+            consecutiveDays: 1,
+            ntProgress: 0,
+            todayVersesRead: 0,
+            recordingsCount: 0,
+          } as User,
+          createdAt: new Date().toISOString(),
+        });
         localStorage.setItem(REGISTRY_KEY, JSON.stringify(accounts));
       }
     }
@@ -1176,7 +1220,8 @@ export function registerUser(
   passwordInput: string,
   nameInput?: string,
   phoneInput?: string,
-  departmentInput?: string
+  departmentInput?: string,
+  emailInput?: string
 ): { success: boolean; user?: User; message?: string } {
   const loginId = loginIdInput.trim();
   const password = passwordInput.trim();
@@ -1204,7 +1249,12 @@ export function registerUser(
     loginId.toLowerCase() === 'yoocomdr57@gmail.com' ||
     loginId.toLowerCase() === 'yoocomdr57' ||
     loginId.toLowerCase() === 'admin';
-  const userEmail = (loginId.includes('@') ? loginId : `${loginId}@superbible.kr`).toLowerCase();
+  const typedEmail = (emailInput || '').trim().toLowerCase();
+  if (typedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typedEmail)) {
+    return { success: false, message: '이메일 형식이 올바르지 않습니다.' };
+  }
+  // 이메일을 비우면: 아이디가 이메일이면 그대로, 아니면 아이디@superbible.kr (관리자 등록 화면과 같은 규칙)
+  const userEmail = typedEmail || (loginId.includes('@') ? loginId : `${loginId}@superbible.kr`).toLowerCase();
 
   const accounts = getRegisteredAccounts();
   const existingIdx = accounts.findIndex(
