@@ -524,63 +524,6 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
               </div>
             </section>
 
-            {/* 1. 스마트폰 앱설치 메뉴 (맨 아래쪽으로 이동) */}
-            <section
-              onClick={() => (onOpenInstall ? onOpenInstall() : setShowInstallModal(true))}
-              className="bg-gradient-to-r from-blue-600 via-[#0083e3] to-sky-500 rounded-2xl p-3.5 text-white shadow-soft flex items-center justify-between gap-3 cursor-pointer hover:shadow-md transition active:scale-[0.99] border border-blue-400/30"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-xl flex-shrink-0 shadow-inner">
-                  📲
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-black bg-amber-300 text-slate-950 px-1.5 py-0.5 rounded-md shadow-2xs">
-                      스마트폰·태블릿
-                    </span>
-                    <span className="text-xs font-bold text-blue-100">SuperBible 전용 앱 설치</span>
-                  </div>
-                  <p className="text-[12px] font-bold text-white truncate mt-0.5">
-                    홈 화면에 바로가기 추가 및 APK 파일 설치하기
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex-shrink-0 bg-white hover:bg-slate-50 text-[#0083e3] text-xs font-black px-3 py-1.5 rounded-xl shadow-xs flex items-center gap-1">
-                <span>앱설치</span>
-                <span>→</span>
-              </div>
-            </section>
-
-            {/* 2. 관리자 성경관리 메뉴 (맨 아래쪽으로 이동 - 관리자 접속 시에만 노출) */}
-            {user.role === 'admin' && (
-              <section
-                onClick={() => {
-                  pushHistory({ tab: activeTab });
-                  setActiveTab('admin');
-                }}
-                className="bg-gradient-to-r from-[#0f172a] via-[#1e293b] to-[#0f172a] rounded-2xl p-3.5 text-white shadow-md border border-slate-700/70 cursor-pointer active:scale-98 transition flex items-center justify-between group"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-base shadow-xs flex-shrink-0 group-hover:scale-105 transition-transform">
-                    👑
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs sm:text-sm font-black text-white truncate">관리자 성경관리</span>
-                      <span className="text-[10px] bg-blue-600 text-blue-100 font-bold px-1.5 py-0.2 rounded-full flex-shrink-0">
-                        관리자 전용
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-300 mt-0.5 truncate">
-                      회원 낭독 현황 · 음원 검수 · 12목표 체계적 관리
-                    </p>
-                  </div>
-                </div>
-                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-white group-hover:translate-x-0.5 transition flex-shrink-0 ml-2" />
-              </section>
-            )}
-
             {/* 3. 로고스 관리자 프로필 카드 (맨 아래쪽으로 이동) */}
             <section className="bg-gradient-to-r from-blue-50 via-white to-indigo-50/60 p-3.5 rounded-2xl border border-blue-100 shadow-soft">
               <div className="flex items-center justify-between">
@@ -759,36 +702,21 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
         />
       )}
 
+      {/* 시스템 및 계정 설정: 모든 성도 이용, [관리자 성경관리]는 관리자에게만 표시 */}
       {activeTab === 'settings' && (
-        user.role === 'admin' ? (
-          <SettingsView
-            user={user}
-            onLogout={onLogout}
-            onToggleRole={onToggleRole}
-            onBackToHome={() => setActiveTab('home')}
-            onOpenAdmin={() => {
-              pushHistory({ tab: 'settings' });
-              setActiveTab('admin');
-            }}
-          />
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-[#f8fafc]">
-            <div className="w-16 h-16 rounded-3xl bg-amber-50 border border-amber-200 flex items-center justify-center text-3xl mb-3 shadow-inner">
-              🔒
-            </div>
-            <h3 className="text-base font-black text-slate-900 mb-1">관리자 전용 설정입니다</h3>
-            <p className="text-xs text-slate-500 mb-4 max-w-xs leading-relaxed">
-              시스템 및 계정 설정 화면은 관리자(Admin) 권한을 가진 계정으로만 접근하실 수 있습니다.
-            </p>
-            <button
-              type="button"
-              onClick={() => setActiveTab('home')}
-              className="px-4 py-2 bg-[#0083e3] hover:bg-blue-600 active:scale-95 text-white text-xs font-bold rounded-xl shadow cursor-pointer transition"
-            >
-              홈 화면으로 돌아가기
-            </button>
-          </div>
-        )
+        <SettingsView
+          user={user}
+          onLogout={onLogout}
+          onBackToHome={() => setActiveTab('home')}
+          onOpenAdmin={
+            user.role === 'admin'
+              ? () => {
+                  pushHistory({ tab: 'settings' });
+                  setActiveTab('admin');
+                }
+              : undefined
+          }
+        />
       )}
 
       {/* Admin Bible & Recitation Management View (관리자 전용 접근 보호) */}
@@ -830,17 +758,6 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
               >
                 홈으로 돌아가기
               </button>
-              {onToggleRole && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onToggleRole();
-                  }}
-                  className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl shadow-xs transition cursor-pointer"
-                >
-                  👑 관리자 권한으로 전환
-                </button>
-              )}
             </div>
           </div>
         )
