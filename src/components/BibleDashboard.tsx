@@ -450,7 +450,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
               </button>
             </div>
 
-            {/* 일일 통독 현황 · 나의 낭독 녹음 보관함 (신약·구약 진행현황은 성경 낭독 관리로 이동) */}
+            {/* 일일 통독 현황 (신약·구약 진행현황은 성경 낭독 관리로, 녹음 보관함은 맨 아래로 이동) */}
             <StatsView
               user={user}
               recordings={recordings}
@@ -461,7 +461,7 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                 setActiveTab('bible');
               }}
               isEmbedded={true}
-              section="activity"
+              section="daily"
             />
 
             {/* Daily Verse Section (오늘의 말씀 - 날짜별 365일 자동 갱신 및 순환 교체) */}
@@ -701,6 +701,15 @@ export const BibleDashboard: React.FC<BibleDashboardProps> = ({
                 </div>
               </div>
             </section>
+
+            {/* 나의 낭독 녹음 보관함 (홈 맨 아래) */}
+            <StatsView
+              user={user}
+              recordings={recordings}
+              onDeleteRecording={onDeleteRecording}
+              isEmbedded={true}
+              section="recordings"
+            />
           </div>
         </main>
       )}

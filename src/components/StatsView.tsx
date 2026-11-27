@@ -36,8 +36,8 @@ interface StatsViewProps {
   onDeleteRecording: (id: string) => void;
   onNavigateToRecord?: () => void;
   isEmbedded?: boolean;
-  /** 'progress' = 신약·구약 통독 진행현황만, 'activity' = 일일 통독·녹음 보관함만, 'all' = 전체 */
-  section?: 'all' | 'progress' | 'activity';
+  /** 'progress' = 신약·구약 통독 진행현황, 'daily' = 일일 통독 현황, 'recordings' = 녹음 보관함, 'activity' = daily+recordings, 'all' = 전체 */
+  section?: 'all' | 'progress' | 'activity' | 'daily' | 'recordings';
 }
 
 // Helper to extract chapter keys from a recording's title / verseRef
@@ -610,7 +610,7 @@ export const StatsView: React.FC<StatsViewProps> = ({
           : 'flex-1 overflow-y-auto smooth-scroll no-scrollbar bg-[#f8fafc] pb-24 text-slate-800 p-3.5 sm:p-4 space-y-4'
       }
     >
-      {section !== 'activity' && (<>
+      {(section === 'all' || section === 'progress') && (<>
       {/* 1. Top Cards: 신약 & 구약 통독 진행률 (현재 사용자의 실제 낭독/완독 기준) */}
       <div className="grid grid-cols-2 gap-3">
         {/* 신약 성경 통독 카드 */}
@@ -1151,7 +1151,7 @@ export const StatsView: React.FC<StatsViewProps> = ({
 
       </>)}
 
-      {section !== 'progress' && (<>
+      {(section === 'all' || section === 'activity' || section === 'daily') && (<>
       {/* 3. 일일 통독 현황 (사용자 실제 접속 및 낭독한 날짜 표시) */}
       <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-100 shadow-soft space-y-3">
         <div className="flex items-center justify-between">
@@ -1203,6 +1203,9 @@ export const StatsView: React.FC<StatsViewProps> = ({
         )}
       </div>
 
+      </>)}
+
+      {(section === 'all' || section === 'activity' || section === 'recordings') && (<>
       {/* 4. 나의 낭독 녹음 보관함 (사용자가 낭독한 실제 음원 파일 목록 - 선택 삭제 기능 지원) */}
       <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-100 shadow-soft space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -1278,15 +1281,6 @@ export const StatsView: React.FC<StatsViewProps> = ({
         {allRecordings.length === 0 ? (
           <div className="py-8 text-center text-xs text-slate-400 space-y-2">
             <p>아직 녹음된 파일이 없습니다.</p>
-            {onNavigateToRecord && (
-              <button
-                type="button"
-                onClick={onNavigateToRecord}
-                className="px-3.5 py-1.5 bg-[#0083e3] text-white font-bold rounded-xl text-xs hover:bg-blue-600 transition cursor-pointer"
-              >
-                🎙️ 말씀 낭독 녹음하러 가기
-              </button>
-            )}
           </div>
         ) : (
           <div className="space-y-2.5">
