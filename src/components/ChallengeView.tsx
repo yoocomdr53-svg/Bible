@@ -2124,7 +2124,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
               <ChevronLeft className="w-6 h-6 text-white stroke-[2.5]" />
             </button>
             <div className="flex items-center gap-1.5 cursor-pointer">
-              <h1 className="text-base sm:text-lg font-bold tracking-tight text-white">일독 진행표</h1>
+              <h1 className="text-base sm:text-lg font-bold tracking-tight text-white">일독 진행표 · 상세 진도</h1>
               <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px]">
                 ▽
               </span>
@@ -2133,52 +2133,73 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({
           <div className="w-6" />
         </header>
 
-        <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 space-y-4 pb-28 bg-white">
-          {BIBLE_BOOKS.map((book) => {
-            const chapters = Array.from({ length: book.chaptersCount }, (_, i) => i + 1);
-
-            return (
-              <div
-                key={book.id}
-                className="flex items-start border-b border-slate-100 pb-3.5 pt-1"
-              >
-                <div className="w-20 sm:w-24 flex-shrink-0 pr-2 pt-0.5">
-                  <h3 className="text-[15px] sm:text-base font-black text-[#1b64b9] leading-tight">
-                    {book.name}
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => onNavigateToBible(book.name, 1, 1)}
-                    className="mt-1.5 px-2 py-0.5 rounded-md bg-slate-500 hover:bg-slate-600 text-white text-[10px] font-bold tracking-tight flex items-center gap-0.5 transition cursor-pointer active:scale-95 shadow-2xs"
-                  >
-                    <span>본문보기</span>
-                    <span>&gt;</span>
-                  </button>
+        {/* 상세 진도표: 책별 카드 + 진행 막대 (구약 → 신약) */}
+        <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 pb-32 bg-[#f8fafc]">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-soft p-4 sm:p-5 space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-end gap-0.5 h-5 flex-shrink-0">
+                  <div className="w-1 h-3 bg-indigo-500 rounded-xs" />
+                  <div className="w-1 h-5 bg-indigo-500 rounded-xs" />
+                  <div className="w-1 h-2 bg-indigo-500 rounded-xs" />
                 </div>
+                <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight whitespace-nowrap">상세 진도표</h2>
+                <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-black whitespace-nowrap">
+                  현재 {completedReadingsCount + 1}독
+                </span>
+              </div>
+            </div>
 
-                <div className="flex-1 grid grid-cols-10 gap-1 sm:gap-1.5 justify-items-center">
-                  {chapters.map((ch) => {
-                    const isRead = completedChapters.has(`${book.name}-${ch}`) || isChapterFullyRead(book.name, ch, completedVerses);
+            {[
+              { label: '구약 성경', books: BIBLE_BOOKS.slice(0, 39) },
+              { label: '신약 성경', books: BIBLE_BOOKS.slice(39) },
+            ].map((group) => (
+              <div key={group.label} className="space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm sm:text-base font-black text-slate-600 whitespace-nowrap">
+                    {group.label} ({group.books.length}권)
+                  </h3>
+                  <span className="text-[11px] sm:text-xs text-slate-400 font-medium truncate">책 클릭 시 해당 성경으로 바로 이동</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+                  {group.books.map((book) => {
+                    let readCount = 0;
+                    let firstUnread = 0;
+                    for (let ch = 1; ch <= book.chaptersCount; ch++) {
+                      const done =
+                        completedChapters.has(`${book.name}-${ch}`) || isChapterFullyRead(book.name, ch, completedVerses);
+                      if (done) readCount++;
+                      else if (!firstUnread) firstUnread = ch;
+                    }
+                    const pct = Math.round((readCount / book.chaptersCount) * 100);
+                    const complete = readCount >= book.chaptersCount;
                     return (
                       <button
-                        key={ch}
+                        key={book.id}
                         type="button"
-                        onClick={() => toggleChapter(book.name, ch)}
-                        className={`w-6 h-6 sm:w-7 sm:h-7 rounded-md flex items-center justify-center text-xs font-bold transition-all cursor-pointer active:scale-90 ${
-                          isRead
-                            ? 'bg-[#f59e0b] text-slate-950 font-black shadow-xs'
-                            : 'text-slate-800 hover:bg-slate-100'
-                        }`}
-                        title={`${book.name} ${ch}장`}
+                        onClick={() => onNavigateToBible(book.name, firstUnread || 1, 1)}
+                        className="text-left bg-white rounded-2xl border border-slate-200 px-3.5 py-3 hover:border-indigo-300 active:scale-[0.98] transition cursor-pointer"
+                        title={`${book.name} ${firstUnread || 1}장으로 이동`}
                       >
-                        {ch}
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-[15px] sm:text-base font-black text-slate-900 truncate">{book.name}</span>
+                          <span className="text-xs sm:text-sm font-bold text-slate-500 whitespace-nowrap">
+                            {readCount}/{book.chaptersCount}장
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mt-2.5">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${complete ? 'bg-emerald-500' : 'bg-indigo-600'}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
                       </button>
                     );
                   })}
                 </div>
               </div>
-            );
-          })}
+            ))}
+          </div>
         </div>
 
         <div className="absolute left-3 right-3 bottom-3 z-30">
