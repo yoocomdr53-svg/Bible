@@ -10,7 +10,11 @@
   "background_color": "#ffffff",
   "theme_color": "#0083e3",
   "lang": "ko",
-  "categories": ["books", "lifestyle", "education"],
+  "categories": [
+    "books",
+    "lifestyle",
+    "education"
+  ],
   "icons": [
     {
       "src": "/icon-192.png",
@@ -25,15 +29,10 @@
       "purpose": "any"
     },
     {
-      "src": "/app-icon-512.png",
+      "src": "/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
-    },
-    {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml"
     }
   ]
 }

@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 2.8.5';
+export const APP_VERSION = 'Ver 2.8.6';
 export const APP_BUILD_DATE = '2026.11.26';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,16 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 2.8.6',
+    name: 'SuperBible',
+    releaseDate: '2026.11.28',
+    changes: [
+      '앱 아이콘 통일: 웹 설치(홈 화면 추가)와 APK 아이콘을 같은 금색 십자가·성경 아이콘으로 맞춤 (원형·둥근 사각 모양에서도 동일)',
+      '웹 설치 설정에서 다른 디자인의 파란 SVG 아이콘 제외',
+      'APK 첫 화면(스플래시)을 기본 Capacitor 그림 대신 SuperBible 아이콘으로 변경',
+    ],
+  },
   {
     version: 'Ver 2.8.5',
     name: 'SuperBible',
