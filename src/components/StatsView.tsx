@@ -158,17 +158,32 @@ export const StatsView: React.FC<StatsViewProps> = ({
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // Attendance tracking stored in localStorage per user
-  const attendanceStorageKey = getUserScopeKey('superbible_attendance_days_v5', user?.email);
+  // 출석(통독)한 날짜는 '연-월'별로 따로 저장 (지난달 날짜가 이번 달에 섞이지 않도록)
+  const _ymNow = new Date();
+  const attendanceMonthTag = `${_ymNow.getFullYear()}-${String(_ymNow.getMonth() + 1).padStart(2, '0')}`;
+  const legacyAttendanceKey = getUserScopeKey('superbible_attendance_days_v5', user?.email);
+  const attendanceStorageKey = `${getUserScopeKey('superbible_attendance_days_v6', user?.email)}_${attendanceMonthTag}`;
   const [attendedDays, setAttendedDays] = useState<number[]>(() => {
+    const today = new Date().getDate();
     try {
       const saved = localStorage.getItem(attendanceStorageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
+      // 예전 저장값(월 구분 없음)은 오늘 이전 날짜만 이번 달로 옮겨 옴
+      const legacy = localStorage.getItem(legacyAttendanceKey);
+      if (legacy) {
+        const parsed = JSON.parse(legacy);
+        if (Array.isArray(parsed)) {
+          const moved = parsed
+            .filter((d: unknown) => typeof d === 'number' && d >= 1 && d <= today)
+            .sort((a: number, b: number) => a - b);
+          if (moved.length > 0) return moved;
+        }
+      }
     } catch (e) {}
-    const currentDay = new Date().getDate();
-    return [currentDay];
+    return [today];
   });
 
   // Automatically record today's access/recitation to attendance
@@ -1180,20 +1195,37 @@ export const StatsView: React.FC<StatsViewProps> = ({
             </span>
           ))}
 
-          {/* Days pills with green dot under attended days */}
-          {attendedDays.map((day) => (
-            <div
-              key={day}
-              onClick={() => {
-                setToastMsg(`${currentMonthNum}월 ${day}일: 말씀 통독 & 묵상 출석 완료 ✨`);
-                setTimeout(() => setToastMsg(null), 2500);
-              }}
-              className="p-2 rounded-2xl bg-blue-50/90 border border-blue-200/80 text-[#0083e3] font-black flex flex-col items-center justify-center relative cursor-pointer active:scale-95 hover:bg-blue-100/60 transition shadow-2xs"
-            >
-              <span className="text-[12px]">{day}</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1 shadow-xs" />
-            </div>
+          {/* 이번 달 달력: 1일의 요일에 맞춰 빈칸을 두고, 통독한 날은 파란 칸 + 초록 점 */}
+          {Array.from({ length: new Date(now.getFullYear(), now.getMonth(), 1).getDay() }).map((_, i) => (
+            <div key={`blank-${i}`} />
           ))}
+          {Array.from({ length: daysInCurrentMonth }, (_, i) => i + 1).map((day) => {
+            const attended = attendedDays.includes(day);
+            const isToday = day === now.getDate();
+            const isFuture = day > now.getDate();
+            return (
+              <div
+                key={day}
+                onClick={() => {
+                  if (!attended) return;
+                  setToastMsg(`${currentMonthNum}월 ${day}일: 말씀 통독 & 묵상 출석 완료 ✨`);
+                  setTimeout(() => setToastMsg(null), 2500);
+                }}
+                className={`py-1.5 rounded-2xl flex flex-col items-center justify-center relative transition ${
+                  attended
+                    ? 'bg-blue-50/90 border border-blue-200/80 text-[#0083e3] font-black cursor-pointer active:scale-95 hover:bg-blue-100/60 shadow-2xs'
+                    : isToday
+                    ? 'border border-blue-300 text-slate-700 font-bold'
+                    : isFuture
+                    ? 'text-slate-300 font-medium'
+                    : 'text-slate-500 font-medium'
+                }`}
+              >
+                <span className="text-[12px]">{day}</span>
+                <span className={`w-1.5 h-1.5 rounded-full mt-1 ${attended ? 'bg-emerald-500 shadow-xs' : 'bg-transparent'}`} />
+              </div>
+            );
+          })}
         </div>
 
         {toastMsg && (
