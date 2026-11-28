@@ -118,7 +118,7 @@ export const StatsView: React.FC<StatsViewProps> = ({
   const [monthlySubTab, setMonthlySubTab] = useState<'monthly' | 'weekly'>('monthly');
 
   // Testament progress toggle in Progress tab: 'NT' (신약) | 'OT' (구약)
-  const [progressTestament, setProgressTestament] = useState<'NT' | 'OT'>('NT');
+  const [progressTestament, setProgressTestament] = useState<'NT' | 'OT'>('OT');
 
   // Active Tooltip index in Monthly Chart (default: current month)
   const [selectedMonthIndex, setSelectedMonthIndex] = useState<number>(4);
@@ -626,35 +626,8 @@ export const StatsView: React.FC<StatsViewProps> = ({
       }
     >
       {(section === 'all' || section === 'progress') && (<>
-      {/* 1. Top Cards: 신약 & 구약 통독 진행률 (현재 사용자의 실제 낭독/완독 기준) */}
+      {/* 1. Top Cards: 구약 & 신약 통독 진행률 (현재 사용자의 실제 낭독/완독 기준) */}
       <div className="grid grid-cols-2 gap-3">
-        {/* 신약 성경 통독 카드 */}
-        <div
-          onClick={() => {
-            setActiveTab('progress');
-            setProgressTestament('NT');
-          }}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-soft ${
-            progressTestament === 'NT' && activeTab === 'progress'
-              ? 'bg-blue-50/50 border-[#0083e3] ring-1 ring-[#0083e3]/30'
-              : 'bg-white border-slate-100 hover:border-blue-200'
-          }`}
-        >
-          <div className="flex items-center justify-between text-xs text-slate-600 mb-1">
-            <span className="font-bold text-slate-800">신약 성경 통독</span>
-            <span className="font-black text-[#0083e3]">{actualNtPercent}%</span>
-          </div>
-          <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden my-2">
-            <div
-              className="bg-[#0083e3] h-full rounded-full transition-all duration-500"
-              style={{ width: `${actualNtPercent}%` }}
-            />
-          </div>
-          <p className="text-[11px] text-slate-500 font-medium">
-            <strong>{actualNtDone}</strong> / 260장 완료
-          </p>
-        </div>
-
         {/* 구약 성경 통독 카드 */}
         <div
           onClick={() => {
@@ -679,6 +652,32 @@ export const StatsView: React.FC<StatsViewProps> = ({
           </div>
           <p className="text-[11px] text-slate-500 font-medium">
             <strong>{actualOtDone}</strong> / 929장 완료
+          </p>
+        </div>
+        {/* 신약 성경 통독 카드 */}
+        <div
+          onClick={() => {
+            setActiveTab('progress');
+            setProgressTestament('NT');
+          }}
+          className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-soft ${
+            progressTestament === 'NT' && activeTab === 'progress'
+              ? 'bg-blue-50/50 border-[#0083e3] ring-1 ring-[#0083e3]/30'
+              : 'bg-white border-slate-100 hover:border-blue-200'
+          }`}
+        >
+          <div className="flex items-center justify-between text-xs text-slate-600 mb-1">
+            <span className="font-bold text-slate-800">신약 성경 통독</span>
+            <span className="font-black text-[#0083e3]">{actualNtPercent}%</span>
+          </div>
+          <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden my-2">
+            <div
+              className="bg-[#0083e3] h-full rounded-full transition-all duration-500"
+              style={{ width: `${actualNtPercent}%` }}
+            />
+          </div>
+          <p className="text-[11px] text-slate-500 font-medium">
+            <strong>{actualNtDone}</strong> / 260장 완료
           </p>
         </div>
       </div>
@@ -731,17 +730,6 @@ export const StatsView: React.FC<StatsViewProps> = ({
               <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-xl text-[11px] font-bold flex-shrink-0">
                 <button
                   type="button"
-                  onClick={() => setProgressTestament('NT')}
-                  className={`px-2 py-1 rounded-lg transition cursor-pointer ${
-                    progressTestament === 'NT'
-                      ? 'bg-blue-600 text-white shadow-2xs font-black'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  신약
-                </button>
-                <button
-                  type="button"
                   onClick={() => setProgressTestament('OT')}
                   className={`px-2 py-1 rounded-lg transition cursor-pointer ${
                     progressTestament === 'OT'
@@ -750,6 +738,17 @@ export const StatsView: React.FC<StatsViewProps> = ({
                   }`}
                 >
                   구약
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProgressTestament('NT')}
+                  className={`px-2 py-1 rounded-lg transition cursor-pointer ${
+                    progressTestament === 'NT'
+                      ? 'bg-blue-600 text-white shadow-2xs font-black'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  신약
                 </button>
               </div>
             )}
