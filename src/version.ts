@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 2.8.4';
+export const APP_VERSION = 'Ver 2.8.5';
 export const APP_BUILD_DATE = '2026.11.26';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,15 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 2.8.5',
+    name: 'SuperBible',
+    releaseDate: '2026.11.28',
+    changes: [
+      '일독 진행표: 장 번호 나열 대신 상세 진도표 형식으로 변경 (책별 카드 · 읽은 장/전체 장 · 진행 막대, 구약 39권 → 신약 27권)',
+      '책 카드를 누르면 아직 안 읽은 첫 장으로 바로 이동',
+    ],
+  },
   {
     version: 'Ver 2.8.4',
     name: 'SuperBible',
