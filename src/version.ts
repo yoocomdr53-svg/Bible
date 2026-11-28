@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 2.8.2';
+export const APP_VERSION = 'Ver 2.8.3';
 export const APP_BUILD_DATE = '2026.11.26';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,15 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 2.8.3',
+    name: 'SuperBible',
+    releaseDate: '2026.11.28',
+    changes: [
+      '일일 통독 현황: 이번 달 전체 달력으로 표시, 날짜를 실제 요일 칸에 맞춤 (예: 11월 28일 = 토요일)',
+      '통독한 날짜를 월별로 저장해 지난달 날짜가 이번 달에 섞이지 않도록 수정',
+    ],
+  },
   {
     version: 'Ver 2.8.2',
     name: 'SuperBible',
