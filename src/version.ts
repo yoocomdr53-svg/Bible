@@ -2,7 +2,7 @@
 // Single source of truth for SuperBible app name and incremental versioning
 
 export const APP_NAME = 'SuperBible';
-export const APP_VERSION = 'Ver 2.8.3';
+export const APP_VERSION = 'Ver 2.8.4';
 export const APP_BUILD_DATE = '2026.11.26';
 export const APP_FULL_TITLE = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SUBTITLE = '스마트 성경 통독 & 말씀 낭독 녹음 시스템';
@@ -15,6 +15,14 @@ export interface AppReleaseInfo {
 }
 
 export const APP_RELEASE_HISTORY: AppReleaseInfo[] = [
+  {
+    version: 'Ver 2.8.4',
+    name: 'SuperBible',
+    releaseDate: '2026.11.28',
+    changes: [
+      '성경 낭독 관리: 구약 성경 통독 카드를 신약보다 먼저 표시, 진행 현황 전환 버튼도 구약 → 신약 순서(처음엔 구약 선택)',
+    ],
+  },
   {
     version: 'Ver 2.8.3',
     name: 'SuperBible',
